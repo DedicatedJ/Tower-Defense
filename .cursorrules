@@ -1,0 +1,31 @@
+# Lua Coding Standards
+- Use camelCase for variable and function names.
+- Use PascalCase for class-like tables (e.g., Enemy, Turret).
+- Avoid global variables; use local variables or modules.
+- Follow LÖVE's coding style guidelines (e.g., `love.update`, `love.draw`).
+
+# Game-Specific Guidelines
+- **Pathfinding**: Use Jumper for grid-based pathfinding to ensure enemies navigate the map logically.
+- **Collision Detection**: Use Bump.lua for efficient AABB collision handling between entities like projectiles and enemies.
+- **Map Handling**: Use STI (Simple Tiled Implementation) to load and render maps created in Tiled, with custom layers for interactive elements.
+- **State Management**: Utilize HUMP's gamestate library to manage game states (e.g., menu, gameplay, pause) and timer library for wave scheduling.
+- **UI Development**: Use LoveFrames or SUITE for creating user interfaces like health bars, turret placement menus, and wave indicators.
+
+# AI Behavior
+- Suggest Jumper's A* algorithm for enemy pathfinding across grids.
+- Recommend using Bump.lua's collision detection for projectile-enemy interactions.
+- Load maps dynamically using STI and provide examples of integrating Tiled layers with game logic.
+- Use HUMP's timer library for scheduling enemy waves and gamestate transitions.
+- Provide examples of creating UI elements such as buttons, sliders, and panels using LoveFrames.
+
+# Optimization Guidelines
+- Implement object pooling for frequently created entities like projectiles or enemies to reduce memory allocation overhead.
+- Use quadtree or spatial partitioning techniques to optimize collision checks for large numbers of enemies and towers.
+- Profile game performance regularly to identify bottlenecks in rendering or logic execution.
+
+# Deprecated Patterns
+- Do not use blocking functions like `os.execute()` or infinite loops without proper exit conditions.
+- Avoid hardcoding values; use configuration tables instead.
+
+# File Patterns
+- Apply these rules to *.lua files in the project directory.

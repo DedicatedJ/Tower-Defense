@@ -14,359 +14,390 @@ TowerInstance.__index = TowerInstance
 
 -- Initialize the tower data
 function Tower.init()
-    Tower.types = {
-        -- Human faction towers
-        archer = {
-            id = "archer",
+    if Tower.initialized then return end
+    
+    -- Initialize tower data by faction
+    Tower.HUMAN = {
+        archer_tower = {
+            id = "archer_tower",
             name = "Archer Tower",
-            description = "Basic ranged tower with decent damage and range",
+            description = "Basic tower with arrows",
             faction = "human",
             cost = 100,
             damage = 15,
             range = 150,
-            attackSpeed = 1.5,
-            projectileSpeed = 300,
+            attackSpeed = 1.0,
             projectileType = "arrow",
-            upgrades = {
-                {
-                    name = "Improved Arrows",
-                    description = "Increase damage by 20%",
-                    cost = 75,
-                    damageMod = 1.2
-                },
-                {
-                    name = "Eagle Eye",
-                    description = "Increase range by 15%",
-                    cost = 90,
-                    rangeMod = 1.15
-                },
-                {
-                    name = "Rapid Fire",
-                    description = "Increase attack speed by 25%",
-                    cost = 120,
-                    attackSpeedMod = 1.25
-                }
-            }
+            sprite = "sprites/towers/archer.png"
         },
-        cannon = {
-            id = "cannon",
+        cannon_tower = {
+            id = "cannon_tower",
             name = "Cannon Tower",
-            description = "Slow-firing tower with area damage",
+            description = "Slow but powerful tower",
             faction = "human",
-            cost = 175,
+            cost = 150,
             damage = 40,
             range = 120,
-            attackSpeed = 3.0,
-            projectileSpeed = 200,
-            projectileType = "cannonball",
-            aoeRadius = 60,
-            upgrades = {
-                {
-                    name = "Heavy Ammo",
-                    description = "Increase damage by 30%",
-                    cost = 120,
-                    damageMod = 1.3
-                },
-                {
-                    name = "Blast Radius",
-                    description = "Increase AoE radius by 20%",
-                    cost = 140,
-                    aoeRadiusMod = 1.2
-                }
-            }
-        },
-        mage = {
-            id = "mage",
-            name = "Mage Tower",
-            description = "Magic tower that slows enemies",
-            faction = "human",
-            cost = 150,
-            damage = 10,
-            range = 130,
             attackSpeed = 2.0,
-            projectileSpeed = 250,
-            projectileType = "magic",
-            slowAmount = 0.3,
-            slowDuration = 2.5,
-            upgrades = {
-                {
-                    name = "Frost Magic",
-                    description = "Increase slow effect by 15%",
-                    cost = 100,
-                    slowMod = 1.15
-                },
-                {
-                    name = "Extended Curse",
-                    description = "Increase slow duration by 30%",
-                    cost = 110,
-                    slowDurationMod = 1.3
-                }
-            }
-        },
-        
-        -- Elf faction towers
-        scout = {
-            id = "scout",
-            name = "Scout Tower",
-            description = "Fast-firing tower with long range",
+            projectileType = "cannonball",
+            sprite = "sprites/towers/cannon.png"
+        }
+    }
+    
+    Tower.ELF = {
+        magic_tower = {
+            id = "magic_tower",
+            name = "Magic Tower",
+            description = "Deals magic damage to enemies",
             faction = "elf",
-            cost = 100,
-            damage = 12,
-            range = 180,
-            attackSpeed = 1.0,
-            projectileSpeed = 350,
-            projectileType = "arrow",
-            upgrades = {
-                {
-                    name = "Sharp Arrows",
-                    description = "Increase damage by 15%",
-                    cost = 80,
-                    damageMod = 1.15
-                },
-                {
-                    name = "Eagle Vision",
-                    description = "Increase range by 20%",
-                    cost = 100,
-                    rangeMod = 1.2
-                }
-            }
-        },
-        druid = {
-            id = "druid",
-            name = "Druid Tower",
-            description = "Nature magic that damages over time",
-            faction = "elf",
-            cost = 150,
-            damage = 5,
-            dotDamage = 20,
-            dotDuration = 3,
-            range = 140,
-            attackSpeed = 2.5,
-            projectileSpeed = 220,
-            projectileType = "nature",
-            upgrades = {
-                {
-                    name = "Toxic Spores",
-                    description = "Increase DoT damage by 25%",
-                    cost = 120,
-                    dotDamageMod = 1.25
-                },
-                {
-                    name = "Lingering Poison",
-                    description = "Increase DoT duration by 30%",
-                    cost = 130,
-                    dotDurationMod = 1.3
-                }
-            }
-        },
-        enchanter = {
-            id = "enchanter",
-            name = "Enchanter Tower",
-            description = "Buffs nearby towers, increasing their damage",
-            faction = "elf",
-            cost = 200,
-            buffRange = 100,
-            buffAmount = 0.2,
-            range = 0,
-            supportType = true,
-            upgrades = {
-                {
-                    name = "Arcane Empowerment",
-                    description = "Increase buff amount by 15%",
-                    cost = 150,
-                    buffMod = 1.15
-                },
-                {
-                    name = "Extended Aura",
-                    description = "Increase buff range by 25%",
-                    cost = 120,
-                    buffRangeMod = 1.25
-                }
-            }
-        },
-        
-        -- Dwarf faction towers
-        turret = {
-            id = "turret",
-            name = "Turret",
-            description = "Mechanical tower with high attack speed",
-            faction = "dwarf",
             cost = 125,
-            damage = 8,
-            range = 120,
-            attackSpeed = 0.5,
-            projectileSpeed = 400,
-            projectileType = "bullet",
-            upgrades = {
-                {
-                    name = "Reinforced Bullets",
-                    description = "Increase damage by 25%",
-                    cost = 110,
-                    damageMod = 1.25
-                },
-                {
-                    name = "Rapid Reloader",
-                    description = "Increase attack speed by 20%",
-                    cost = 130,
-                    attackSpeedMod = 1.2
-                }
-            }
-        },
-        bombard = {
-            id = "bombard",
-            name = "Bombard",
-            description = "Explosive tower with massive area damage",
-            faction = "dwarf",
-            cost = 200,
-            damage = 30,
-            range = 110,
-            attackSpeed = 3.5,
-            projectileSpeed = 180,
-            projectileType = "bomb",
-            aoeRadius = 80,
-            upgrades = {
-                {
-                    name = "Bigger Bombs",
-                    description = "Increase damage by 35%",
-                    cost = 160,
-                    damageMod = 1.35
-                },
-                {
-                    name = "Shrapnel",
-                    description = "Increase AoE radius by 25%",
-                    cost = 140,
-                    aoeRadiusMod = 1.25
-                }
-            }
-        },
-        flamethrower = {
-            id = "flamethrower",
-            name = "Flamethrower",
-            description = "Short range tower that damages all enemies in a cone",
-            faction = "dwarf",
-            cost = 175,
             damage = 20,
-            range = 80,
-            attackSpeed = 0.3,
-            coneAngle = 45,
-            projectileType = "flame",
-            upgrades = {
-                {
-                    name = "White-hot Flames",
-                    description = "Increase damage by 30%",
-                    cost = 150,
-                    damageMod = 1.3
-                },
-                {
-                    name = "Wider Spray",
-                    description = "Increase cone angle by 20%",
-                    cost = 120,
-                    coneAngleMod = 1.2
-                }
+            range = 180,
+            attackSpeed = 1.2,
+            projectileType = "magic",
+            sprite = "sprites/towers/magic.png"
+        },
+        frost_tower = {
+            id = "frost_tower", 
+            name = "Frost Tower",
+            description = "Slows enemies with frost magic",
+            faction = "elf",
+            cost = 175,
+            damage = 10,
+            range = 150,
+            attackSpeed = 1.0,
+            projectileType = "frost",
+            sprite = "sprites/towers/frost.png",
+            special = {
+                slowAmount = 0.5,
+                slowDuration = 3.0
             }
         }
     }
     
-    -- Organize towers by faction
-    Tower.factionTowers = {
-        human = {},
-        elf = {},
-        dwarf = {}
+    Tower.DWARF = {
+        crossbow_tower = {
+            id = "crossbow_tower",
+            name = "Crossbow Tower",
+            description = "Rapid fire tower",
+            faction = "dwarf",
+            cost = 125,
+            damage = 8,
+            range = 130,
+            attackSpeed = 0.5,
+            projectileType = "bolt",
+            sprite = "sprites/towers/crossbow.png"
+        },
+        bombard_tower = {
+            id = "bombard_tower",
+            name = "Bombard Tower",
+            description = "Area damage tower",
+            faction = "dwarf",
+            cost = 200,
+            damage = 25,
+            range = 120,
+            attackSpeed = 2.5,
+            projectileType = "bomb",
+            sprite = "sprites/towers/bombard.png",
+            special = {
+                aoeRadius = 60,
+                aoeDamageMultiplier = 0.5
+            }
+        }
     }
     
-    for id, tower in pairs(Tower.types) do
-        if Tower.factionTowers[tower.faction] then
-            table.insert(Tower.factionTowers[tower.faction], id)
-        end
-    end
-    
-    -- Load tower sprites
+    -- Create default sprites for towers without images
     Tower.sprites = {}
-    local success, result = Error.pcall(function()
-        for id, _ in pairs(Tower.types) do
-            Tower.sprites[id] = love.graphics.newImage("sprites/towers/" .. id .. ".png")
+    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
+        for id, tower in pairs(faction) do
+            Tower.sprites[id] = Tower.createDefaultSprite(tower)
         end
-    end)
-    
-    if not success then
-        Error.show("Failed to load tower sprites: " .. tostring(result))
     end
     
-    -- Load projectile sprites
-    Tower.projectileSprites = {}
-    success, result = Error.pcall(function()
-        local projectileTypes = {"arrow", "cannonball", "magic", "nature", "bullet", "bomb", "flame"}
-        for _, type in ipairs(projectileTypes) do
-            Tower.projectileSprites[type] = love.graphics.newImage("sprites/projectiles/" .. type .. ".png")
-        end
-    end)
+    -- Create default projectile sprites
+    Tower.projectileSprites = {
+        arrow = Tower.createDefaultProjectileSprite({1, 0.8, 0}),
+        cannonball = Tower.createDefaultProjectileSprite({0.3, 0.3, 0.3}),
+        magic = Tower.createDefaultProjectileSprite({0.5, 0, 0.8}),
+        frost = Tower.createDefaultProjectileSprite({0, 0.7, 1}),
+        bolt = Tower.createDefaultProjectileSprite({0.8, 0.5, 0}),
+        bomb = Tower.createDefaultProjectileSprite({1, 0.3, 0})
+    }
     
-    if not success then
-        Error.show("Failed to load projectile sprites: " .. tostring(result))
+    Tower.initialized = true
+end
+
+-- Create a default sprite for a tower
+function Tower.createDefaultSprite(tower)
+    -- Create a new canvas for the tower sprite
+    local size = 32
+    local canvas = love.graphics.newCanvas(size, size)
+    
+    -- Set color based on tower faction
+    local color = {0.5, 0.5, 0.5} -- Default gray
+    if tower.faction == "human" then
+        color = {0.9, 0.7, 0.4} -- Gold/brown for human
+    elseif tower.faction == "elf" then
+        color = {0, 0.8, 0.5} -- Green for elf
+    elseif tower.faction == "dwarf" then
+        color = {0.6, 0.4, 0.2} -- Brown for dwarf
     end
+    
+    -- Draw to canvas
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear(0, 0, 0, 0)
+    
+    -- Base
+    love.graphics.setColor(color[1] * 0.7, color[2] * 0.7, color[3] * 0.7)
+    love.graphics.rectangle("fill", 4, 4, 24, 24)
+    
+    -- Tower top
+    love.graphics.setColor(color)
+    love.graphics.rectangle("fill", 8, 0, 16, 16)
+    
+    -- Outline
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.rectangle("line", 4, 4, 24, 24)
+    love.graphics.rectangle("line", 8, 0, 16, 16)
+    
+    -- Identifier based on attack type
+    if tower.projectileType == "arrow" or tower.projectileType == "bolt" then
+        -- Draw bow-like shape
+        love.graphics.setColor(0.8, 0.6, 0.3)
+        love.graphics.line(14, 4, 18, 4)
+        love.graphics.line(14, 4, 14, 12)
+        love.graphics.line(18, 4, 18, 12)
+    elseif tower.projectileType == "cannonball" or tower.projectileType == "bomb" then
+        -- Draw cannon-like shape
+        love.graphics.setColor(0.3, 0.3, 0.3)
+        love.graphics.rectangle("fill", 10, 8, 12, 8)
+    elseif tower.projectileType == "magic" or tower.projectileType == "frost" then
+        -- Draw crystal-like shape
+        love.graphics.setColor(0.8, 0.8, 1.0)
+        love.graphics.polygon("fill", 16, 4, 12, 10, 20, 10)
+    end
+    
+    -- Reset canvas
+    love.graphics.setCanvas()
+    
+    return canvas
+end
+
+-- Create a default projectile sprite
+function Tower.createDefaultProjectileSprite(color)
+    -- Create a new canvas for the projectile sprite
+    local size = 16
+    local canvas = love.graphics.newCanvas(size, size)
+    
+    -- Draw to canvas
+    love.graphics.setCanvas(canvas)
+    love.graphics.clear(0, 0, 0, 0)
+    
+    -- Draw projectile
+    love.graphics.setColor(color)
+    love.graphics.circle("fill", 8, 8, 4)
+    
+    -- Draw outline
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.circle("line", 8, 8, 4)
+    
+    -- Reset canvas
+    love.graphics.setCanvas()
+    
+    return canvas
 end
 
 -- Get all towers for a specific faction
 function Tower.getTowersByFaction(faction)
-    if not Tower.factionTowers[faction] then
-        return {}
+    if not Tower.initialized then
+        Tower.init()
     end
     
-    local result = {}
-    for _, id in ipairs(Tower.factionTowers[faction]) do
-        table.insert(result, Tower.types[id])
+    if not faction then
+        print("ERROR: Faction is nil in getTowersByFaction")
+        -- Return basic towers as fallback
+        return {
+            {
+                id = "basic_archer",
+                name = "Archer Tower",
+                description = "Basic tower with medium range",
+                cost = 100,
+                damage = 10,
+                range = 150,
+                attackSpeed = 1.0
+            },
+            {
+                id = "basic_cannon",
+                name = "Cannon Tower",
+                description = "Slow but powerful tower",
+                cost = 150,
+                damage = 30,
+                range = 120,
+                attackSpeed = 2.0
+            }
+        }
     end
+    
+    -- Try to find by faction id first
+    local factionId = faction.id
+    if not factionId and faction.name then
+        -- Try to use lowercase name as fallback
+        factionId = string.lower(faction.name)
+    end
+    
+    print("Getting towers for faction: " .. tostring(factionId))
+    
+    -- Get faction towers
+    local factionTowers = {}
+    
+    if factionId == "radiant" or factionId:find("radiant") or factionId:find("light") then
+        factionTowers = Tower.HUMAN
+    elseif factionId == "shadow" or factionId:find("shadow") or factionId:find("dark") then
+        factionTowers = Tower.ELF
+    elseif factionId == "twilight" or factionId:find("twilight") or factionId:find("balance") then
+        factionTowers = Tower.DWARF
+    else
+        -- Return a mix of basic towers as fallback
+        factionTowers = {
+            Tower.HUMAN.archer_tower,
+            Tower.ELF.magic_tower,
+            Tower.DWARF.bombard_tower
+        }
+    end
+    
+    -- Convert to array
+    local result = {}
+    for id, tower in pairs(factionTowers) do
+        if type(tower) == "table" then
+            -- Clone the tower data
+            local towerCopy = {}
+            for k, v in pairs(tower) do
+                towerCopy[k] = v
+            end
+            
+            -- Ensure id is set from key if not present
+            if not towerCopy.id then
+                towerCopy.id = id
+            end
+            
+            table.insert(result, towerCopy)
+        end
+    end
+    
+    print("Found " .. #result .. " towers for faction " .. tostring(factionId))
     
     return result
 end
 
 -- Create a new tower instance
 function Tower.create(towerType, gridX, gridY)
-    local towerData = Tower.types[towerType]
+    if not Tower.initialized then
+        Tower.init()
+    end
+    
+    print("Creating tower: " .. tostring(towerType) .. " at grid position " .. gridX .. "," .. gridY)
+    
+    -- Find tower data
+    local towerData = nil
+    
+    -- Search through all factions
+    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
+        for id, tower in pairs(faction) do
+            if id == towerType or tower.id == towerType then
+                towerData = tower
+                break
+            end
+        end
+        if towerData then break end
+    end
+    
     if not towerData then
-        Error.show("Invalid tower type: " .. tostring(towerType))
-        return nil
+        print("ERROR: Invalid tower type: " .. tostring(towerType))
+        -- Use basic archer as fallback
+        towerData = Tower.HUMAN.archer_tower
     end
     
-    local tower = setmetatable({}, TowerInstance)
-    
-    -- Copy tower data
+    -- Clone the tower data
+    local instance = {}
     for k, v in pairs(towerData) do
-        tower[k] = v
+        instance[k] = v
     end
     
-    -- Instance-specific properties
-    tower.gridX = gridX
-    tower.gridY = gridY
-    tower.level = 1
-    tower.target = nil
-    tower.attackTimer = 0
-    tower.upgradeLevel = 0
-    tower.appliedUpgrades = {}
-    tower.buffs = {}
-    tower.timer = Timer.new()
+    -- Set instance-specific properties
+    instance.gridX = gridX
+    instance.gridY = gridY
+    instance.level = 1
+    instance.target = nil
+    instance.cooldown = 0
     
-    return tower
+    -- Try to load sprite if specified
+    if instance.sprite and type(instance.sprite) == "string" then
+        local success, result = Error.pcall(function()
+            instance.spriteImg = love.graphics.newImage(instance.sprite)
+        end)
+        
+        if not success then
+            print("WARNING: Failed to load tower sprite: " .. instance.sprite)
+            -- Create a default sprite
+            instance.spriteImg = nil
+        end
+    end
+    
+    -- Mix in tower instance methods
+    for k, v in pairs(TowerInstance) do
+        instance[k] = v
+    end
+    
+    print("Tower created successfully")
+    return instance
 end
 
 -- Draw tower preview during placement
 function Tower.drawPreview(towerType, x, y)
-    local towerData = Tower.types[towerType]
-    if not towerData then return end
+    if not Tower.initialized then
+        Tower.init()
+    end
     
-    local sprite = Tower.sprites[towerType]
+    -- Find tower data
+    local towerData = nil
+    
+    -- Search through all factions
+    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
+        for id, tower in pairs(faction) do
+            if id == towerType or tower.id == towerType then
+                towerData = tower
+                break
+            end
+        end
+        if towerData then break end
+    end
+    
+    if not towerData then
+        -- Draw default preview
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.5)
+        love.graphics.rectangle("fill", x, y, 32, 32)
+        return
+    end
+    
+    -- Draw tower sprite or placeholder
+    local sprite = Tower.sprites and Tower.sprites[towerType]
+    
     if sprite then
-        love.graphics.draw(sprite, x, y, 0, 1, 1)
+        love.graphics.setColor(1, 1, 1, 0.7)
+        love.graphics.draw(sprite, x + 16, y + 16, 0, 1, 1, sprite:getWidth() / 2, sprite:getHeight() / 2)
     else
-        -- Fallback if sprite is missing
-        love.graphics.rectangle("fill", x + 5, y + 5, 40, 40)
+        -- Draw placeholder
+        love.graphics.setColor(0.7, 0.7, 0.7, 0.5)
+        love.graphics.rectangle("fill", x, y, 32, 32)
     end
     
     -- Draw range indicator
-    love.graphics.setColor(1, 1, 1, 0.2)
-    love.graphics.circle("fill", x + 25, y + 25, towerData.range)
-    love.graphics.setColor(1, 1, 1, 0.4)
-    love.graphics.circle("line", x + 25, y + 25, towerData.range)
+    if towerData.range then
+        love.graphics.setColor(0, 0.5, 0.8, 0.2)
+        love.graphics.circle("fill", x + 16, y + 16, towerData.range)
+        love.graphics.setColor(0, 0.7, 1, 0.5)
+        love.graphics.circle("line", x + 16, y + 16, towerData.range)
+    end
 end
 
 -- Tower instance methods
@@ -758,61 +789,46 @@ end
 
 -- Draw the tower
 function TowerInstance:draw()
-    -- Get the map from game state
-    local gameState = _G.gameState
-    if not gameState or not gameState.map then return end
+    -- Get the world coordinates of the tower
+    local x = (self.gridX - 0.5) * 32
+    local y = (self.gridY - 0.5) * 32
     
-    -- Get world position
-    local x, y = gameState.map:gridToWorld(self.gridX, self.gridY)
-    
-    -- Draw tower sprite
-    love.graphics.setColor(1, 1, 1, 1)
-    local sprite = Tower.sprites[self.id]
-    if sprite then
-        love.graphics.draw(sprite, x, y, 0, 1, 1)
+    -- Draw tower sprite or fallback shape
+    if self.spriteImg then
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(
+            self.spriteImg, 
+            x + 16, y + 16, 
+            0, 1, 1, 
+            self.spriteImg:getWidth() / 2, 
+            self.spriteImg:getHeight() / 2
+        )
     else
-        -- Fallback if sprite is missing
-        love.graphics.rectangle("fill", x + 5, y + 5, gameState.map.tileSize - 10, gameState.map.tileSize - 10)
+        -- Draw fallback shape
+        love.graphics.setColor(0.3, 0.6, 0.9, 1)
+        love.graphics.rectangle("fill", x + 4, y + 4, 24, 24)
+        love.graphics.setColor(0.1, 0.3, 0.5, 1)
+        love.graphics.rectangle("line", x + 4, y + 4, 24, 24)
     end
     
-    -- Draw upgrade indicator
-    if self.upgradeLevel > 0 then
-        love.graphics.setColor(1, 0.8, 0, 1)
-        for i = 1, self.upgradeLevel do
-            love.graphics.rectangle("fill", x + 5 + (i-1) * 8, y + 5, 6, 6)
-        end
+    -- Draw tower level if greater than 1
+    if self.level and self.level > 1 then
+        love.graphics.setColor(1, 1, 0, 1)
+        love.graphics.circle("fill", x + 24, y + 8, 8)
+        love.graphics.setColor(0, 0, 0, 1)
+        love.graphics.print(self.level, x + 21, y + 3)
     end
     
-    -- Draw buff indicator
-    if next(self.buffs) ~= nil then
-        love.graphics.setColor(0, 0.8, 1, 0.7)
-        love.graphics.circle("line", x + gameState.map.tileSize / 2, y + gameState.map.tileSize / 2, gameState.map.tileSize / 2 + 3)
+    -- Debug: Draw range circle
+    if self.range then
+        love.graphics.setColor(0.2, 0.5, 0.8, 0.15)
+        love.graphics.circle("fill", x + 16, y + 16, self.range)
+        love.graphics.setColor(0.2, 0.5, 0.8, 0.3)
+        love.graphics.circle("line", x + 16, y + 16, self.range)
     end
     
-    -- Draw range indicator if selected
-    if gameState.selectedTowerX == self.gridX and gameState.selectedTowerY == self.gridY then
-        -- Calculate total range with upgrades and buffs
-        local totalRange = self.range
-        
-        -- Apply upgrades
-        for _, upgrade in ipairs(self.appliedUpgrades) do
-            if upgrade.rangeMod then
-                totalRange = totalRange * upgrade.rangeMod
-            end
-        end
-        
-        -- Apply buffs
-        for _, buff in pairs(self.buffs) do
-            if buff.rangeMod then
-                totalRange = totalRange * buff.rangeMod
-            end
-        end
-        
-        love.graphics.setColor(1, 1, 1, 0.2)
-        love.graphics.circle("fill", x + gameState.map.tileSize / 2, y + gameState.map.tileSize / 2, totalRange)
-        love.graphics.setColor(1, 1, 1, 0.4)
-        love.graphics.circle("line", x + gameState.map.tileSize / 2, y + gameState.map.tileSize / 2, totalRange)
-    end
+    -- Reset color
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- Upgrade the tower

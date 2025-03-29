@@ -125,6 +125,36 @@ function HubState:goToLevelSelect()
     local LevelSelectState = require('states.level_select')
     if LevelSelectState then
         local levelSelect = LevelSelectState.new()
+        
+        -- Ensure faction data is valid before passing it
+        if not self.selectedFaction then
+            -- Create a default faction if none exists
+            self.selectedFaction = {
+                id = "default",
+                name = "Default Faction",
+                description = "Default faction for players"
+            }
+            Error.handle(Error.TYPES.GAME, "DEFAULT_FACTION", "Using default faction")
+        elseif not self.selectedFaction.id then
+            -- Set ID based on name if available
+            if self.selectedFaction.name then
+                self.selectedFaction.id = string.lower(self.selectedFaction.name)
+            else
+                self.selectedFaction.id = "default"
+            end
+            Error.handle(Error.TYPES.GAME, "INCOMPLETE_FACTION", "Faction data incomplete, using name as ID")
+        end
+        
+        -- Do the same check for hero data
+        if not self.selectedHero then
+            self.selectedHero = {
+                id = "default_hero",
+                name = "Default Hero",
+                description = "A basic hero"
+            }
+        end
+        
+        -- Now pass the validated data
         levelSelect:init(self.selectedFaction, self.selectedHero)
         Gamestate.switch(levelSelect)
     else

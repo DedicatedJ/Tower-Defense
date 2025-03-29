@@ -58,14 +58,30 @@ end
 function LevelSelectState:loadLevels()
     -- Load levels based on faction
     local Map = require('systems.map')
-    if not Map or not self.selectedFaction then
-        Error.handle(Error.TYPES.GAME, "MISSING_FACTION", "Cannot load levels")
+    
+    -- First verify we have faction data
+    if not self.selectedFaction then
+        Error.handle(Error.TYPES.GAME, "MISSING_FACTION", "Cannot load levels - no faction selected")
         return
+    end
+    
+    -- Check if faction has an id
+    if not self.selectedFaction.id then
+        Error.handle(Error.TYPES.GAME, "MISSING_FACTION", "Faction data is incomplete")
+        -- Create a default id based on the name if available
+        if self.selectedFaction.name then
+            self.selectedFaction.id = string.lower(self.selectedFaction.name)
+        else
+            self.selectedFaction.id = "default"
+        end
     end
     
     -- Get map presets from the Map module
     local mapPresets = {}
-    if self.selectedFaction.id == "radiant" then
+    local factionId = string.lower(self.selectedFaction.id)
+    
+    -- Match faction ID (allow for more flexible matching)
+    if factionId == "radiant" or factionId:find("radiant") or factionId:find("light") then
         mapPresets = {
             {
                 id = "sunlit_meadows",
@@ -92,7 +108,7 @@ function LevelSelectState:loadLevels()
                 image = "assets/levels/celestial_citadel_thumb.jpg"
             }
         }
-    elseif self.selectedFaction.id == "shadow" then
+    elseif factionId == "shadow" or factionId:find("shadow") or factionId:find("dark") then
         mapPresets = {
             {
                 id = "haunted_forest",
@@ -119,7 +135,7 @@ function LevelSelectState:loadLevels()
                 image = "assets/levels/necropolis_thumb.jpg"
             }
         }
-    elseif self.selectedFaction.id == "twilight" then
+    elseif factionId == "twilight" or factionId:find("twilight") or factionId:find("balance") then
         mapPresets = {
             {
                 id = "misty_borderlands",
@@ -146,12 +162,45 @@ function LevelSelectState:loadLevels()
                 image = "assets/levels/nexus_of_balance_thumb.jpg"
             }
         }
+    else
+        -- Default maps for any other faction or fallback
+        mapPresets = {
+            {
+                id = "training_grounds",
+                name = "Training Grounds",
+                description = "Basic level for learning the game",
+                difficulty = 1,
+                unlocked = true,
+                image = "assets/levels/training_grounds_thumb.jpg"
+            },
+            {
+                id = "wilderness",
+                name = "Wilderness",
+                description = "Standard map with varied terrain",
+                difficulty = 2,
+                unlocked = true,
+                image = "assets/levels/wilderness_thumb.jpg"
+            },
+            {
+                id = "ancient_ruins",
+                name = "Ancient Ruins",
+                description = "Advanced map with complex paths",
+                difficulty = 3,
+                unlocked = false,
+                image = "assets/levels/ancient_ruins_thumb.jpg"
+            }
+        }
+    end
+    
+    -- Create fallback thumbnails directory if it doesn't exist
+    if not love.filesystem.getInfo("assets/levels") then
+        love.filesystem.createDirectory("assets/levels")
     end
     
     -- Load level thumbnails
     for _, level in ipairs(mapPresets) do
-        -- Load level image if available
-        if love.filesystem.getInfo(level.image) then
+        -- Check if image path exists
+        if level.image and love.filesystem.getInfo(level.image) then
             local success, result = Error.pcall(function()
                 level.thumbnail = love.graphics.newImage(level.image)
             end)
@@ -159,9 +208,32 @@ function LevelSelectState:loadLevels()
             if not success then
                 level.thumbnail = nil
             end
+        else
+            -- Try alternative paths
+            local alternativePaths = {
+                "sprites/levels/" .. level.id .. ".jpg",
+                "sprites/levels/" .. level.id .. ".png",
+                "sprites/ui/level_placeholder.png"
+            }
+            
+            for _, path in ipairs(alternativePaths) do
+                if love.filesystem.getInfo(path) then
+                    local success, result = Error.pcall(function()
+                        level.thumbnail = love.graphics.newImage(path)
+                    end)
+                    
+                    if success then
+                        break
+                    end
+                end
+            end
         end
         
         table.insert(self.levels, level)
+    end
+    
+    if #self.levels == 0 then
+        Error.handle(Error.TYPES.GAME, "NO_LEVELS", "No levels found for faction: " .. tostring(self.selectedFaction.id))
     end
 end
 

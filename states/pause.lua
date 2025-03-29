@@ -13,6 +13,16 @@ function PauseState.new(previousState)
     self.buttons = {}
     self.previousState = previousState
     self.timer = Timer.new() -- Add timer instance
+    self.background = nil
+    
+    -- Load background image
+    local success, result = Error.pcall(function()
+        self.background = love.graphics.newImage("assets/backgrounds/pause.jpg")
+    end)
+    
+    if not success then
+        Error.handle(Error.TYPES.RESOURCE, "IMAGE_MISSING", "assets/backgrounds/pause.jpg")
+    end
     
     -- Initialize UI
     self:init()
@@ -76,8 +86,9 @@ function PauseState:update(dt)
 end
 
 function PauseState:draw()
-    -- Draw the game in the background
+    -- Draw the game in the background (slightly darkened)
     if self.previousState and self.previousState.draw then
+        love.graphics.setColor(0.6, 0.6, 0.6, 1)
         self.previousState:draw()
     end
     
@@ -85,25 +96,75 @@ function PauseState:draw()
     love.graphics.setColor(0, 0, 0, 0.7)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
     
+    -- Draw background image
+    if self.background then
+        love.graphics.setColor(1, 1, 1, 0.8)
+        
+        -- Calculate dimensions to center the image
+        local screenWidth = love.graphics.getWidth()
+        local screenHeight = love.graphics.getHeight()
+        local imgWidth = self.background:getWidth()
+        local imgHeight = self.background:getHeight()
+        
+        -- Scale to fit the screen while maintaining aspect ratio
+        local scale = math.min(screenWidth / imgWidth, screenHeight / imgHeight)
+        local scaledWidth = imgWidth * scale
+        local scaledHeight = imgHeight * scale
+        
+        -- Center the image
+        local x = (screenWidth - scaledWidth) / 2
+        local y = (screenHeight - scaledHeight) / 2
+        
+        love.graphics.draw(self.background, x, y, 0, scale, scale)
+    end
+    
+    -- Draw pause menu container
+    love.graphics.setColor(0.1, 0.1, 0.2, 0.85)
+    local menuWidth = 300
+    local menuHeight = 400
+    love.graphics.rectangle(
+        "fill", 
+        love.graphics.getWidth() / 2 - menuWidth / 2, 
+        love.graphics.getHeight() / 2 - menuHeight / 2, 
+        menuWidth, 
+        menuHeight,
+        10, 10
+    )
+    
+    love.graphics.setColor(0.4, 0.4, 0.6, 0.8)
+    love.graphics.rectangle(
+        "line", 
+        love.graphics.getWidth() / 2 - menuWidth / 2, 
+        love.graphics.getHeight() / 2 - menuHeight / 2, 
+        menuWidth, 
+        menuHeight,
+        10, 10
+    )
+    
     -- Draw title
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setFont(fonts.title)
     local titleWidth = fonts.title:getWidth(self.title)
-    love.graphics.print(self.title, love.graphics.getWidth() / 2 - titleWidth / 2, 100)
+    love.graphics.print(
+        self.title, 
+        love.graphics.getWidth() / 2 - titleWidth / 2, 
+        love.graphics.getHeight() / 2 - menuHeight / 2 + 30
+    )
     
     -- Draw buttons
     for _, button in ipairs(self.buttons) do
         -- Draw button background
         if button.hovered then
-            love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
+            love.graphics.setColor(0.4, 0.4, 0.6, 0.9)
         else
-            love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+            love.graphics.setColor(0.2, 0.2, 0.4, 0.8)
         end
-        love.graphics.rectangle("fill", button.x, button.y, button.width, button.height)
+        
+        love.graphics.rectangle("fill", button.x, button.y, button.width, button.height, 8, 8)
         
         -- Draw button border
-        love.graphics.setColor(1, 1, 1, 0.5)
-        love.graphics.rectangle("line", button.x, button.y, button.width, button.height)
+        love.graphics.setColor(0.6, 0.6, 0.8, 0.8)
+        love.graphics.rectangle("line", button.x, button.y, button.width, button.height, 8, 8)
         
         -- Draw button text
         love.graphics.setColor(1, 1, 1, 1)
@@ -118,10 +179,14 @@ function PauseState:draw()
     end
     
     -- Draw pause instructions
-    love.graphics.setColor(0.8, 0.8, 0.8, 0.7)
+    love.graphics.setColor(1, 1, 1, 0.8)
     local instructions = "Press ESC to resume"
     local instrWidth = fonts.main:getWidth(instructions)
-    love.graphics.print(instructions, love.graphics.getWidth() / 2 - instrWidth / 2, love.graphics.getHeight() - 50)
+    love.graphics.print(
+        instructions, 
+        love.graphics.getWidth() / 2 - instrWidth / 2, 
+        love.graphics.getHeight() / 2 + menuHeight / 2 - 30
+    )
     
     -- Draw error notifications
     Error.draw()

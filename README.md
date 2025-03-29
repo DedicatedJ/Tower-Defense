@@ -1,6 +1,6 @@
 # Tower Defense Game
 
-A production-level Tower Defense game built with Lua and the LÖVE framework, featuring a faction system, hero powers, and prestige mechanics.
+A Tower Defense game built with Lua and the LÖVE framework, featuring a faction system, hero powers, and prestige mechanics.
 
 ## Features
 

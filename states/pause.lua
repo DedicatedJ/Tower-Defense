@@ -16,12 +16,21 @@ function PauseState.new(previousState)
     self.background = nil
     
     -- Load background image
-    local success, result = Error.pcall(function()
+    local success, result = pcall(function()
         self.background = love.graphics.newImage("assets/backgrounds/pause.jpg")
     end)
     
     if not success then
-        Error.handle(Error.TYPES.RESOURCE, "IMAGE_MISSING", "assets/backgrounds/pause.jpg")
+        -- Try loading a fallback background or just use the game as background
+        success, result = pcall(function()
+            self.background = love.graphics.newImage("sprites/ui/backgrounds/pause_bg.jpg")
+        end)
+        
+        if not success then
+            -- No need to throw an error, we'll use the game as background
+            self.background = nil
+            print("Using game as background for pause screen")
+        end
     end
     
     -- Initialize UI

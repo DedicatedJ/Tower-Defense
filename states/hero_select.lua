@@ -429,31 +429,6 @@ function HeroSelectState:draw()
     -- Draw title with glow effect at bottom center
     local titleWidth = self.titleText.font:getWidth(self.titleText.text)
     
-    -- Draw semi-transparent background box for title
-    local padding = 20
-    local titleBoxWidth = titleWidth + (padding * 2)
-    local titleBoxHeight = 60
-    love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle(
-        "fill",
-        self.titleText.x - titleBoxWidth/2,
-        self.titleText.y - titleBoxHeight/2 + 5,
-        titleBoxWidth,
-        titleBoxHeight,
-        10, 10
-    )
-    
-    -- Black outline for title box
-    love.graphics.setColor(1, 1, 1, 0.3)
-    love.graphics.rectangle(
-        "line",
-        self.titleText.x - titleBoxWidth/2,
-        self.titleText.y - titleBoxHeight/2 + 5,
-        titleBoxWidth,
-        titleBoxHeight,
-        10, 10
-    )
-    
     -- Black shadow for title (slightly offset for depth)
     love.graphics.setColor(0, 0, 0, 0.9)
     love.graphics.setFont(self.titleText.font)

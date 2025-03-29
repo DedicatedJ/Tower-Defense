@@ -31,12 +31,21 @@ function ShopState:init(faction, hero)
     self.selectedHero = hero
     
     -- Load background image
-    local success, result = Error.pcall(function()
+    local success, result = pcall(function()
         self.background = love.graphics.newImage("assets/backgrounds/shop.jpg")
     end)
     
     if not success then
-        Error.handle(Error.TYPES.RESOURCE, "IMAGE_MISSING", "assets/backgrounds/shop.jpg")
+        -- Try loading a fallback background
+        success, result = pcall(function()
+            self.background = love.graphics.newImage("sprites/ui/backgrounds/faction_select.jpg")
+        end)
+        
+        if not success then
+            -- No need to throw an error, we'll use a fallback color background
+            self.background = nil
+            print("Using fallback color background for shop screen")
+        end
     end
     
     -- Load available items
@@ -373,6 +382,14 @@ function ShopState:update(dt)
 end
 
 function ShopState:draw()
+    -- Check if fonts are defined, use fallbacks if not
+    if not fonts.subTitle then
+        fonts.subTitle = fonts.main or love.graphics.newFont(18)
+    end
+    if not fonts.small then
+        fonts.small = fonts.main or love.graphics.newFont(12)
+    end
+    
     -- Draw background
     love.graphics.setColor(1, 1, 1, 1)
     if self.background then

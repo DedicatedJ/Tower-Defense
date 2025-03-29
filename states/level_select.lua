@@ -61,19 +61,24 @@ function LevelSelectState:loadLevels()
     
     -- First verify we have faction data
     if not self.selectedFaction then
-        Error.handle(Error.TYPES.GAME, "MISSING_FACTION", "Cannot load levels - no faction selected")
-        return
+        -- Create a default faction if none exists
+        self.selectedFaction = {
+            id = "default",
+            name = "Default Faction",
+            description = "Default faction for players"
+        }
+        Error.handle(Error.TYPES.GAME, "DEFAULT_FACTION", "Using default faction")
     end
     
     -- Check if faction has an id
     if not self.selectedFaction.id then
-        Error.handle(Error.TYPES.GAME, "MISSING_FACTION", "Faction data is incomplete")
         -- Create a default id based on the name if available
         if self.selectedFaction.name then
             self.selectedFaction.id = string.lower(self.selectedFaction.name)
         else
             self.selectedFaction.id = "default"
         end
+        print("Faction ID created: " .. self.selectedFaction.id)
     end
     
     -- Get map presets from the Map module

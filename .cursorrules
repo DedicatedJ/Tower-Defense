@@ -29,3 +29,19 @@
 
 # File Patterns
 - Apply these rules to *.lua files in the project directory.
+- Follow a consistent directory structure:
+  - `/systems/` - Core game systems (enemies, towers, heroes, etc.)
+  - `/states/` - Game states using HUMP's gamestate
+  - `/libs/` - External libraries (hump, bump, class, json)
+  - `/utils/` - Utility functions and modules
+  - `/assets/` - Game assets (levels, sprites, sounds)
+  - `/sprites/` - Organized by entity type (towers/, enemies/, projectiles/)
+- Use module pattern in all files:
+  - Each file should return a single table/function
+  - Keep imports at the top of the file
+  - Order imports: core libraries first, then project modules
+- When a required library is missing:
+  - Implement fallback functionality when possible (like the Pathfinder in enemy.lua)
+  - Add clear error handling and user feedback
+- Document public API functions with brief descriptions of parameters and return values
+- For sprite assets that may be missing, implement default renderers like createDefaultSprite

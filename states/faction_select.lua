@@ -536,12 +536,9 @@ function FactionSelectState:isPointInButton(x, y, button)
 end
 
 function FactionSelectState:selectFaction(faction)
-    print("Selecting faction:", faction.id)
-    print("Heroes for faction:", faction.heroes and #faction.heroes or 0)
+    if not faction then return end
     
-    -- Store selected faction
     self.selectedFaction = faction
-    gameState.selectedFaction = faction
     
     -- Debug: list heroes in the selected faction
     if faction.heroes then
@@ -550,14 +547,19 @@ function FactionSelectState:selectFaction(faction)
         end
     end
     
+    -- Save the faction selection to player profile
+    local Save = require('systems.save')
+    -- Store the faction ID instead of the full object to prevent serialization issues
+    Save.updateFactionSelection(faction.id or "default")
+    
     -- Create the hero select state and initialize it
     local heroSelectState = require('states.hero_select').new()
     
-    -- Switch to the hero select state and pass the faction data during the switch
-    Gamestate.switch(heroSelectState)
-    
-    -- Initialize after switching to ensure the state has all data
+    -- Initialize with faction before switching to ensure data is available
     heroSelectState:init(faction)
+    
+    -- Switch to the hero select state
+    Gamestate.switch(heroSelectState)
 end
 
 function FactionSelectState:goBack()

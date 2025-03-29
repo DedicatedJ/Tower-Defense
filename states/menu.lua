@@ -4,6 +4,7 @@ MenuState.__index = MenuState
 local Gamestate = require 'libs.hump.gamestate'
 local Timer = require 'libs.hump.timer'
 local Error = require 'utils.error'
+local Save = require 'systems.save'
 
 function MenuState.new()
     local self = setmetatable({}, MenuState)
@@ -32,37 +33,41 @@ function MenuState:init()
     end
     
     -- Create menu buttons
-    self:createButtons()
+    self:createUI()
 end
 
-function MenuState:createButtons()
-    local buttonWidth = 200
-    local buttonHeight = 50
-    local spacing = 20
-    local startY = love.graphics.getHeight() / 2 - (5 * buttonHeight + 4 * spacing) / 2
-    
-    -- Menu options
-    local options = {
-        {text = "New Game", action = function() self:newGame() end},
-        {text = "Load Game", action = function() self:loadGame() end},
-        {text = "Settings", action = function() self:openSettings() end},
-        {text = "Credits", action = function() self:showCredits() end},
-        {text = "Quit", action = function() self:quitGame() end}
-    }
-    
-    for i, option in ipairs(options) do
-        local y = startY + (i - 1) * (buttonHeight + spacing)
-        
-        self.buttons[i] = {
-            text = option.text,
-            x = love.graphics.getWidth() / 2 - buttonWidth / 2,
-            y = y,
-            width = buttonWidth,
-            height = buttonHeight,
-            action = option.action,
-            hovered = false
+function MenuState:createUI()
+    self.menuItems = {
+        {
+            text = "Continue",
+            action = function() self:continueGame() end,
+            enabled = Save.getCurrentProfile() ~= nil -- Only enabled if a save exists
+        },
+        {
+            text = "New Game",
+            action = function() self:startNewGame() end
+        },
+        {
+            text = "Load Game",
+            action = function() self:loadGame() end
+        },
+        {
+            text = "Settings",
+            action = function() self:openSettings() end
+        },
+        {
+            text = "Tutorial",
+            action = function() self:openTutorial() end
+        },
+        {
+            text = "Credits",
+            action = function() self:openCredits() end
+        },
+        {
+            text = "Quit",
+            action = function() self:quitGame() end
         }
-    end
+    }
 end
 
 function MenuState:enter()
@@ -165,14 +170,36 @@ function MenuState:isPointInButton(x, y, button)
 end
 
 -- Button actions
-function MenuState:newGame()
-    local factionSelectState = require('states.faction_select').new()
-    Gamestate.switch(factionSelectState)
+function MenuState:continueGame()
+    -- Get the current profile
+    local currentProfile = Save.getCurrentProfile()
+    
+    if not currentProfile then
+        Error.handle(Error.TYPES.GAME, "NO_SAVE_FOUND", "No save game found to continue")
+        return
+    end
+    
+    -- If faction and hero are already selected, go to hub
+    if currentProfile.selectedFaction and currentProfile.selectedHero then
+        local hubState = require('states.hub').new()
+        hubState:init(currentProfile.selectedFaction, currentProfile.selectedHero)
+        Gamestate.switch(hubState)
+    else
+        -- If faction not selected, go to faction selection
+        local factionSelectState = require('states.faction_select').new()
+        Gamestate.switch(factionSelectState)
+    end
+end
+
+function MenuState:startNewGame()
+    -- Create a load game state for creating a new save
+    local loadGameState = require('states.load_game').new()
+    Gamestate.switch(loadGameState)
 end
 
 function MenuState:loadGame()
     local loadGameState = require('states.load_game').new()
-    Gamestate.push(loadGameState)
+    Gamestate.switch(loadGameState)
 end
 
 function MenuState:openSettings()
@@ -180,7 +207,12 @@ function MenuState:openSettings()
     Gamestate.push(settingsState)
 end
 
-function MenuState:showCredits()
+function MenuState:openTutorial()
+    local tutorialState = require('states.tutorial').new()
+    Gamestate.push(tutorialState)
+end
+
+function MenuState:openCredits()
     local creditsState = require('states.credits').new()
     Gamestate.push(creditsState)
 end

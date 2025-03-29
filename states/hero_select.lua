@@ -23,161 +23,42 @@ function HeroSelectState.new()
 end
 
 function HeroSelectState:init(faction)
-    -- If faction is nil, try to get it from gameState
-    if not faction and gameState.selectedFaction then
-        faction = gameState.selectedFaction
-        print("Retrieved faction from gameState:", faction.id)
+    if not faction then
+        print("HeroSelectState init with faction:\tnil")
+        faction = self:getDefaultFaction()
+    else
+        print("HeroSelectState init with faction:\t" .. (faction.id or "unknown"))
     end
     
-    -- Store faction data
     self.faction = faction
     
-    -- Print debugging info
-    print("HeroSelectState init with faction:", faction and faction.id or "nil")
-    if faction then
-        print("Faction heroes table:", faction.heroes and "exists" or "nil")
-        print("Number of heroes:", faction.heroes and #faction.heroes or 0)
-        if faction.heroes then
-            for i, hero in ipairs(faction.heroes) do
-                print("Hero " .. i .. ":", hero.name)
-            end
+    if faction.heroes and type(faction.heroes) == "table" then
+        print("Faction heroes table:\texists")
+        print("Number of heroes:\t" .. #faction.heroes)
+        for i, hero in ipairs(faction.heroes) do
+            print("Hero " .. i .. ": " .. hero.name)
         end
-    end
-    
-    -- Load background image
-    local success = pcall(function()
-        self.background = love.graphics.newImage("sprites/ui/backgrounds/hero_select.jpg")
-    end)
-    
-    if not success or not self.background then
-        -- Try using faction select background as fallback
-        success = pcall(function()
-            self.background = love.graphics.newImage("sprites/ui/backgrounds/faction_select.jpg")
-        end)
         
-        if not success then
-            self.background = nil
-        end
-    end
-    
-    -- First try to get heroes from the faction data
-    if self.faction and self.faction.heroes and #self.faction.heroes > 0 then
         print("Loading heroes from faction data")
-        self.heroes = {}
-        -- Deep copy heroes from faction data to avoid reference issues
-        for _, hero in ipairs(self.faction.heroes) do
-            local newHero = {}
-            for k, v in pairs(hero) do
-                newHero[k] = v
-            end
-            -- Ensure each hero has health, attack, and speed properties
-            newHero.health = newHero.health or 500
-            newHero.attack = newHero.attack or 50
-            newHero.speed = newHero.speed or 100
-            table.insert(self.heroes, newHero)
-        end
+        self.heroes = faction.heroes
         print("Loaded " .. #self.heroes .. " heroes from faction data")
     else
-        print("Using fallback heroes for faction:", self.faction and self.faction.id or "nil")
-        -- Create sample heroes based on faction
-        self.heroes = {}
-        
-        -- Always create default heroes regardless of faction data
-        -- This ensures players always have heroes to select
-        if self.faction then
-            if self.faction.id == "radiant" then
-                -- Radiant heroes
-                table.insert(self.heroes, {
-                    id = "paladin",
-                    name = "Paladin",
-                    description = "A holy warrior who protects and heals allies",
-                    health = 500,
-                    attack = 45,
-                    speed = 100,
-                    abilities = {
-                        { name = "Holy Light", cooldown = 20 },
-                        { name = "Divine Shield", cooldown = 30 },
-                        { name = "Judgment", cooldown = 45 }
-                    }
-                })
-                
-                table.insert(self.heroes, {
-                    id = "priest",
-                    name = "Priest",
-                    description = "A healer who supports allies with powerful buffs",
-                    health = 400,
-                    attack = 30,
-                    speed = 90,
-                    abilities = {
-                        { name = "Divine Heal", cooldown = 15 },
-                        { name = "Blessing", cooldown = 25 },
-                        { name = "Holy Nova", cooldown = 40 }
-                    }
-                })
-            elseif self.faction.id == "shadow" then
-                -- Shadow heroes
-                table.insert(self.heroes, {
-                    id = "necromancer",
-                    name = "Necromancer",
-                    description = "A dark mage who commands the forces of death",
-                    health = 420,
-                    attack = 55,
-                    speed = 85,
-                    abilities = {
-                        { name = "Death Bolt", cooldown = 15 },
-                        { name = "Soul Harvest", cooldown = 25 },
-                        { name = "Death Wave", cooldown = 40 }
-                    }
-                })
-                
-                table.insert(self.heroes, {
-                    id = "assassin",
-                    name = "Assassin",
-                    description = "A stealthy killer who strikes from the shadows",
-                    health = 350,
-                    attack = 80,
-                    speed = 120,
-                    abilities = {
-                        { name = "Shadow Step", cooldown = 10 },
-                        { name = "Death Mark", cooldown = 20 },
-                        { name = "Veil of Shadows", cooldown = 35 }
-                    }
-                })
-            elseif self.faction.id == "twilight" then
-                -- Twilight heroes
-                table.insert(self.heroes, {
-                    id = "balance_mage",
-                    name = "Balance Mage",
-                    description = "A spellcaster who harnesses both light and dark energies",
-                    health = 450,
-                    attack = 60,
-                    speed = 95,
-                    abilities = {
-                        { name = "Twilight Bolt", cooldown = 15 },
-                        { name = "Equilibrium", cooldown = 25 },
-                        { name = "Cosmic Balance", cooldown = 40 }
-                    }
-                })
-                
-                table.insert(self.heroes, {
-                    id = "dream_walker",
-                    name = "Dream Walker",
-                    description = "A mystic who travels between realities",
-                    health = 400,
-                    attack = 50,
-                    speed = 100,
-                    abilities = {
-                        { name = "Dream Shift", cooldown = 12 },
-                        { name = "Astral Projection", cooldown = 25 },
-                        { name = "Reality Warp", cooldown = 40 }
-                    }
-                })
-            end
-        end
-        
+        print("Using fallback heroes for faction:\t" .. (faction.id or "nil"))
+        self.heroes = self:createFallbackHeroes(faction)
         print("Created " .. #self.heroes .. " fallback heroes")
     end
     
+    -- Initialize carousel settings
+    self.selectedIndex = 1
+    self.carouselX = love.graphics.getWidth() / 2
+    self.carouselY = love.graphics.getHeight() / 2 - 50
+    self.carouselRadius = 180
+    self.carouselRotation = 0
+    
+    -- Update carousel positions
+    self:updateCarouselPositions()
+    
+    -- Initialize buttons
     self:createUI()
 end
 
@@ -892,19 +773,21 @@ function HeroSelectState:goBack()
 end
 
 function HeroSelectState:selectHero(hero)
-    if not hero then
-        Error.handle(Error.TYPES.GAME, "INVALID_HERO", "No hero selected")
-        return
-    end
+    if not hero then return end
     
     self.selectedHero = hero
+    print("Selected hero:", hero.name)
     
-    -- Set hero in game state
-    gameState.selectedHero = hero
+    -- Save the hero selection to player profile
+    local Save = require('systems.save')
+    -- Store the hero ID instead of the full object to prevent serialization issues
+    Save.updateHeroSelection(hero.id or hero.name)
     
-    -- Create and switch to hub state instead of game state
+    -- Create the hub state and initialize it with faction and hero
     local hubState = require('states.hub').new()
-    hubState:init(self.faction, hero)
+    hubState:init(self.faction, self.selectedHero)
+    
+    -- Switch to the hub state
     Gamestate.switch(hubState)
 end
 
@@ -921,6 +804,125 @@ function HeroSelectState:keypressed(key)
             self:selectHero(self.selectedHero)
         end
     end
+end
+
+function HeroSelectState:getDefaultFaction()
+    -- Create a default faction if none is provided
+    return {
+        id = "default",
+        name = "Default Faction",
+        description = "Default faction for new players",
+        heroes = self:createDefaultHeroes()
+    }
+end
+
+function HeroSelectState:createDefaultHeroes()
+    -- Create a set of default heroes that will work for any faction
+    local heroes = {
+        {
+            id = "default_warrior",
+            name = "Warrior",
+            description = "A balanced fighter with strong defensive capabilities",
+            health = 500,
+            attack = 50,
+            speed = 90,
+            abilities = {
+                { name = "Shield Bash", cooldown = 10 },
+                { name = "Defensive Stance", cooldown = 20 },
+                { name = "Battle Cry", cooldown = 30 }
+            }
+        },
+        {
+            id = "default_mage",
+            name = "Mage",
+            description = "A spellcaster with powerful area attacks",
+            health = 350,
+            attack = 70,
+            speed = 85,
+            abilities = {
+                { name = "Fireball", cooldown = 8 },
+                { name = "Ice Barrier", cooldown = 15 },
+                { name = "Arcane Explosion", cooldown = 25 }
+            }
+        }
+    }
+    
+    return heroes
+end
+
+function HeroSelectState:createFallbackHeroes(faction)
+    if not faction then
+        return self:createDefaultHeroes()
+    end
+    
+    local heroes = {}
+    
+    -- Create faction-specific fallback heroes
+    if faction.id == "radiant" then
+        -- Radiant heroes
+        table.insert(heroes, {
+            id = "paladin",
+            name = "Paladin",
+            description = "A holy warrior who protects and heals allies",
+            health = 500,
+            attack = 45,
+            speed = 100,
+            abilities = {
+                { name = "Holy Light", cooldown = 20 },
+                { name = "Divine Shield", cooldown = 30 },
+                { name = "Judgment", cooldown = 45 }
+            }
+        })
+    elseif faction.id == "shadow" then
+        -- Shadow heroes
+        table.insert(heroes, {
+            id = "necromancer",
+            name = "Necromancer",
+            description = "A dark mage who commands the forces of death",
+            health = 420,
+            attack = 55,
+            speed = 85,
+            abilities = {
+                { name = "Death Bolt", cooldown = 15 },
+                { name = "Soul Harvest", cooldown = 25 },
+                { name = "Death Wave", cooldown = 40 }
+            }
+        })
+    elseif faction.id == "twilight" then
+        -- Twilight heroes
+        table.insert(heroes, {
+            id = "balance_mage",
+            name = "Balance Mage",
+            description = "A spellcaster who harnesses both light and dark energies",
+            health = 450,
+            attack = 60,
+            speed = 95,
+            abilities = {
+                { name = "Twilight Bolt", cooldown = 15 },
+                { name = "Equilibrium", cooldown = 25 },
+                { name = "Cosmic Balance", cooldown = 40 }
+            }
+        })
+        
+        table.insert(heroes, {
+            id = "dream_walker",
+            name = "Dream Walker",
+            description = "A mystic who travels between realities",
+            health = 400,
+            attack = 50,
+            speed = 100,
+            abilities = {
+                { name = "Dream Shift", cooldown = 12 },
+                { name = "Astral Projection", cooldown = 25 },
+                { name = "Reality Warp", cooldown = 40 }
+            }
+        })
+    else
+        -- Unknown faction, use default heroes
+        return self:createDefaultHeroes()
+    end
+    
+    return heroes
 end
 
 return HeroSelectState 

@@ -21,6 +21,9 @@ local AUTO_SAVE_ON_QUIT = true
 local currentSlot = 1
 local lastSaveTime = 0
 
+-- Add global state variable for non-instanced access
+local gameState = nil
+
 function Save.new()
     local self = setmetatable({}, Save)
     
@@ -280,6 +283,23 @@ function Save:setCurrentSlot(slot)
     return false
 end
 
+-- Module version of setCurrentSlot
+function Save.setCurrentSlot(slot)
+    if type(slot) ~= "number" then
+        print("Error: Invalid slot type, expected number but got " .. type(slot))
+        return false
+    end
+    
+    if slot >= 1 and slot <= #SAVE_SLOTS then
+        currentSlot = slot
+        print("Set current slot to " .. slot)
+        return true
+    end
+    
+    print("Error: Slot " .. slot .. " is out of range (1-" .. #SAVE_SLOTS .. ")")
+    return false
+end
+
 function Save:getCurrentSlot()
     return self.currentSlot
 end
@@ -313,6 +333,197 @@ function Save.saveGame(slot)
     -- This is just a stub but would prevent errors if called
     print("Static saveGame called for slot " .. slot)
     lastSaveTime = os.time()
+    return true
+end
+
+-- Add the saveGameState function that's being called from game.lua
+function Save.saveGameState(data)
+    -- Ensure save directory exists
+    love.filesystem.createDirectory("save")
+    
+    -- If we don't have a proper gameState yet, create a simple one
+    if not gameState then
+        gameState = {
+            playerName = "Player1",
+            selectedFaction = data.faction or "default",
+            selectedHero = data.hero or "default_hero",
+            currentLevel = 1,
+            completedLevels = {},
+            towerUpgrades = {},
+            resources = data.resources or 0,
+            lives = data.lives or 0,
+            currentWave = data.wave or 1,
+            victory = data.victory or false,
+            timestamp = os.time()
+        }
+    else
+        -- Update existing gameState with new data
+        gameState.selectedFaction = data.faction or gameState.selectedFaction
+        gameState.selectedHero = data.hero or gameState.selectedHero
+        gameState.resources = data.resources or gameState.resources
+        gameState.lives = data.lives or gameState.lives
+        gameState.currentWave = data.wave or gameState.currentWave
+        gameState.victory = data.victory or gameState.victory
+        gameState.timestamp = os.time()
+    end
+    
+    -- Save the current profile
+    Save.saveProfile(gameState, currentSlot)
+    
+    return true
+end
+
+-- Save player profile (including faction/hero selections and progress)
+function Save.saveProfile(profile, slot)
+    if not slot then slot = currentSlot end
+    
+    local filePath = string.format("save/profile_%d.json", slot)
+    
+    local success, error = Error.pcall(function()
+        -- Create minimal profile if not provided
+        if not profile then
+            profile = {
+                playerName = "Player" .. slot,
+                selectedFaction = "default",
+                selectedHero = "default_hero",
+                currentLevel = 1,
+                completedLevels = {},
+                towerUpgrades = {},
+                resources = 200,
+                timestamp = os.time()
+            }
+        end
+        
+        -- Ensure the save directory exists
+        love.filesystem.createDirectory("save")
+        
+        -- Save to file using LÖVE's filesystem for better cross-platform support
+        if love.filesystem.getInfo("save") then
+            local success = love.filesystem.write(filePath, json.encode(profile))
+            if success then
+                lastSaveTime = os.time()
+                print("Profile saved to " .. filePath)
+                return true
+            end
+        else
+            Error.handle(Error.TYPES.SAVE, "DIRECTORY_MISSING", "save")
+            return false
+        end
+    end, Error.TYPES.SAVE, "PROFILE_SAVE_FAILED")
+    
+    if not success then
+        Error.handle(Error.TYPES.SAVE, "PROFILE_SAVE_FAILED", error)
+        return false
+    end
+    
+    return true
+end
+
+-- Load player profile (including faction/hero selections and progress)
+function Save.loadProfile(slot)
+    if not slot then slot = currentSlot end
+    
+    local filePath = string.format("save/profile_%d.json", slot)
+    
+    local success, result = Error.pcall(function()
+        if not love.filesystem.getInfo(filePath) then
+            Error.handle(Error.TYPES.LOAD, "PROFILE_MISSING", slot)
+            return nil
+        end
+        
+        local content = love.filesystem.read(filePath)
+        if not content then
+            Error.handle(Error.TYPES.LOAD, "PROFILE_READ_FAILED", slot)
+            return nil
+        end
+        
+        local profile = json.decode(content)
+        if not profile then
+            Error.handle(Error.TYPES.LOAD, "PROFILE_DECODE_FAILED", slot)
+            return nil
+        end
+        
+        -- Store in global gameState for non-instanced access
+        gameState = profile
+        
+        return profile
+    end, Error.TYPES.LOAD, "PROFILE_LOAD_FAILED")
+    
+    if not success or not result then
+        Error.handle(Error.TYPES.LOAD, "PROFILE_LOAD_FAILED", slot)
+        return nil
+    end
+    
+    return result
+end
+
+-- Get all profiles (for the profile selection screen)
+function Save.getAllProfiles()
+    local profiles = {}
+    
+    for i = 1, #SAVE_SLOTS do
+        local profile = Save.loadProfile(i)
+        if profile then
+            profile.slot = i
+            table.insert(profiles, profile)
+        end
+    end
+    
+    return profiles
+end
+
+-- Get current profile
+function Save.getCurrentProfile()
+    if not gameState then
+        gameState = Save.loadProfile(currentSlot)
+    end
+    
+    return gameState
+end
+
+-- Update faction selection in current profile
+function Save.updateFactionSelection(factionId)
+    if not gameState then
+        gameState = Save.loadProfile(currentSlot) or {
+            playerName = "Player1",
+            selectedFaction = factionId,
+            currentLevel = 1,
+            completedLevels = {},
+            towerUpgrades = {},
+            resources = 200,
+            timestamp = os.time()
+        }
+    else
+        gameState.selectedFaction = factionId
+    end
+    
+    -- Debug info
+    print("Saving faction selection: " .. (factionId or "nil"))
+    
+    Save.saveProfile(gameState, currentSlot)
+    return true
+end
+
+-- Update hero selection in current profile
+function Save.updateHeroSelection(heroId)
+    if not gameState then
+        gameState = Save.loadProfile(currentSlot) or {
+            playerName = "Player1",
+            selectedHero = heroId,
+            currentLevel = 1,
+            completedLevels = {},
+            towerUpgrades = {},
+            resources = 200,
+            timestamp = os.time()
+        }
+    else
+        gameState.selectedHero = heroId
+    end
+    
+    -- Debug info
+    print("Saving hero selection: " .. (heroId or "nil"))
+    
+    Save.saveProfile(gameState, currentSlot)
     return true
 end
 

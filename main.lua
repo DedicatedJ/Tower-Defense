@@ -76,11 +76,27 @@ function love.load()
     -- Load settings
     Save:loadSettings()
     
-    -- Create the splash state instance
-    local splashState = require('states.splash').new()
+    -- Check for save directory
+    love.filesystem.createDirectory("save")
     
-    -- Start with splash screen
-    Gamestate.switch(splashState)
+    -- Check for last played game
+    local lastProfile = Save.getCurrentProfile()
+    
+    -- Determine which state to show initially
+    local initialState
+    
+    if lastProfile then
+        -- Last profile found, go straight to menu to allow loading
+        print("Found last played profile: " .. lastProfile.playerName)
+        initialState = require('states.menu').new()
+    else
+        -- No profile found, show load game screen to create a new one
+        print("No profiles found, showing load game screen")
+        initialState = require('states.load_game').new()
+    end
+    
+    -- Start with the determined initial screen
+    Gamestate.switch(initialState)
 end
 
 -- Initialize all game sounds
@@ -108,13 +124,12 @@ function initSounds()
     sounds.sfx.buttonClick = safeAudioLoad("sounds/sfx/button_click.wav", "static")
     sounds.sfx.towerPlace = safeAudioLoad("sounds/sfx/tower_place.wav", "static")
     sounds.sfx.towerSell = safeAudioLoad("sounds/sfx/tower_sell.wav", "static")
-    sounds.sfx.towerUpgrade = safeAudioLoad("sounds/sfx/tower_upgrade.wav", "static")
-    sounds.sfx.enemyHit = safeAudioLoad("sounds/sfx/enemy_hit.wav", "static")
-    sounds.sfx.enemyDie = safeAudioLoad("sounds/sfx/enemy_die.wav", "static")
-    sounds.sfx.waveStart = safeAudioLoad("sounds/sfx/wave_start.wav", "static")
-    sounds.sfx.gameOver = safeAudioLoad("sounds/sfx/game_over.wav", "static")
-    sounds.sfx.victory = safeAudioLoad("sounds/sfx/victory.wav", "static")
+    sounds.sfx.enemyDeath = safeAudioLoad("sounds/sfx/enemy_death.wav", "static")
+    sounds.sfx.playerDamage = safeAudioLoad("sounds/sfx/player_damage.wav", "static")
     sounds.sfx.heroAbility = safeAudioLoad("sounds/sfx/hero_ability.wav", "static")
+    sounds.sfx.waveStart = safeAudioLoad("sounds/sfx/wave_start.wav", "static")
+    sounds.sfx.purchase = safeAudioLoad("sounds/sfx/purchase.wav", "static")
+    sounds.sfx.levelUp = safeAudioLoad("sounds/sfx/level_up.wav", "static")
 end
 
 function love.update(dt)

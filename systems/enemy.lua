@@ -1,8 +1,8 @@
 -- Load required libraries
 local Class = require("libs.class")
-local Timer = require("libs.timer")
+local Timer = require("libs.hump.timer")
 local Utils = require("utils")
-local Error = require("systems.error")
+local Error = require("utils.error")
 local Animations = require("systems.animations")
 
 -- Use local pathfinding instead of Jumper library which may be missing

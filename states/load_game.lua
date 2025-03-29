@@ -13,6 +13,7 @@ function LoadGameState.new()
     self.saveSlots = {}
     self.buttons = {}
     self.backButton = nil
+    self.newGameButton = nil  -- Added new game button
     self.selectedSlot = nil
     self.timer = Timer.new() -- Create timer instance for this state
     
@@ -57,6 +58,16 @@ function LoadGameState:createUI()
             hovered = false
         }
     end
+    
+    -- Create new game button
+    self.newGameButton = {
+        text = "New Game",
+        x = love.graphics.getWidth() / 2 - 100,
+        y = love.graphics.getHeight() / 2 + 50,
+        width = 200,
+        height = 50,
+        hovered = false
+    }
     
     -- Create back button
     self.backButton = {
@@ -179,6 +190,38 @@ function LoadGameState:draw()
         end
     end
     
+    -- If no save files exist, show message and new game button
+    if #self.saveSlots == 0 then
+        love.graphics.setColor(1, 1, 1, 1)
+        local text = "No save Files Found"
+        local textWidth = fonts.main:getWidth(text)
+        love.graphics.print(
+            text,
+            love.graphics.getWidth() / 2 - textWidth / 2,
+            love.graphics.getHeight() / 2 - fonts.main:getHeight() / 2
+        )
+        
+        -- Draw new game button
+        if self.newGameButton.hovered then
+            love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
+        else
+            love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+        end
+        love.graphics.rectangle("fill", self.newGameButton.x, self.newGameButton.y, self.newGameButton.width, self.newGameButton.height)
+        
+        love.graphics.setColor(1, 1, 1, 0.5)
+        love.graphics.rectangle("line", self.newGameButton.x, self.newGameButton.y, self.newGameButton.width, self.newGameButton.height)
+        
+        love.graphics.setColor(1, 1, 1, 1)
+        local btnText = self.newGameButton.text
+        local btnTextWidth = fonts.main:getWidth(btnText)
+        love.graphics.print(
+            btnText,
+            self.newGameButton.x + self.newGameButton.width / 2 - btnTextWidth / 2,
+            self.newGameButton.y + self.newGameButton.height / 2 - fonts.main:getHeight() / 2
+        )
+    end
+    
     -- Draw back button
     if self.backButton.hovered then
         love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
@@ -192,18 +235,6 @@ function LoadGameState:draw()
     
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.print(self.backButton.text, self.backButton.x + 30, self.backButton.y + 10)
-    
-    -- If no save files exist, show message
-    if #self.saveSlots == 0 then
-        love.graphics.setColor(1, 1, 1, 1)
-        local text = "No save files found"
-        local textWidth = fonts.main:getWidth(text)
-        love.graphics.print(
-            text,
-            love.graphics.getWidth() / 2 - textWidth / 2,
-            love.graphics.getHeight() / 2 - fonts.main:getHeight() / 2
-        )
-    end
     
     -- Draw error notifications
     Error.draw()
@@ -220,9 +251,15 @@ function LoadGameState:mousepressed(x, y, button)
                     self:loadGame(btn.slot)
                 else
                     playSound('sfx', 'buttonClick')
-                    Error.handle(Error.TYPES.GAME, "INVALID_SELECTION", "This save slot is empty")
+                    self:createNewGame(btn.slot.id)
                 end
             end
+        end
+        
+        -- Check new game button
+        if #self.saveSlots == 0 and self:isPointInButton(x, y, self.newGameButton) then
+            playSound('sfx', 'buttonClick')
+            self:createNewGame(1) -- Create in first slot if no saves exist
         end
         
         -- Check back button
@@ -237,6 +274,10 @@ function LoadGameState:mousemoved(x, y, dx, dy)
     -- Update button hover states
     for _, button in ipairs(self.buttons) do
         button.hovered = self:isPointInButton(x, y, button)
+    end
+    
+    if #self.saveSlots == 0 then
+        self.newGameButton.hovered = self:isPointInButton(x, y, self.newGameButton)
     end
     
     self.backButton.hovered = self:isPointInButton(x, y, self.backButton)
@@ -275,6 +316,31 @@ function LoadGameState:keypressed(key)
         playSound('sfx', 'buttonClick')
         Gamestate.pop()
     end
+end
+
+function LoadGameState:createNewGame(slotId)
+    -- Create a new game save in the specified slot
+    local Save = require('systems.save')
+    
+    -- Create default profile
+    local profile = {
+        playerName = "Player" .. slotId,
+        selectedFaction = nil, -- Will be chosen in faction select
+        selectedHero = nil,    -- Will be chosen in hero select
+        currentLevel = 1,
+        completedLevels = {},
+        towerUpgrades = {},
+        resources = 200,
+        timestamp = os.time()
+    }
+    
+    -- Save the profile
+    Save.saveProfile(profile, slotId)
+    Save.setCurrentSlot(slotId)
+    
+    -- Go to faction select
+    local factionSelectState = require('states.faction_select').new()
+    Gamestate.switch(factionSelectState)
 end
 
 return LoadGameState 

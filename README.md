@@ -113,6 +113,18 @@ Tower Defense/
 3. Update `main.lua` to include new states
 4. Follow the existing code structure and naming conventions
 
+### Tests
+
+Both suites run the game's code under LÖVE 11.5 in a throwaway copy of the repo, with their own save folders (your saves are never touched). From Git Bash:
+
+```bash
+tests/run.sh          # unit, then smoke
+tests/run.sh unit     # logic checks with exact expected values, a few seconds
+tests/run.sh smoke    # drives the real game: menus, every tower and hero, 10 waves per faction
+```
+
+Set `LOVEC` if `lovec.exe` is not at `C:\Program Files\LOVE\lovec.exe`. Exit code 0 = all passed, 1 = a check failed, 2 = crash.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

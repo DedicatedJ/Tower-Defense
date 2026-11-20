@@ -1,830 +1,487 @@
-local Tower = {
-    types = {},
-    factionTowers = {}
-}
+-- Towers. Stats, behaviors and upgrades come from data/factions.lua; this
+-- module gives them life: targeting, homing projectiles, on-hit effects,
+-- healing pulses, summoning, draining, hybrid light/dark damage, elemental
+-- shots, rage, upgrades and selling.
+--
+-- The game state passed to update() must provide:
+--   enemies, units, effects, projectiles      lists
+--   towerMods                                  multipliers (states/game.lua)
+--   spawnMinion(def, x, y, count) -> units    add minions
+--   nearestRoadCellWithin(x, y, r) -> gx, gy  road cell within r of a point
+--   cellCenter(gx, gy) -> x, y
 
--- Dependencies
-local Error = require 'utils.error'
-local Bump = require 'libs.bump.bump'
-local Timer = require 'libs.hump.timer'
+local Factions = require 'data.factions'
+local Effects = require 'systems.effects'
 
--- Tower class
+local Tower = {}
+
 local TowerInstance = {}
 TowerInstance.__index = TowerInstance
 
--- Initialize the tower data
+Tower.SELL_REFUND = 0.7
+Tower.PROJECTILE_SPEED = 320
+Tower.MARK_DURATION = 3
+Tower.UNDEAD_LIGHT_BONUS = 1.25 -- light hurts undead more
+Tower.LIVING_DARK_BONUS = 1.25  -- dark hurts the living more
+
+local FACTION_COLORS = {
+    radiant = { 0.95, 0.8, 0.4 },
+    shadow = { 0.55, 0.35, 0.8 },
+    twilight = { 0.45, 0.65, 0.95 },
+}
+
+local PROJECTILE_COLORS = {
+    holy = { 1, 0.9, 0.4 }, fire = { 1, 0.5, 0.15 }, bolt = { 0.85, 0.85, 0.9 },
+    poison = { 0.45, 0.95, 0.3 }, void = { 0.65, 0.3, 0.95 }, soul = { 0.4, 1, 0.8 },
+    hybrid = { 0.95, 0.85, 1 }, frost = { 0.6, 0.85, 1 },
+}
+
+------------------------------------------------------------------------
+-- Setup
+------------------------------------------------------------------------
 function Tower.init()
     if Tower.initialized then return end
-    
-    -- Initialize tower data by faction
-    Tower.HUMAN = {
-        archer_tower = {
-            id = "archer_tower",
-            name = "Archer Tower",
-            description = "Basic tower with arrows",
-            faction = "human",
-            cost = 100,
-            damage = 15,
-            range = 150,
-            attackSpeed = 1.0,
-            projectileType = "arrow",
-            sprite = "sprites/towers/archer.png"
-        },
-        cannon_tower = {
-            id = "cannon_tower",
-            name = "Cannon Tower",
-            description = "Slow but powerful tower",
-            faction = "human",
-            cost = 150,
-            damage = 40,
-            range = 120,
-            attackSpeed = 2.0,
-            projectileType = "cannonball",
-            sprite = "sprites/towers/cannon.png"
-        }
-    }
-    
-    Tower.ELF = {
-        magic_tower = {
-            id = "magic_tower",
-            name = "Magic Tower",
-            description = "Deals magic damage to enemies",
-            faction = "elf",
-            cost = 125,
-            damage = 20,
-            range = 180,
-            attackSpeed = 1.2,
-            projectileType = "magic",
-            sprite = "sprites/towers/magic.png"
-        },
-        frost_tower = {
-            id = "frost_tower", 
-            name = "Frost Tower",
-            description = "Slows enemies with frost magic",
-            faction = "elf",
-            cost = 175,
-            damage = 10,
-            range = 150,
-            attackSpeed = 1.0,
-            projectileType = "frost",
-            sprite = "sprites/towers/frost.png",
-            special = {
-                slowAmount = 0.5,
-                slowDuration = 3.0
-            }
-        }
-    }
-    
-    Tower.DWARF = {
-        crossbow_tower = {
-            id = "crossbow_tower",
-            name = "Crossbow Tower",
-            description = "Rapid fire tower",
-            faction = "dwarf",
-            cost = 125,
-            damage = 8,
-            range = 130,
-            attackSpeed = 0.5,
-            projectileType = "bolt",
-            sprite = "sprites/towers/crossbow.png"
-        },
-        bombard_tower = {
-            id = "bombard_tower",
-            name = "Bombard Tower",
-            description = "Area damage tower",
-            faction = "dwarf",
-            cost = 200,
-            damage = 25,
-            range = 120,
-            attackSpeed = 2.5,
-            projectileType = "bomb",
-            sprite = "sprites/towers/bombard.png",
-            special = {
-                aoeRadius = 60,
-                aoeDamageMultiplier = 0.5
-            }
-        }
-    }
-    
-    -- Create default sprites for towers without images
-    Tower.sprites = {}
-    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
-        for id, tower in pairs(faction) do
-            Tower.sprites[id] = Tower.createDefaultSprite(tower)
+
+    -- Index every tower by id, and each faction's towers in data order
+    Tower.byId = {}
+    Tower.byFaction = {}
+    for fid, faction in pairs(Factions) do
+        Tower.byFaction[fid] = {}
+        for _, t in ipairs(faction.towers) do
+            Tower.byId[t.id] = t
+            table.insert(Tower.byFaction[fid], t)
         end
+    end
+
+    -- Generated placeholder sprites for every tower
+    Tower.sprites = {}
+    for id, t in pairs(Tower.byId) do
+        Tower.sprites[id] = Tower.createDefaultSprite(t)
     end
 
     -- Painted sprites (see art/README.md), loaded once and shared by every
-    -- instance. Towers without a file keep the generated default above.
+    -- instance. Towers without a file keep the placeholder.
     Tower.images = {}
-    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
-        for id, tower in pairs(faction) do
-            if type(tower.sprite) == "string" and love.filesystem.getInfo(tower.sprite) then
-                local ok, img = pcall(love.graphics.newImage, tower.sprite, { mipmaps = true })
+    local loaded = {}
+    for id, t in pairs(Tower.byId) do
+        if type(t.sprite) == "string" and love.filesystem.getInfo(t.sprite) then
+            if not loaded[t.sprite] then
+                local ok, img = pcall(love.graphics.newImage, t.sprite, { mipmaps = true })
                 if ok then
                     img:setFilter("linear", "linear")
                     img:setMipmapFilter("linear")
-                    Tower.images[id] = img
+                    loaded[t.sprite] = img
                 else
-                    print("WARNING: Failed to load tower sprite: " .. tower.sprite)
+                    print("WARNING: Failed to load tower sprite: " .. t.sprite)
                 end
             end
+            Tower.images[id] = loaded[t.sprite]
         end
     end
 
-    -- Create default projectile sprites
-    Tower.projectileSprites = {
-        arrow = Tower.createDefaultProjectileSprite({1, 0.8, 0}),
-        cannonball = Tower.createDefaultProjectileSprite({0.3, 0.3, 0.3}),
-        magic = Tower.createDefaultProjectileSprite({0.5, 0, 0.8}),
-        frost = Tower.createDefaultProjectileSprite({0, 0.7, 1}),
-        bolt = Tower.createDefaultProjectileSprite({0.8, 0.5, 0}),
-        bomb = Tower.createDefaultProjectileSprite({1, 0.3, 0})
-    }
-    
+    Tower.projectileSprites = {}
+    for kind, color in pairs(PROJECTILE_COLORS) do
+        Tower.projectileSprites[kind] = Tower.createDefaultProjectileSprite(color)
+    end
+
     Tower.initialized = true
 end
 
--- Create a default sprite for a tower
+-- Placeholder tower drawn in code, tinted by faction
 function Tower.createDefaultSprite(tower)
-    -- Create a new canvas for the tower sprite
     local size = 32
     local canvas = love.graphics.newCanvas(size, size)
-    
-    -- Set color based on tower faction
-    local color = {0.5, 0.5, 0.5} -- Default gray
-    if tower.faction == "human" then
-        color = {0.9, 0.7, 0.4} -- Gold/brown for human
-    elseif tower.faction == "elf" then
-        color = {0, 0.8, 0.5} -- Green for elf
-    elseif tower.faction == "dwarf" then
-        color = {0.6, 0.4, 0.2} -- Brown for dwarf
-    end
-    
-    -- Draw to canvas
+    local color = FACTION_COLORS[tower.faction] or { 0.5, 0.5, 0.5 }
+    local accent = PROJECTILE_COLORS[tower.projectileType] or { 1, 1, 1 }
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
-    
-    -- Base
-    love.graphics.setColor(color[1] * 0.7, color[2] * 0.7, color[3] * 0.7)
-    love.graphics.rectangle("fill", 4, 4, 24, 24)
-    
-    -- Tower top
+    love.graphics.setColor(color[1] * 0.55, color[2] * 0.55, color[3] * 0.55)
+    love.graphics.rectangle("fill", 4, 10, 24, 20, 3, 3)
     love.graphics.setColor(color)
-    love.graphics.rectangle("fill", 8, 0, 16, 16)
-    
-    -- Outline
+    love.graphics.rectangle("fill", 8, 2, 16, 14, 2, 2)
+    love.graphics.setColor(accent)
+    love.graphics.circle("fill", 16, 9, 4)
     love.graphics.setColor(0, 0, 0)
-    love.graphics.rectangle("line", 4, 4, 24, 24)
-    love.graphics.rectangle("line", 8, 0, 16, 16)
-    
-    -- Identifier based on attack type
-    if tower.projectileType == "arrow" or tower.projectileType == "bolt" then
-        -- Draw bow-like shape
-        love.graphics.setColor(0.8, 0.6, 0.3)
-        love.graphics.line(14, 4, 18, 4)
-        love.graphics.line(14, 4, 14, 12)
-        love.graphics.line(18, 4, 18, 12)
-    elseif tower.projectileType == "cannonball" or tower.projectileType == "bomb" then
-        -- Draw cannon-like shape
-        love.graphics.setColor(0.3, 0.3, 0.3)
-        love.graphics.rectangle("fill", 10, 8, 12, 8)
-    elseif tower.projectileType == "magic" or tower.projectileType == "frost" then
-        -- Draw crystal-like shape
-        love.graphics.setColor(0.8, 0.8, 1.0)
-        love.graphics.polygon("fill", 16, 4, 12, 10, 20, 10)
-    end
-    
-    -- Reset canvas
+    love.graphics.rectangle("line", 4, 10, 24, 20, 3, 3)
+    love.graphics.rectangle("line", 8, 2, 16, 14, 2, 2)
     love.graphics.setCanvas()
-    
+    love.graphics.setColor(1, 1, 1, 1)
     return canvas
 end
 
--- Create a default projectile sprite
 function Tower.createDefaultProjectileSprite(color)
-    -- Create a new canvas for the projectile sprite
-    local size = 16
-    local canvas = love.graphics.newCanvas(size, size)
-    
-    -- Draw to canvas
+    local canvas = love.graphics.newCanvas(16, 16)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
-    
-    -- Draw projectile
     love.graphics.setColor(color)
     love.graphics.circle("fill", 8, 8, 4)
-    
-    -- Draw outline
-    love.graphics.setColor(0, 0, 0)
-    love.graphics.circle("line", 8, 8, 4)
-    
-    -- Reset canvas
+    love.graphics.setColor(color[1], color[2], color[3], 0.4)
+    love.graphics.circle("fill", 8, 8, 7)
     love.graphics.setCanvas()
-    
+    love.graphics.setColor(1, 1, 1, 1)
     return canvas
 end
 
--- Get all towers for a specific faction
-function Tower.getTowersByFaction(faction)
-    if not Tower.initialized then
-        Tower.init()
-    end
-    
-    if not faction then
-        print("ERROR: Faction is nil in getTowersByFaction")
-        -- Return basic towers as fallback
-        return {
-            {
-                id = "basic_archer",
-                name = "Archer Tower",
-                description = "Basic tower with medium range",
-                cost = 100,
-                damage = 10,
-                range = 150,
-                attackSpeed = 1.0
-            },
-            {
-                id = "basic_cannon",
-                name = "Cannon Tower",
-                description = "Slow but powerful tower",
-                cost = 150,
-                damage = 30,
-                range = 120,
-                attackSpeed = 2.0
-            }
-        }
-    end
-    
-    -- Try to find by faction id first
-    local factionId = faction.id
-    if not factionId and faction.name then
-        -- Try to use lowercase name as fallback
-        factionId = string.lower(faction.name)
-    end
-    
-    print("Getting towers for faction: " .. tostring(factionId))
-    
-    -- Get faction towers
-    local factionTowers = {}
-    
-    if factionId == "radiant" or factionId:find("radiant") or factionId:find("light") then
-        factionTowers = Tower.HUMAN
-    elseif factionId == "shadow" or factionId:find("shadow") or factionId:find("dark") then
-        factionTowers = Tower.ELF
-    elseif factionId == "twilight" or factionId:find("twilight") or factionId:find("balance") then
-        factionTowers = Tower.DWARF
-    else
-        -- Return a mix of basic towers as fallback
-        factionTowers = {
-            Tower.HUMAN.archer_tower,
-            Tower.ELF.magic_tower,
-            Tower.DWARF.bombard_tower
-        }
-    end
-    
-    -- Convert to array
-    local result = {}
-    for id, tower in pairs(factionTowers) do
-        if type(tower) == "table" then
-            -- Clone the tower data
-            local towerCopy = {}
-            for k, v in pairs(tower) do
-                towerCopy[k] = v
-            end
-            
-            -- Ensure id is set from key if not present
-            if not towerCopy.id then
-                towerCopy.id = id
-            end
-            
-            table.insert(result, towerCopy)
-        end
-    end
-    
-    print("Found " .. #result .. " towers for faction " .. tostring(factionId))
-    
-    return result
+-- A faction's towers, in data order (tower upgrade screen)
+function Tower.getTowersByFaction(factionId)
+    if not Tower.initialized then Tower.init() end
+    return Tower.byFaction[factionId] or {}
 end
 
--- Create a new tower instance
-function Tower.create(towerType, gridX, gridY, tileSize)
-    if not Tower.initialized then
-        Tower.init()
-    end
-    
-    print("Creating tower: " .. tostring(towerType) .. " at grid position " .. gridX .. "," .. gridY)
-    
-    -- Find tower data
-    local towerData = nil
-    
-    -- Search through all factions
-    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
-        for id, tower in pairs(faction) do
-            if id == towerType or tower.id == towerType then
-                towerData = tower
-                break
-            end
-        end
-        if towerData then break end
-    end
-    
-    if not towerData then
-        print("ERROR: Invalid tower type: " .. tostring(towerType))
-        -- Use basic archer as fallback
-        towerData = Tower.HUMAN.archer_tower
-    end
-    
-    -- Clone the tower data
-    local instance = {}
-    for k, v in pairs(towerData) do
-        instance[k] = v
-    end
-    
-    -- Set instance-specific properties
-    instance.gridX = gridX
-    instance.gridY = gridY
-    instance.tileSize = tileSize or 32
-    instance.level = 1
-    instance.target = nil
-    instance.cooldown = 0
-
-    -- Runtime state used by TowerInstance:update/attack/getInfo
-    instance.timer = Timer.new()
-    instance.attackTimer = 0
-    instance.appliedUpgrades = {}
-    instance.buffs = {}
-    instance.upgradeLevel = 0
-    instance.projectileSpeed = instance.projectileSpeed or 300
-
-    -- Flatten `special` (slow, AOE, ...) into the fields projectiles read
-    if type(towerData.special) == "table" then
-        for k, v in pairs(towerData.special) do
-            if instance[k] == nil then
-                instance[k] = v
-            end
-        end
-    end
-
-    -- Painted sprite if one was loaded in Tower.init, else the generated default
-    instance.painted = Tower.images and Tower.images[instance.id] ~= nil
-    instance.spriteImg = (Tower.images and Tower.images[instance.id])
-        or (Tower.sprites and Tower.sprites[instance.id])
-    
-    -- Mix in tower instance methods
-    for k, v in pairs(TowerInstance) do
-        instance[k] = v
-    end
-    
-    print("Tower created successfully")
-    return instance
+-- A faction's towers keyed by id (game tower panel)
+function Tower.getSet(factionId)
+    local set = {}
+    for _, t in ipairs(Tower.getTowersByFaction(factionId)) do set[t.id] = t end
+    return set
 end
 
--- Draw tower preview during placement
-function Tower.drawPreview(towerType, x, y)
-    if not Tower.initialized then
-        Tower.init()
+------------------------------------------------------------------------
+-- Instances
+------------------------------------------------------------------------
+-- Flatten a tower's data into the instance fields behaviors and
+-- upgrades work on.
+local function flatten(inst, d)
+    inst.damage = d.damage
+    inst.fireRate = d.fireRate
+    inst.range = d.range
+    inst.critChance = d.critChance or 0
+    inst.critMult = d.critMult or 2
+    if d.heal then
+        inst.healAmount = d.heal.amount
+        inst.healInterval = d.heal.interval
+        inst.healTimer = d.heal.interval
     end
-    
-    -- Find tower data
-    local towerData = nil
-    
-    -- Search through all factions
-    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
-        for id, tower in pairs(faction) do
-            if id == towerType or tower.id == towerType then
-                towerData = tower
-                break
-            end
-        end
-        if towerData then break end
+    for _, e in ipairs(d.onHit or {}) do
+        if e.type == "burn" then inst.burnDps, inst.burnDuration = e.dps, e.duration end
+        if e.type == "poison" then inst.poisonDps, inst.poisonDuration = e.dps, e.duration end
     end
-    
-    if not towerData then
-        -- Draw default preview
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.5)
-        love.graphics.rectangle("fill", x, y, 32, 32)
-        return
+    if d.summon then
+        inst.summonInterval = d.summon.interval
+        inst.summonMax = d.summon.max
+        inst.summonMinion = d.summon.minion
+        inst.summonTimer = 2 -- first minion shortly after building
+        inst.minions = {}
     end
-    
-    -- Draw tower sprite or placeholder
-    local sprite = Tower.sprites and Tower.sprites[towerType]
-    
-    if sprite then
-        love.graphics.setColor(1, 1, 1, 0.7)
-        love.graphics.draw(sprite, x + 16, y + 16, 0, 1, 1, sprite:getWidth() / 2, sprite:getHeight() / 2)
-    else
-        -- Draw placeholder
-        love.graphics.setColor(0.7, 0.7, 0.7, 0.5)
-        love.graphics.rectangle("fill", x, y, 32, 32)
+    if d.convert then
+        inst.convertChance = d.convert.chance
+        inst.convertMinion = d.convert.minion
     end
-    
-    -- Draw range indicator
-    if towerData.range then
-        love.graphics.setColor(0, 0.5, 0.8, 0.2)
-        love.graphics.circle("fill", x + 16, y + 16, towerData.range)
-        love.graphics.setColor(0, 0.7, 1, 0.5)
-        love.graphics.circle("line", x + 16, y + 16, towerData.range)
+    if d.drain then inst.drainPercent = d.drain.percent end
+    if d.hybrid then
+        inst.lightDamage = d.hybrid.light
+        inst.darkDamage = d.hybrid.dark
+    end
+    if d.elemental then
+        inst.elemBurnDps = d.elemental.burnDps
+        inst.elemBurnDuration = d.elemental.burnDuration
+        inst.freezeDuration = d.elemental.freezeDuration
+        inst.elemIndex = 0
     end
 end
 
--- Tower instance methods
+local function applyMod(inst, mod)
+    if mod.set ~= nil then
+        inst[mod.stat] = mod.set
+    elseif mod.mult then
+        inst[mod.stat] = (inst[mod.stat] or 0) * mod.mult
+    elseif mod.add then
+        inst[mod.stat] = (inst[mod.stat] or 0) + mod.add
+    end
+end
 
--- Pixel center of the tower's grid cell. Grid cells are 1-based:
--- cell (gx, gy) spans (gx-1)*tileSize .. gx*tileSize.
+-- ctx: towerMods from the game (faction bonus, hero passive, shop items)
+function Tower.create(towerId, gridX, gridY, tileSize, ctx)
+    if not Tower.initialized then Tower.init() end
+    local d = Tower.byId[towerId]
+    if not d then
+        print("ERROR: Invalid tower type: " .. tostring(towerId))
+        return nil
+    end
+    ctx = ctx or {}
+
+    local inst = setmetatable({}, TowerInstance)
+    inst.id = d.id
+    inst.data = d
+    inst.name = d.name
+    inst.description = d.description
+    inst.faction = d.faction
+    inst.projectileType = d.projectileType
+    inst.cost = d.cost
+    inst.spent = d.cost
+    inst.gridX, inst.gridY = gridX, gridY
+    inst.tileSize = tileSize or 32
+    inst.statuses = {}
+    inst.fireCooldown = 0
+    inst.target = nil
+    inst.bought = {}
+    inst.mods = ctx
+    flatten(inst, d)
+
+    -- Hero passives that change one tower type's stats
+    for _, m in ipairs(ctx.towerStat or {}) do
+        if m.tower == d.id then applyMod(inst, m) end
+    end
+    -- Shop items
+    inst.range = inst.range * (ctx.rangeMult or 1)
+    inst.fireRate = inst.fireRate * (ctx.fireRateMult or 1)
+
+    inst.painted = Tower.images[d.id] ~= nil
+    inst.spriteImg = Tower.images[d.id] or Tower.sprites[d.id]
+    return inst
+end
+
 function TowerInstance:getCenter()
     local ts = self.tileSize or 32
     return (self.gridX - 0.5) * ts, (self.gridY - 0.5) * ts
 end
 
--- Update tower logic.
--- gameState must provide: towers, enemies, projectiles, effects (lists).
--- Enemies must provide: x, y (center), radius, dead, reachedEnd,
--- takeDamage(amount), applySlow(amount, duration), applyDot(damage, duration).
-function TowerInstance:update(dt, gameState)
-    -- Update timer
-    self.timer:update(dt)
+------------------------------------------------------------------------
+-- Upgrades and selling
+------------------------------------------------------------------------
+function TowerInstance:upgradeData(i) return self.data.upgrades[i] end
 
-    -- Get world position
-    local x, y = self:getCenter()
-    
-    -- Calculate total stats with upgrades and buffs
-    local totalDamage = self.damage
-    local totalRange = self.range
-    local totalAttackSpeed = self.attackSpeed
-    
-    -- Apply upgrades
-    for _, upgrade in ipairs(self.appliedUpgrades) do
-        if upgrade.damageMod then
-            totalDamage = totalDamage * upgrade.damageMod
+function TowerInstance:canBuyUpgrade(i, gold)
+    local up = self.data.upgrades[i]
+    return up and not self.bought[i] and gold >= up.cost
+end
+
+-- Buy upgrade i (each once). Returns its cost, or nil.
+function TowerInstance:buyUpgrade(i)
+    local up = self.data.upgrades[i]
+    if not up or self.bought[i] then return nil end
+    for _, m in ipairs(up.mods) do applyMod(self, m) end
+    self.bought[i] = true
+    self.spent = self.spent + up.cost
+    self.upgradeFlash = 0.6
+    return up.cost
+end
+
+function TowerInstance:sellValue()
+    return math.floor(self.spent * Tower.SELL_REFUND)
+end
+
+-- Kept for older callers
+function TowerInstance:upgrade(i) return self:buyUpgrade(i) ~= nil end
+
+------------------------------------------------------------------------
+-- Damage
+------------------------------------------------------------------------
+function TowerInstance:isHybrid() return self.lightDamage ~= nil end
+
+function TowerInstance:raging()
+    return self.rageMult and self.rageTimer and (self.rageTimer % (self.rageInterval + self.rageDuration)) >= self.rageInterval
+end
+
+-- Damage of one shot against this target (before the enemy's armor)
+function TowerInstance:shotDamage(target)
+    local mods = self.mods
+    local dmg
+    if self:isHybrid() then
+        local undead = target.nature == "undead"
+        local light, dark = self.lightDamage, self.darkDamage
+        if self.hybridSmart then
+            dmg = (light + dark) * Tower.UNDEAD_LIGHT_BONUS -- all of it in the type it is weak to
+        else
+            dmg = light * (undead and Tower.UNDEAD_LIGHT_BONUS or 1)
+                + dark * (undead and 1 or Tower.LIVING_DARK_BONUS)
         end
-        if upgrade.rangeMod then
-            totalRange = totalRange * upgrade.rangeMod
-        end
-        if upgrade.attackSpeedMod then
-            totalAttackSpeed = totalAttackSpeed / upgrade.attackSpeedMod
-        end
-    end
-    
-    -- Apply buffs
-    for _, buff in pairs(self.buffs) do
-        if buff.damageMod then
-            totalDamage = totalDamage * buff.damageMod
-        end
-        if buff.rangeMod then
-            totalRange = totalRange * buff.rangeMod
-        end
-        if buff.attackSpeedMod then
-            totalAttackSpeed = totalAttackSpeed / buff.attackSpeedMod
-        end
-    end
-    
-    -- Support towers give buffs to nearby towers
-    if self.supportType then
-        local buffRange = self.buffRange
-        
-        -- Apply upgrade modifiers to buff range
-        for _, upgrade in ipairs(self.appliedUpgrades) do
-            if upgrade.buffRangeMod then
-                buffRange = buffRange * upgrade.buffRangeMod
-            end
-        end
-        
-        -- Calculate buff amount
-        local buffAmount = self.buffAmount
-        for _, upgrade in ipairs(self.appliedUpgrades) do
-            if upgrade.buffMod then
-                buffAmount = buffAmount * upgrade.buffMod
-            end
-        end
-        
-        -- Apply buffs to nearby towers
-        for _, tower in ipairs(gameState.towers) do
-            if tower ~= self then
-                local towerX, towerY = tower:getCenter()
-                
-                local dist = math.sqrt((x - towerX)^2 + (y - towerY)^2)
-                if dist <= buffRange then
-                    -- Apply buff
-                    tower.buffs[self.id .. self.gridX .. self.gridY] = {
-                        source = self,
-                        damageMod = 1 + buffAmount,
-                        duration = 0.5  -- Refresh every 0.5 seconds
-                    }
-                end
-            end
-        end
-        
-        return -- Support towers don't attack
-    end
-    
-    -- Update attack timer
-    self.attackTimer = self.attackTimer - dt
-    
-    -- Clean up expired buffs
-    for id, buff in pairs(self.buffs) do
-        buff.duration = buff.duration - dt
-        if buff.duration <= 0 then
-            self.buffs[id] = nil
-        end
-    end
-    
-    -- Find target if we don't have one or it's dead/out of range
-    if not self.target or self.target.dead or self.target.reachedEnd then
-        self.target = nil
+        dmg = dmg * (mods.hybridMult or 1)
     else
-        local targetX, targetY = self.target.x, self.target.y
-        local dist = math.sqrt((x - targetX)^2 + (y - targetY)^2)
-        if dist > totalRange then
-            self.target = nil
-        end
+        dmg = self.damage
     end
-    
-    -- Find a new target
-    if not self.target then
-        local closestEnemy = nil
-        local closestDist = totalRange
-        
-        for _, enemy in ipairs(gameState.enemies) do
-            if not enemy.dead and not enemy.reachedEnd then
-                local dist = math.sqrt((x - enemy.x)^2 + (y - enemy.y)^2)
-                if dist < closestDist then
-                    closestEnemy = enemy
-                    closestDist = dist
-                end
-            end
-        end
-        
-        self.target = closestEnemy
+    dmg = dmg * (mods.damageMult or 1) * Effects.damageDealtMult(self)
+    if self:raging() then dmg = dmg * self.rageMult end
+    if self.elementalBonus and target.statuses and (target.statuses.burn or target.statuses.freeze) then
+        dmg = dmg * (1 + self.elementalBonus)
     end
-    
-    -- Attack if we have a target and the timer is up
-    if self.target and self.attackTimer <= 0 then
-        self:attack(gameState)
-        self.attackTimer = totalAttackSpeed
+    local crit = false
+    if self.critChance > 0 and love.math.random() < self.critChance then
+        dmg = dmg * self.critMult
+        crit = true
+    end
+    return dmg, crit
+end
+
+function TowerInstance:onHit(target)
+    if target.dead then return end
+    local dmg, crit = self:shotDamage(target)
+    target:takeDamage(dmg, self)
+    self.hits = (self.hits or 0) + 1
+    if crit then self.crits = (self.crits or 0) + 1 end
+    if target.dead then return end
+    local mods = self.mods
+    local ctx = { source = self, dotMult = { poison = mods.poisonMult or 1 } }
+    if self.burnDps then
+        Effects.apply(target, { type = "burn", dps = self.burnDps, duration = self.burnDuration }, ctx)
+    end
+    if self.poisonDps then
+        Effects.apply(target, { type = "poison", dps = self.poisonDps, duration = self.poisonDuration }, ctx)
+    end
+    if self.markMult then
+        Effects.apply(target, { type = "mark", mult = self.markMult, duration = Tower.MARK_DURATION }, ctx)
+    end
+    if self.elemBurnDps then
+        local burn = { type = "burn", dps = self.elemBurnDps, duration = self.elemBurnDuration }
+        local freeze = { type = "freeze", duration = self.freezeDuration }
+        if self.fusion then
+            Effects.apply(target, burn, ctx)
+            Effects.apply(target, freeze, ctx)
+        else
+            self.elemIndex = (self.elemIndex % 2) + 1
+            Effects.apply(target, self.elemIndex == 1 and burn or freeze, ctx)
+        end
     end
 end
 
--- Tower attacks its current target
-function TowerInstance:attack(gameState)
-    -- Skip if no target
-    if not self.target then return end
-    
-    -- Get tower position
+------------------------------------------------------------------------
+-- Update
+------------------------------------------------------------------------
+local function alive(e) return e and not e.dead and not e.removed and not e.reachedEnd end
+
+local function dist(ax, ay, bx, by)
+    local dx, dy = ax - bx, ay - by
+    return math.sqrt(dx * dx + dy * dy)
+end
+
+local function pulse(game, x, y, r, color)
+    table.insert(game.effects, {
+        t = 0, done = false,
+        update = function(fx, dt) fx.t = fx.t + dt; if fx.t > 0.4 then fx.done = true end; return fx.done end,
+        draw = function(fx)
+            local k = fx.t / 0.4
+            love.graphics.setColor(color[1], color[2], color[3], 0.35 * (1 - k))
+            love.graphics.circle("line", x, y, r * (0.3 + 0.7 * k))
+        end,
+    })
+end
+
+function TowerInstance:update(dt, game)
+    Effects.update(self, dt)
+    if self.upgradeFlash then self.upgradeFlash = math.max(0, self.upgradeFlash - dt) end
     local x, y = self:getCenter()
 
-    -- Calculate direction
-    local targetX, targetY = self.target.x, self.target.y
-    local dx, dy = targetX - x, targetY - y
-    local angle = math.atan2(dy, dx)
-    
-    -- Create projectile
-    local projectile = {
-        x = x,
-        y = y,
-        angle = angle,
-        speed = self.projectileSpeed,
-        damage = self.damage,
-        type = self.projectileType,
-        source = self,
-        target = self.target,
-        destroyed = false,
-        
-        -- Special properties
-        aoeRadius = self.aoeRadius,
-        slowAmount = self.slowAmount,
-        slowDuration = self.slowDuration,
-        dotDamage = self.dotDamage,
-        dotDuration = self.dotDuration,
-        
-        -- Apply upgrades to projectile
-        appliedUpgrades = self.appliedUpgrades,
-        
-        -- Cone attack for flamethrower
-        coneAngle = self.coneAngle,
-        
-        -- Update projectile logic
-        update = function(self, dt, gameState)
-            -- Special case for flamethrower - damage all enemies in cone immediately
-            if self.type == "flame" then
-                self:damageEnemiesInCone(gameState)
-                self.destroyed = true
-                return
+    -- Holy Bastion: heal allied units in range
+    if self.healAmount then
+        self.healTimer = self.healTimer - dt
+        if self.healTimer <= 0 then
+            self.healTimer = self.healInterval
+            local healed = false
+            for _, u in ipairs(game.units) do
+                if not u.dead and u.health < u.maxHealth and dist(x, y, u.x, u.y) <= self.range then
+                    u:heal(self.healAmount)
+                    healed = true
+                    self.healed = (self.healed or 0) + self.healAmount
+                end
             end
-            
-            -- Home in on the target while it is alive, so moving enemies
-            -- can't sidestep a shot that was aimed at their old position
-            local t = self.target
-            if t and not t.dead and not t.reachedEnd then
-                self.angle = math.atan2(t.y - self.y, t.x - self.x)
-            end
+            if healed then pulse(game, x, y, self.range, { 1, 0.95, 0.5 }) end
+        end
+    end
 
-            -- Move projectile
-            self.x = self.x + math.cos(self.angle) * self.speed * dt
-            self.y = self.y + math.sin(self.angle) * self.speed * dt
-            
-            -- Check if projectile is out of bounds
-            if self.x < 0 or self.x > love.graphics.getWidth() or
-               self.y < 0 or self.y > love.graphics.getHeight() then
-                self.destroyed = true
-                return
-            end
-            
-            -- Check for collision with enemies
-            for _, enemy in ipairs(gameState.enemies) do
-                if not enemy.dead and not enemy.reachedEnd then
-                    local dist = math.sqrt((self.x - enemy.x)^2 + (self.y - enemy.y)^2)
-                    if dist < (enemy.radius or 12) then
-                        -- Hit enemy
-                        self:damageEnemy(enemy, gameState)
-                        
-                        -- Destroy projectile unless it's a penetrating type
-                        if self.type ~= "nature" then
-                            self.destroyed = true
-                        end
-                        
-                        -- AOE damage
-                        if self.aoeRadius then
-                            self:damageEnemiesInRadius(enemy.x, enemy.y, gameState)
-                        end
-                        
-                        break
+    -- Oblivion Engine: raise a minion on the road in range
+    if self.summonInterval then
+        local live = {}
+        for _, m in ipairs(self.minions) do
+            if not m.dead and not m.removed then live[#live + 1] = m end
+        end
+        self.minions = live
+        self.summonTimer = self.summonTimer - dt
+        if self.summonTimer <= 0 then
+            self.summonTimer = self.summonInterval
+            if #self.minions < self.summonMax then
+                local gx, gy = game:nearestRoadCellWithin(x, y, self.range)
+                if gx then
+                    local mx, my = game:cellCenter(gx, gy)
+                    for _, m in ipairs(game:spawnMinion(self.summonMinion, mx, my, 1)) do
+                        table.insert(self.minions, m)
                     end
-                end
-            end
-        end,
-        
-        -- Draw projectile
-        draw = function(self)
-            love.graphics.setColor(1, 1, 1, 1)
-            
-            local sprite = Tower.projectileSprites[self.type]
-            if sprite then
-                love.graphics.draw(sprite, self.x, self.y, self.angle, 0.5, 0.5, sprite:getWidth() / 2, sprite:getHeight() / 2)
-            else
-                -- Fallback if sprite is missing
-                love.graphics.circle("fill", self.x, self.y, 5)
-            end
-        end,
-        
-        -- Damage a single enemy
-        damageEnemy = function(self, enemy, gameState)
-            -- Calculate total damage with upgrades
-            local totalDamage = self.damage
-            for _, upgrade in ipairs(self.appliedUpgrades) do
-                if upgrade.damageMod then
-                    totalDamage = totalDamage * upgrade.damageMod
-                end
-            end
-            
-            -- Apply damage
-            enemy:takeDamage(totalDamage)
-            
-            -- Apply DoT effect
-            if self.dotDamage and self.dotDuration then
-                local dotDamage = self.dotDamage
-                local dotDuration = self.dotDuration
-                
-                -- Apply upgrades to DoT
-                for _, upgrade in ipairs(self.appliedUpgrades) do
-                    if upgrade.dotDamageMod then
-                        dotDamage = dotDamage * upgrade.dotDamageMod
-                    end
-                    if upgrade.dotDurationMod then
-                        dotDuration = dotDuration * upgrade.dotDurationMod
-                    end
-                end
-                
-                enemy:applyDot(dotDamage, dotDuration)
-            end
-            
-            -- Apply slow effect
-            if self.slowAmount and self.slowDuration then
-                local slowAmount = self.slowAmount
-                local slowDuration = self.slowDuration
-                
-                -- Apply upgrades to slow
-                for _, upgrade in ipairs(self.appliedUpgrades) do
-                    if upgrade.slowMod then
-                        slowAmount = slowAmount * upgrade.slowMod
-                    end
-                    if upgrade.slowDurationMod then
-                        slowDuration = slowDuration * upgrade.slowDurationMod
-                    end
-                end
-                
-                enemy:applySlow(slowAmount, slowDuration)
-            end
-        end,
-        
-        -- Damage enemies in radius (for AOE attacks)
-        damageEnemiesInRadius = function(self, centerX, centerY, gameState)
-            -- Calculate total AOE radius with upgrades
-            local totalRadius = self.aoeRadius
-            for _, upgrade in ipairs(self.appliedUpgrades) do
-                if upgrade.aoeRadiusMod then
-                    totalRadius = totalRadius * upgrade.aoeRadiusMod
-                end
-            end
-            
-            for _, enemy in ipairs(gameState.enemies) do
-                if not enemy.dead and not enemy.reachedEnd then
-                    local dist = math.sqrt((centerX - enemy.x)^2 + (centerY - enemy.y)^2)
-                    if dist <= totalRadius then
-                        local distFactor = 1 - (dist / totalRadius)  -- More damage closer to center
-                        self:damageEnemy(enemy, gameState, distFactor)
-                    end
-                end
-            end
-            
-            -- Visual effect for AOE
-            local effect = {
-                x = centerX,
-                y = centerY,
-                radius = 5,
-                maxRadius = totalRadius,
-                duration = 0.5,
-                currentTime = 0,
-                
-                update = function(self, dt)
-                    self.currentTime = self.currentTime + dt
-                    self.radius = (self.currentTime / self.duration) * self.maxRadius
-                    if self.currentTime >= self.duration then
-                        self.done = true
-                    end
-                    return self.done == true
-                end,
-                
-                draw = function(self)
-                    love.graphics.setColor(1, 0.5, 0, 0.5 * (1 - self.currentTime / self.duration))
-                    love.graphics.circle("fill", self.x, self.y, self.radius)
-                    love.graphics.setColor(1, 0.7, 0, 0.7 * (1 - self.currentTime / self.duration))
-                    love.graphics.circle("line", self.x, self.y, self.radius)
-                end
-            }
-            
-            -- Add effect to game state
-            if gameState.effects then
-                table.insert(gameState.effects, effect)
-            end
-        end,
-        
-        -- Damage enemies in cone (for flamethrower)
-        damageEnemiesInCone = function(self, gameState)
-            -- Calculate cone angle with upgrades
-            local totalConeAngle = self.coneAngle
-            for _, upgrade in ipairs(self.appliedUpgrades) do
-                if upgrade.coneAngleMod then
-                    totalConeAngle = totalConeAngle * upgrade.coneAngleMod
-                end
-            end
-            
-            -- Convert to radians and half-angle
-            local halfAngle = math.rad(totalConeAngle) / 2
-            
-            -- Get tower position
-            local x, y = self.x, self.y
-            
-            for _, enemy in ipairs(gameState.enemies) do
-                if not enemy.dead and not enemy.reachedEnd then
-                    local dx, dy = enemy.x - x, enemy.y - y
-                    local dist = math.sqrt(dx*dx + dy*dy)
-                    
-                    if dist <= self.source.range then
-                        local angle = math.atan2(dy, dx)
-                        local angleDiff = math.abs((angle - self.angle + math.pi) % (2 * math.pi) - math.pi)
-                        
-                        if angleDiff <= halfAngle then
-                            self:damageEnemy(enemy, gameState)
-                        end
-                    end
+                    self.summoned = (self.summoned or 0) + 1
                 end
             end
         end
-    }
-    
-    -- Add projectile to game state
-    table.insert(gameState.projectiles, projectile)
-    
-    -- Play sound effect based on tower type
-    local soundEffects = {
-        arrow = "bowShot",
-        cannonball = "cannonFire",
-        magic = "magicCast",
-        nature = "natureCast",
-        bullet = "gunshot",
-        bomb = "bombLaunch",
-        flame = "flamethrower"
-    }
-    
-    local soundEffect = soundEffects[self.projectileType]
-    if soundEffect then
-        playSound('sfx', soundEffect)
+    end
+
+    -- Soul Forge upgrade: damage aura
+    if self.auraDps then
+        for _, e in ipairs(game.enemies) do
+            if alive(e) and dist(x, y, e.x, e.y) <= self.auraRange then
+                e:takeDamage(self.auraDps * dt, self, { dot = true })
+            end
+        end
+    end
+
+    -- Elemental Nexus upgrade: rage cycle
+    if self.rageMult then self.rageTimer = (self.rageTimer or 0) + dt end
+
+    -- Pick a target: the enemy furthest along the road in range
+    if not alive(self.target) or dist(x, y, self.target.x, self.target.y) > self.range then
+        self.target = nil
+        local best
+        for _, e in ipairs(game.enemies) do
+            if alive(e) and dist(x, y, e.x, e.y) <= self.range then
+                if not best or e:progress() > best:progress() then best = e end
+            end
+        end
+        self.target = best
+    end
+
+    -- Eclipse Monolith: drain a share of max health per second
+    if self.drainPercent then
+        if self.drainArea then
+            for _, e in ipairs(game.enemies) do
+                if alive(e) and dist(x, y, e.x, e.y) <= self.drainArea then
+                    e:takeDamage(e.maxHealth * self.drainPercent * dt, self, { dot = true })
+                end
+            end
+        elseif self.target then
+            self.target:takeDamage(self.target.maxHealth * self.drainPercent * dt, self, { dot = true })
+        end
+    end
+
+    -- Fire
+    self.fireCooldown = self.fireCooldown - dt * Effects.attackRateMult(self)
+    if self.target and self.fireCooldown <= 0 then
+        self.fireCooldown = 1 / self.fireRate
+        self:fire(game, x, y)
     end
 end
 
--- On-map width of a painted tower in pixels, a little wider than one
--- 32 px cell so the base reads as filling it.
+function TowerInstance:fire(game, x, y)
+    local tower = self
+    local target = self.target
+    local sprite = Tower.projectileSprites[self.projectileType]
+    table.insert(game.projectiles, {
+        x = x, y = y - 14, target = target, destroyed = false,
+        speed = Tower.PROJECTILE_SPEED,
+        update = function(p, dt)
+            if target.dead or target.removed then
+                p.destroyed = true
+                return
+            end
+            local tx, ty = target.x, target.y - 6
+            local d = dist(p.x, p.y, tx, ty)
+            local step = p.speed * dt
+            if d <= math.max(step, target.radius or 12) then
+                tower:onHit(target)
+                p.destroyed = true
+                return
+            end
+            p.x = p.x + (tx - p.x) / d * step
+            p.y = p.y + (ty - p.y) / d * step
+        end,
+        draw = function(p)
+            love.graphics.setColor(1, 1, 1, 1)
+            if sprite then
+                love.graphics.draw(sprite, p.x, p.y, 0, 1, 1, 8, 8)
+            else
+                love.graphics.circle("fill", p.x, p.y, 4)
+            end
+        end,
+    })
+end
+
+------------------------------------------------------------------------
+-- Drawing
+------------------------------------------------------------------------
 Tower.DRAW_WIDTH = 44
 
 -- Draw a painted tower image standing on the cell centered at (cx, cy).
@@ -836,7 +493,6 @@ function Tower.drawPainted(img, cx, cy, drawWidth, alpha, shadow)
     local w, h = img:getDimensions()
     local s = drawWidth / w
     if shadow then
-        -- Light comes from the upper left, so the shadow falls down-right
         love.graphics.setColor(0, 0, 0, 0.28 * (alpha or 1))
         love.graphics.ellipse("fill", cx + drawWidth * 0.08, cy + drawWidth * 0.06,
             drawWidth * 0.46, drawWidth * 0.22)
@@ -847,7 +503,8 @@ end
 
 -- Draw a tower type as an icon fitted inside a box (UI panels)
 function Tower.drawIcon(id, x, y, boxW, boxH)
-    local img = Tower.images and Tower.images[id]
+    if not Tower.initialized then Tower.init() end
+    local img = Tower.images[id]
     if img then
         local w, h = img:getDimensions()
         local s = math.min(boxW / w, boxH / h)
@@ -855,7 +512,7 @@ function Tower.drawIcon(id, x, y, boxW, boxH)
         love.graphics.draw(img, x + boxW / 2, y + boxH / 2, 0, s, s, w / 2, h / 2)
         return true
     end
-    local sprite = Tower.sprites and Tower.sprites[id]
+    local sprite = Tower.sprites[id]
     if sprite then
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(sprite, x + boxW / 2, y + boxH / 2, 0, 1, 1,
@@ -865,161 +522,61 @@ function Tower.drawIcon(id, x, y, boxW, boxH)
     return false
 end
 
--- Range circle, drawn by the game only for the hovered or selected tower
+-- Range circle for the hovered or selected tower
 function TowerInstance:drawRange()
-    if not self.range then return end
     local cx, cy = self:getCenter()
     love.graphics.setColor(0.2, 0.5, 0.8, 0.15)
     love.graphics.circle("fill", cx, cy, self.range)
     love.graphics.setColor(0.2, 0.5, 0.8, 0.5)
     love.graphics.circle("line", cx, cy, self.range)
+    if self.drainArea then
+        love.graphics.setColor(0.6, 0.3, 0.9, 0.4)
+        love.graphics.circle("line", cx, cy, self.drainArea)
+    end
+    if self.auraRange then
+        love.graphics.setColor(0.4, 1, 0.7, 0.4)
+        love.graphics.circle("line", cx, cy, self.auraRange)
+    end
     love.graphics.setColor(1, 1, 1, 1)
 end
 
--- Draw the tower
 function TowerInstance:draw()
-    -- Top-left corner of the tower's cell (drawing below is relative to it)
-    local ts = self.tileSize or 32
-    local x = (self.gridX - 1) * ts
-    local y = (self.gridY - 1) * ts
+    local cx, cy = self:getCenter()
+    if self.selected then
+        love.graphics.setColor(1, 0.9, 0.3, 0.8)
+        love.graphics.setLineWidth(2)
+        love.graphics.ellipse("line", cx, cy + 2, 20, 9)
+        love.graphics.setLineWidth(1)
+    end
+    if self:raging() or (self.statuses and (self.statuses.damageBoost or self.statuses.haste)) then
+        love.graphics.setColor(1, 0.5, 0.2, 0.35)
+        love.graphics.ellipse("fill", cx, cy + 2, 20, 9)
+    end
 
-    -- Draw tower sprite or fallback shape
     if self.painted then
-        local cx, cy = self:getCenter()
         Tower.drawPainted(self.spriteImg, cx, cy, Tower.DRAW_WIDTH, 1, true)
-    elseif self.spriteImg then
-        love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(
-            self.spriteImg,
-            x + ts / 2, y + ts / 2,
-            0, 1, 1, 
-            self.spriteImg:getWidth() / 2, 
-            self.spriteImg:getHeight() / 2
-        )
     else
-        -- Draw fallback shape
-        love.graphics.setColor(0.3, 0.6, 0.9, 1)
-        love.graphics.rectangle("fill", x + 4, y + 4, 24, 24)
-        love.graphics.setColor(0.1, 0.3, 0.5, 1)
-        love.graphics.rectangle("line", x + 4, y + 4, 24, 24)
+        love.graphics.setColor(0, 0, 0, 0.28)
+        love.graphics.ellipse("fill", cx + 3, cy + 6, 16, 6)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(self.spriteImg, cx, cy - 6, 0, 1, 1,
+            self.spriteImg:getWidth() / 2, self.spriteImg:getHeight() / 2)
     end
-    
-    -- Draw tower level if greater than 1
-    if self.level and self.level > 1 then
-        love.graphics.setColor(1, 1, 0, 1)
-        love.graphics.circle("fill", x + 24, y + 8, 8)
-        love.graphics.setColor(0, 0, 0, 1)
-        love.graphics.print(self.level, x + 21, y + 3)
+
+    -- One gold pip per upgrade bought
+    local n = 0
+    for i = 1, #self.data.upgrades do if self.bought[i] then n = n + 1 end end
+    for i = 1, n do
+        love.graphics.setColor(1, 0.85, 0.3, 1)
+        love.graphics.circle("fill", cx - 6 + (i - 1) * 8, cy + 12, 3)
+        love.graphics.setColor(0, 0, 0, 0.8)
+        love.graphics.circle("line", cx - 6 + (i - 1) * 8, cy + 12, 3)
     end
-    
-    -- Reset color
+    if self.upgradeFlash and self.upgradeFlash > 0 then
+        love.graphics.setColor(1, 0.9, 0.4, self.upgradeFlash)
+        love.graphics.circle("line", cx, cy - 10, 26 - self.upgradeFlash * 10)
+    end
     love.graphics.setColor(1, 1, 1, 1)
 end
 
--- Upgrade the tower
-function TowerInstance:upgrade(upgradeIndex)
-    if not self.upgrades then return false end
-    
-    local upgrade = self.upgrades[upgradeIndex]
-    if not upgrade then return false end
-    
-    -- Check if this upgrade is already applied
-    for _, appliedUpgrade in ipairs(self.appliedUpgrades) do
-        if appliedUpgrade.name == upgrade.name then
-            return false
-        end
-    end
-    
-    -- Apply the upgrade
-    table.insert(self.appliedUpgrades, upgrade)
-    self.upgradeLevel = self.upgradeLevel + 1
-    
-    return true, upgrade.cost
-end
-
--- Get available upgrades for this tower
-function TowerInstance:getAvailableUpgrades()
-    if not self.upgrades then return {} end
-    
-    local availableUpgrades = {}
-    
-    for i, upgrade in ipairs(self.upgrades) do
-        local alreadyApplied = false
-        
-        -- Check if this upgrade is already applied
-        for _, appliedUpgrade in ipairs(self.appliedUpgrades) do
-            if appliedUpgrade.name == upgrade.name then
-                alreadyApplied = true
-                break
-            end
-        end
-        
-        if not alreadyApplied then
-            table.insert(availableUpgrades, {
-                index = i,
-                name = upgrade.name,
-                description = upgrade.description,
-                cost = upgrade.cost
-            })
-        end
-    end
-    
-    return availableUpgrades
-end
-
--- Get tower info for display
-function TowerInstance:getInfo()
-    -- Calculate total stats with upgrades and buffs
-    local totalDamage = self.damage
-    local totalRange = self.range
-    local totalAttackSpeed = self.attackSpeed
-    
-    -- Apply upgrades
-    for _, upgrade in ipairs(self.appliedUpgrades) do
-        if upgrade.damageMod then
-            totalDamage = totalDamage * upgrade.damageMod
-        end
-        if upgrade.rangeMod then
-            totalRange = totalRange * upgrade.rangeMod
-        end
-        if upgrade.attackSpeedMod then
-            totalAttackSpeed = totalAttackSpeed / upgrade.attackSpeedMod
-        end
-    end
-    
-    -- Apply buffs
-    for _, buff in pairs(self.buffs) do
-        if buff.damageMod then
-            totalDamage = totalDamage * buff.damageMod
-        end
-        if buff.rangeMod then
-            totalRange = totalRange * buff.rangeMod
-        end
-        if buff.attackSpeedMod then
-            totalAttackSpeed = totalAttackSpeed / buff.attackSpeedMod
-        end
-    end
-    
-    return {
-        name = self.name,
-        description = self.description,
-        level = self.upgradeLevel + 1,
-        damage = math.floor(totalDamage),
-        range = math.floor(totalRange),
-        attackSpeed = string.format("%.2f", math.floor(1 / totalAttackSpeed * 100) / 100),
-        upgrades = self:getAvailableUpgrades(),
-        special = {
-            aoeRadius = self.aoeRadius,
-            slowAmount = self.slowAmount,
-            slowDuration = self.slowDuration,
-            dotDamage = self.dotDamage,
-            dotDuration = self.dotDuration,
-            coneAngle = self.coneAngle,
-            buffAmount = self.buffAmount,
-            buffRange = self.buffRange
-        }
-    }
-end
-
--- Return the module
-return Tower 
+return Tower

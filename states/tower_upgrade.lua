@@ -68,223 +68,30 @@ function TowerUpgradeState:setup(faction, hero)
     -- playSound('music', 'tower_upgrade')
 end
 
+-- The faction's towers from data/factions.lua, shown as a reference.
+-- Model C upgrades are bought on each tower during a game, so nothing is
+-- upgraded on this screen.
 function TowerUpgradeState:loadTowers()
-    -- Load towers based on faction
     local Tower = require('systems.tower')
-    if not Tower or not self.selectedFaction then
-        Error.handle(Error.TYPES.GAME, "MISSING_FACTION", "Cannot load towers")
-        return
-    end
-    
-    -- Get tower types from the Tower module
-    local towerTypes = {}
-    
-    if Tower.getTowersByFaction then
-        towerTypes = Tower.getTowersByFaction(self.selectedFaction.id)
-    else
-        -- Fallback tower definitions
-        if self.selectedFaction.id == "radiant" then
-            towerTypes = {
-                {
-                    id = "archer",
-                    name = "Archer Tower",
-                    description = "Basic ranged tower",
-                    damage = 10,
-                    range = 150,
-                    attackSpeed = 1.0,
-                    cost = 100,
-                    upgradeLevel = 1,
-                    maxLevel = 3,
-                    upgrades = {
-                        {
-                            level = 2,
-                            name = "Enhanced Arrows",
-                            damage = 15,
-                            range = 170,
-                            attackSpeed = 1.2,
-                            cost = 150
-                        },
-                        {
-                            level = 3,
-                            name = "Sharpshooter",
-                            damage = 25,
-                            range = 200,
-                            attackSpeed = 1.5,
-                            cost = 250
-                        }
-                    }
-                },
-                {
-                    id = "mage",
-                    name = "Mage Tower",
-                    description = "Magical damage tower",
-                    damage = 15,
-                    range = 120,
-                    attackSpeed = 0.8,
-                    cost = 150,
-                    upgradeLevel = 1,
-                    maxLevel = 3,
-                    upgrades = {
-                        {
-                            level = 2,
-                            name = "Arcane Focus",
-                            damage = 25,
-                            range = 140,
-                            attackSpeed = 0.9,
-                            cost = 200
-                        },
-                        {
-                            level = 3,
-                            name = "Elemental Mastery",
-                            damage = 40,
-                            range = 160,
-                            attackSpeed = 1.0,
-                            cost = 300
-                        }
-                    }
-                }
-            }
-        elseif self.selectedFaction.id == "shadow" then
-            towerTypes = {
-                {
-                    id = "necromancer",
-                    name = "Necromancer Tower",
-                    description = "Summons skeletons to fight",
-                    damage = 8,
-                    range = 130,
-                    attackSpeed = 0.7,
-                    cost = 120,
-                    upgradeLevel = 1,
-                    maxLevel = 3,
-                    upgrades = {
-                        {
-                            level = 2,
-                            name = "Bone Legion",
-                            damage = 12,
-                            range = 150,
-                            attackSpeed = 0.8,
-                            cost = 180
-                        },
-                        {
-                            level = 3,
-                            name = "Death Lord",
-                            damage = 20,
-                            range = 180,
-                            attackSpeed = 0.9,
-                            cost = 270
-                        }
-                    }
-                },
-                {
-                    id = "shadow_archer",
-                    name = "Shadow Archer",
-                    description = "Ranged tower with poison damage",
-                    damage = 12,
-                    range = 160,
-                    attackSpeed = 1.0,
-                    cost = 130,
-                    upgradeLevel = 1,
-                    maxLevel = 3,
-                    upgrades = {
-                        {
-                            level = 2,
-                            name = "Venom Tips",
-                            damage = 17,
-                            range = 180,
-                            attackSpeed = 1.1,
-                            cost = 190
-                        },
-                        {
-                            level = 3,
-                            name = "Plague Bearer",
-                            damage = 28,
-                            range = 210,
-                            attackSpeed = 1.3,
-                            cost = 280
-                        }
-                    }
-                }
-            }
-        elseif self.selectedFaction.id == "twilight" then
-            towerTypes = {
-                {
-                    id = "balance_mage",
-                    name = "Balance Mage",
-                    description = "Deals both physical and magical damage",
-                    damage = 12,
-                    range = 140,
-                    attackSpeed = 0.9,
-                    cost = 140,
-                    upgradeLevel = 1,
-                    maxLevel = 3,
-                    upgrades = {
-                        {
-                            level = 2,
-                            name = "Duality Focus",
-                            damage = 18,
-                            range = 160,
-                            attackSpeed = 1.0,
-                            cost = 210
-                        },
-                        {
-                            level = 3,
-                            name = "Twilight Master",
-                            damage = 30,
-                            range = 190,
-                            attackSpeed = 1.2,
-                            cost = 320
-                        }
-                    }
-                },
-                {
-                    id = "time_mage",
-                    name = "Time Mage",
-                    description = "Slows enemies in its range",
-                    damage = 8,
-                    range = 120,
-                    attackSpeed = 0.7,
-                    cost = 160,
-                    upgradeLevel = 1,
-                    maxLevel = 3,
-                    upgrades = {
-                        {
-                            level = 2,
-                            name = "Chronos Touch",
-                            damage = 12,
-                            range = 140,
-                            attackSpeed = 0.8,
-                            cost = 240
-                        },
-                        {
-                            level = 3,
-                            name = "Temporal Anchor",
-                            damage = 20,
-                            range = 170,
-                            attackSpeed = 0.9,
-                            cost = 350
-                        }
-                    }
-                }
-            }
-        end
-    end
-    
-    -- Load tower icons
-    for _, tower in ipairs(towerTypes) do
-        local iconPath = "assets/towers/" .. tower.id .. ".png"
-        
-        -- Load tower image if available
-        if love.filesystem.getInfo(iconPath) then
-            local success, result = Error.pcall(function()
-                tower.icon = love.graphics.newImage(iconPath)
-            end)
-            
-            if not success then
-                tower.icon = nil
-            end
-        end
-        
-        table.insert(self.towers, tower)
+    local Selection = require('utils.selection')
+    local faction = Selection.canonical(self.selectedFaction, self.selectedHero)
+    if not Tower.initialized then Tower.init() end
+
+    for _, d in ipairs(Tower.getTowersByFaction(faction.id)) do
+        table.insert(self.towers, {
+            id = d.id,
+            name = d.name,
+            description = d.description .. "  Cost " .. d.cost .. ".",
+            damage = d.damage,
+            range = d.range,
+            attackSpeed = d.fireRate,
+            cost = d.cost,
+            upgradeLevel = 1,
+            maxLevel = 1,
+            upgrades = {},
+            paths = d.upgrades, -- the two upgrade paths, bought in game
+            icon = Tower.images[d.id] or Tower.sprites[d.id],
+        })
     end
 end
 
@@ -500,7 +307,7 @@ function TowerUpgradeState:draw()
     -- Draw resources
     love.graphics.setFont(fonts.main)
     love.graphics.setColor(1, 0.8, 0.2, 1)
-    love.graphics.print("Resources: " .. self.resources, 50, 120)
+    -- (No resources line: Model C upgrades are bought in game)
     
     -- Draw tower list
     self:drawTowerList()
@@ -605,7 +412,8 @@ function TowerUpgradeState:drawTowerList()
             -- Tower icon
             love.graphics.setColor(1, 1, 1, 1)
             if tower.icon then
-                love.graphics.draw(tower.icon, list.x + 30, y + 10, 0, 0.6, 0.6)
+                local iconScale = 60 / math.max(tower.icon:getWidth(), tower.icon:getHeight())
+                love.graphics.draw(tower.icon, list.x + 50 - tower.icon:getWidth() * iconScale / 2, y + 10, 0, iconScale, iconScale)
             else
                 -- Placeholder icon
                 love.graphics.setColor(0.5, 0.5, 0.6, 0.8)
@@ -618,7 +426,7 @@ function TowerUpgradeState:drawTowerList()
             
             -- Tower level
             love.graphics.setColor(1, 0.8, 0.2, 1)
-            love.graphics.print("Level " .. tower.upgradeLevel .. "/" .. tower.maxLevel, list.x + 100, y + 45)
+            love.graphics.print(tower.paths and ("Cost " .. tower.cost) or ("Level " .. tower.upgradeLevel .. "/" .. tower.maxLevel), list.x + 100, y + 45)
         end
     end
     
@@ -676,7 +484,8 @@ function TowerUpgradeState:drawTowerDetails()
     -- Tower icon
     love.graphics.setColor(1, 1, 1, 1)
     if tower.icon then
-        love.graphics.draw(tower.icon, details.x + 50, details.y + 60, 0, 1, 1)
+        local iconScale = 100 / math.max(tower.icon:getWidth(), tower.icon:getHeight())
+        love.graphics.draw(tower.icon, details.x + 80 - tower.icon:getWidth() * iconScale / 2, details.y + 60, 0, iconScale, iconScale)
     else
         -- Placeholder icon
         love.graphics.setColor(0.5, 0.5, 0.6, 0.8)
@@ -690,7 +499,7 @@ function TowerUpgradeState:drawTowerDetails()
     
     love.graphics.setFont(fonts.main)
     love.graphics.setColor(1, 0.8, 0.2, 1)
-    love.graphics.print("Level " .. tower.upgradeLevel .. "/" .. tower.maxLevel, details.x + 150, details.y + 90)
+    love.graphics.print(tower.paths and ("Cost " .. tower.cost) or ("Level " .. tower.upgradeLevel .. "/" .. tower.maxLevel), details.x + 150, details.y + 90)
     
     -- Tower description
     love.graphics.setColor(0.9, 0.9, 0.9, 0.9)
@@ -712,6 +521,23 @@ function TowerUpgradeState:drawTowerDetails()
     love.graphics.print("Range: " .. tower.range, details.x + 50, statY + statSpacing * 2)
     love.graphics.print("Attack Speed: " .. tower.attackSpeed, details.x + 50, statY + statSpacing * 3)
     
+    -- Model C towers: list the two upgrade paths
+    if tower.paths then
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.print("Upgrades (bought in game):", details.x + 230, statY)
+        local py = statY + statSpacing
+        for _, up in ipairs(tower.paths) do
+            love.graphics.setColor(1, 0.85, 0.3, 1)
+            love.graphics.print(up.name .. "  (" .. up.cost .. ")", details.x + 250, py)
+            love.graphics.setColor(0.85, 0.85, 0.85, 1)
+            love.graphics.setFont(fonts.small)
+            love.graphics.printf(up.description, details.x + 250, py + 22, details.width - 280, "left")
+            love.graphics.setFont(fonts.main)
+            py = py + 60
+        end
+        return
+    end
+
     -- Next level stats (if upgradeable)
     if tower.upgradeLevel < tower.maxLevel then
         local nextUpgrade = tower.upgrades[tower.upgradeLevel]

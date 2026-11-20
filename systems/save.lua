@@ -424,12 +424,13 @@ function Save.loadProfile(slot)
     if not slot then slot = currentSlot end
     
     local filePath = string.format("save/profile_%d.json", slot)
+
+    -- No profile yet is normal (new player, empty slot): no error notice
+    if not love.filesystem.getInfo(filePath) then
+        return nil
+    end
     
     local success, result = Error.pcall(function()
-        if not love.filesystem.getInfo(filePath) then
-            Error.handle(Error.TYPES.LOAD, "PROFILE_MISSING", slot)
-            return nil
-        end
         
         local content = love.filesystem.read(filePath)
         if not content then
@@ -522,9 +523,85 @@ function Save.updateHeroSelection(heroId)
     
     -- Debug info
     print("Saving hero selection: " .. (heroId or "nil"))
-    
+
     Save.saveProfile(gameState, currentSlot)
     return true
+end
+
+------------------------------------------------------------------------
+-- Profile progress: hero levels, shop gold and purchases. Each helper
+-- works on the current profile (loading or creating it) and saves it.
+--   heroes    = { [heroId] = { level = n, xp = n } }
+--   gold      = shop currency earned in games
+--   purchases = { [itemId] = count }
+------------------------------------------------------------------------
+local function currentProfile()
+    if not gameState then
+        -- Only load a profile that exists: loadProfile shows an error
+        -- notice for a missing file, which is normal for a new player
+        local path = string.format("save/profile_%d.json", currentSlot)
+        if love.filesystem.getInfo(path) then gameState = Save.loadProfile(currentSlot) end
+        gameState = gameState or {
+            playerName = "Player" .. currentSlot,
+            currentLevel = 1,
+            completedLevels = {},
+            towerUpgrades = {},
+            timestamp = os.time()
+        }
+    end
+    gameState.heroes = gameState.heroes or {}
+    gameState.purchases = gameState.purchases or {}
+    gameState.gold = gameState.gold or 0
+    return gameState
+end
+
+function Save.getHeroProgress(heroId)
+    local h = currentProfile().heroes[heroId]
+    return { level = (h and h.level) or 1, xp = (h and h.xp) or 0 }
+end
+
+function Save.updateHeroProgress(heroId, level, xp)
+    if not heroId then return false end
+    local p = currentProfile()
+    p.heroes[heroId] = { level = level, xp = xp }
+    return Save.saveProfile(p, currentSlot)
+end
+
+function Save.getGold()
+    return currentProfile().gold
+end
+
+function Save.addGold(amount)
+    local p = currentProfile()
+    p.gold = math.max(0, p.gold + math.floor(amount))
+    return Save.saveProfile(p, currentSlot)
+end
+
+function Save.getPurchases()
+    return currentProfile().purchases
+end
+
+-- Spend gold on an item. Permanent items can be bought once.
+-- Returns true on success, or false and a reason.
+function Save.buyItem(itemId, cost, consumable)
+    local p = currentProfile()
+    local owned = p.purchases[itemId] or 0
+    if not consumable and owned > 0 then return false, "already owned" end
+    if p.gold < cost then return false, "not enough gold" end
+    p.gold = p.gold - cost
+    p.purchases[itemId] = owned + 1
+    Save.saveProfile(p, currentSlot)
+    return true
+end
+
+-- Use up one of each listed consumable
+function Save.useConsumables(ids)
+    local p = currentProfile()
+    for _, id in ipairs(ids or {}) do
+        local n = (p.purchases[id] or 0) - 1
+        p.purchases[id] = n > 0 and n or nil
+    end
+    return Save.saveProfile(p, currentSlot)
 end
 
 return Save 

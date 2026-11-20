@@ -1,0 +1,445 @@
+-- Smoke-test harness (run with tests/smoke/run_smoke.sh).
+-- Loads the real game (game_main.lua), drives it through its own callbacks
+-- and prints [SMOKE] PASS/FAIL lines. Screenshots land in the
+-- "tower-defense-smoketest" save folder.
+
+love.filesystem.setIdentity("tower-defense-smoketest")
+
+local function log(...)
+    local parts = {}
+    for i = 1, select('#', ...) do parts[#parts + 1] = tostring(select(i, ...)) end
+    print("[SMOKE] " .. table.concat(parts, " "))
+    io.stdout:flush()
+end
+
+local failures, passes = 0, 0
+local function check(cond, msg)
+    if cond then passes = passes + 1; log("PASS", msg)
+    else failures = failures + 1; log("FAIL", msg) end
+end
+
+function love.errorhandler(msg)
+    log("CRASH", tostring(msg))
+    log(debug.traceback("", 2))
+    io.stdout:flush()
+    os.exit(2)
+end
+
+-- Fresh profile every run
+love.filesystem.createDirectory("save")
+for i = 1, 5 do love.filesystem.remove("save/profile_" .. i .. ".json") end
+
+love.filesystem.load("game_main.lua")()
+
+local Gamestate = require 'libs.hump.gamestate'
+local gameLoad, gameUpdate, gameDraw = love.load, love.update, love.draw
+local DT = 1 / 60
+
+local function isState(mod) return getmetatable(Gamestate.current()) == require(mod) end
+local function click(x, y, b) love.mousepressed(x, y, b or 1) end
+local function key(k) love.keypressed(k) end
+local function wait(frames) for _ = 1, frames or 1 do coroutine.yield() end end
+local function shot(name)
+    wait(2)
+    love.graphics.captureScreenshot("smoke_" .. name .. ".png")
+    wait(3)
+end
+
+-- Run the simulation fast: many updates per drawn frame
+local function simulate(seconds, stopWhen)
+    local steps = math.floor(seconds / DT)
+    for i = 1, steps do
+        gameUpdate(DT)
+        if stopWhen and stopWhen() then return true, i * DT end
+        if i % 120 == 0 then coroutine.yield() end
+    end
+    return false, seconds
+end
+
+local function offY() return require('states.game').MAP_OFFSET_Y end
+local function cellScreen(gx, gy) return (gx - 0.5) * 32, (gy - 0.5) * 32 + offY() end
+
+local Factions = require('data.factions')
+local FACTION_IDS = { "radiant", "shadow", "twilight" }
+
+local function newGame(factionId, heroId)
+    love.math.setRandomSeed(1)
+    local GameState = require('states.game')
+    local g = GameState.new()
+    g:setup(factionId, heroId)
+    Gamestate.switch(g)
+    wait(2)
+    return g
+end
+
+local function placeTower(g, id, gx, gy)
+    for _, b in ipairs(g:getTowerButtons()) do
+        if b.id == id then
+            if g.selectedTower ~= id then click(b.x + 5, b.y + 5) end
+            local before = #g.towers
+            click(cellScreen(gx, gy))
+            click(0, 0, 2)
+            return #g.towers == before + 1
+        end
+    end
+    return false
+end
+
+local function enemyNear(g, x, y, r)
+    for _, e in ipairs(g.enemies) do
+        if not e.dead and not e.reachedEnd and (e.x - x) ^ 2 + (e.y - y) ^ 2 <= r * r then return e end
+    end
+end
+
+local function run()
+    ------------------------------------------------------------------
+    log("== Menus: faction select -> hero select -> hub -> level select -> game")
+    local FactionSelect = require('states.faction_select')
+    Gamestate.switch(FactionSelect.new()); wait(3)
+    local fs = Gamestate.current()
+    wait(20)
+    shot("faction_select")
+    check(#fs.factions == 3, "faction select lists 3 factions (" .. #fs.factions .. ")")
+    local shadow
+    for _, f in ipairs(fs.factions) do
+        check(f.heroes and #f.heroes == 3, f.id .. " has 3 heroes")
+        if f.id == "shadow" then shadow = f end
+    end
+    fs:selectFaction(shadow); wait(3)
+    check(isState('states.hero_select'), "switched to hero select")
+    local hs = Gamestate.current()
+    check(hs.faction and hs.faction.id == "shadow", "hero select kept the faction")
+    wait(20)
+    shot("hero_select")
+    local morgana = hs.faction.heroes[2]
+    check(morgana.id == "morgana", "second Shadow hero is Morgana")
+    hs:selectHero(morgana); wait(3)
+    check(isState('states.hub'), "switched to hub")
+    local hub = Gamestate.current()
+    check(hub.selectedHero and hub.selectedHero.id == "morgana", "hub kept the hero")
+    hub:goToLevelSelect(); wait(3)
+    local ls = Gamestate.current()
+    check(isState('states.level_select') and #ls.levels > 0, "level select has levels")
+    ls:selectLevel(ls.levels[1]); ls:startLevel(); wait(3)
+    check(isState('states.game'), "switched to game")
+    local g0 = Gamestate.current()
+    check(g0.factionData.id == "shadow" and g0.heroData.id == "morgana", "game runs Shadow with Morgana")
+    local ids = {}
+    for _, b in ipairs(g0:getTowerButtons()) do ids[#ids + 1] = b.id end
+    check(#ids == 3, "tower panel shows 3 Shadow towers: " .. table.concat(ids, ", "))
+    check(g0.hero and not g0.hero.dead, "hero spawned")
+
+    log("== Menu Continue with the saved profile")
+    Gamestate.switch(require('states.menu').new()); wait(3)
+    Gamestate.current():continueGame(); wait(3)
+    check(isState('states.hub'), "continue goes to hub")
+    hub = Gamestate.current()
+    check(type(hub.selectedHero) == "table" and hub.selectedHero.id == "morgana", "continue restores Morgana")
+    hub:goToTowerUpgrades(); wait(10)
+    check(isState('states.tower_upgrade') and #Gamestate.current().towers == 3, "tower screen lists 3 towers")
+    Gamestate.current():selectTower(2)
+    shot("tower_upgrade")
+
+    ------------------------------------------------------------------
+    local spots = { { 9, 7 }, { 13, 9 }, { 17, 11 } }
+    local spare = { 15, 4 }
+    for _, fid in ipairs(FACTION_IDS) do
+        local faction = Factions[fid]
+        local heroId = faction.heroes[1].id
+        log("== " .. faction.name .. " with " .. faction.heroes[1].name)
+        local g = newGame(fid, heroId)
+        g.resources = 5000
+
+        -- Build all three towers, buy both upgrades on each
+        local towersById = {}
+        for i, td in ipairs(faction.towers) do
+            check(placeTower(g, td.id, spots[i][1], spots[i][2]), "placed " .. td.id)
+            local t = g.towers[#g.towers]
+            towersById[td.id] = t
+            g:setFocusTower(t)
+            local before = g.resources
+            local spent = 0
+            for _, b in ipairs(g:getFocusButtons()) do
+                if b.kind == "upgrade" then
+                    click(b.x + 5, b.y + 5)
+                    spent = spent + b.upgrade.cost
+                end
+            end
+            check(t.bought[1] and t.bought[2] and g.resources == before - spent,
+                td.id .. ": both upgrades bought for " .. spent)
+            click(0, 0, 2)
+        end
+
+        -- Sell the third tower and build it again (same spot, upgrades again)
+        local t3 = g.towers[3]
+        g:setFocusTower(t3)
+        local before = g.resources
+        local refund = t3:sellValue()
+        for _, b in ipairs(g:getFocusButtons()) do
+            if b.kind == "sell" then click(b.x + 5, b.y + 5) end
+        end
+        check(#g.towers == 2 and g.resources == before + refund and g.grid[t3.gridY][t3.gridX] == 1,
+            "sold " .. t3.id .. " for " .. refund .. " (70%)")
+        check(placeTower(g, t3.id, t3.gridX, t3.gridY), "rebuilt " .. t3.id)
+        local rebuilt = g.towers[#g.towers]
+        rebuilt:buyUpgrade(1); rebuilt:buyUpgrade(2)
+        towersById[t3.id] = rebuilt
+
+        -- Move the hero along the road, then try a grass cell
+        local hero = g.hero
+        click(hero.x, hero.y - 10 + offY())
+        check(hero.selected, "clicking the hero selects it")
+        local target = g.roadPath[20]
+        click(cellScreen(target[1], target[2]))
+        check(hero.path ~= nil, "clicking the road gives a path")
+        local arrived = simulate(20, function() return hero.path == nil end)
+        local tx, ty = g:cellCenter(target[1], target[2])
+        check(arrived and math.abs(hero.x - tx) < 2 and math.abs(hero.y - ty) < 2,
+            "hero walked the road to cell " .. target[1] .. "," .. target[2])
+        click(hero.x, hero.y - 10 + offY())
+        local hx, hy = hero.holdX, hero.holdY
+        click(cellScreen(11, 4)) -- grass
+        check(hero.holdX == hx and hero.holdY == hy, "clicking grass does not move the hero")
+        click(0, 0, 2)
+
+        -- Play all waves, watching what happens
+        local seen = { statuses = {}, heroBlocked = false, minionBlocked = false, flyerBlocked = false,
+                       heroHurt = false, heroDied = false }
+        local manualCast = false
+        local function observe()
+            for _, e in ipairs(g.enemies) do
+                for name in pairs(e.statuses or {}) do seen.statuses[name] = true end
+                if e.blocker then
+                    if e.blocker == hero then seen.heroBlocked = true else seen.minionBlocked = true end
+                    if e.flying then seen.flyerBlocked = true end
+                end
+            end
+            if hero.dead then seen.heroDied = true end
+            if not hero.dead and hero.health < hero.maxHealth then seen.heroHurt = true end
+            if not manualCast and not hero.dead and enemyNear(g, hero.x, hero.y, 120) then
+                manualCast = true
+                for _, s in ipairs(hero.abilities) do s.cooldown = 0 end
+                key("q"); key("w"); key("e")
+            end
+            return (not g.waveInProgress) or g.isGameOver
+        end
+        local lines = {}
+        for wave = 1, 10 do
+            local livesBefore = g.lives
+            click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
+            if wave == 9 then
+                simulate(26, observe)
+                shot("game_" .. fid)
+            end
+            local done = simulate(600, observe)
+            lines[#lines + 1] = string.format("w%d %s lives %d->%d", wave, done and "ok" or "TIMEOUT", livesBefore, g.lives)
+            if not done or g.isGameOver then break end
+        end
+        log(fid .. " waves: " .. table.concat(lines, ", "))
+        check(g.isGameOver, fid .. ": game ended (" .. (g.victory and "victory" or "defeat") ..
+            ", lives " .. g.lives .. ")")
+
+        local casts = {}
+        for i, s in ipairs(hero.abilities) do casts[#casts + 1] = s.data.name .. "=" .. (s.casts or 0) end
+        log(fid .. " hero casts: " .. table.concat(casts, ", ") .. "; level " .. hero.level)
+        for i, s in ipairs(hero.abilities) do
+            check((s.casts or 0) > 0, fid .. ": " .. s.data.name .. " was cast")
+        end
+        log(fid .. ": hero blocked an enemy: " .. tostring(seen.heroBlocked) ..
+            ", took damage: " .. tostring(seen.heroHurt) .. " (checked per hero below)")
+        check(not seen.flyerBlocked, fid .. ": flying enemies were never blocked")
+        local st = {}
+        for name in pairs(seen.statuses) do st[#st + 1] = name end
+        table.sort(st)
+        log(fid .. " statuses seen on enemies: " .. table.concat(st, ", "))
+
+        local Save = require('systems.save')
+        local prog = Save.getHeroProgress(heroId)
+        check(prog.level == hero.level and prog.xp == hero.xp,
+            fid .. ": hero level " .. hero.level .. " / xp " .. hero.xp .. " saved to profile")
+
+        if fid == "radiant" then
+            check(seen.statuses.burn, "Seraphim Altar burns")
+            check((towersById.seraphs_watch.crits or 0) > 0, "Seraph's Watch crits")
+        elseif fid == "shadow" then
+            check(seen.statuses.poison, "Cursed Spire poisons")
+            check((towersById.oblivion_engine.summoned or 0) > 0, "Oblivion Engine summoned minions (" ..
+                (towersById.oblivion_engine.summoned or 0) .. ")")
+            check(seen.minionBlocked, "minions blocked enemies")
+        else
+            check(seen.statuses.freeze or seen.statuses.burn, "Elemental Nexus burns or freezes")
+            check((towersById.eclipse_monolith.hits or 0) > 0, "Eclipse Monolith fires")
+            check((towersById.dawn_dusk_nexus.hits or 0) > 0, "Dawn-Dusk Nexus fires")
+        end
+    end
+
+    ------------------------------------------------------------------
+    log("== Every hero's abilities")
+    for _, fid in ipairs(FACTION_IDS) do
+        for _, hd in ipairs(Factions[fid].heroes) do
+            local g = newGame(fid, hd.id)
+            local hero = g.hero
+            -- Meet the enemies near the start of the road
+            local c = g.roadPath[6]
+            hero:commandMove(c[1], c[2], g)
+            simulate(20, function() return hero.path == nil end)
+            click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
+            simulate(40, function() return enemyNear(g, hero.x, hero.y, 100) ~= nil end)
+            -- Each key on a fresh cooldown, with enemies still in reach (an
+            -- earlier ability may have killed the nearest ones)
+            local ok, names = true, {}
+            local rooted = false
+            for i, s in ipairs(hero.abilities) do
+                simulate(20, function() return enemyNear(g, hero.x, hero.y, 100) ~= nil end)
+                s.cooldown = 0; s.casts = 0
+                key(({ "q", "w", "e" })[i])
+                if (s.casts or 0) == 0 then
+                    ok = false
+                    local set = hero:abilityTargets(s.data, g)
+                    names[#names + 1] = s.data.name .. " [enemies " .. #set.enemies .. ", dead " ..
+                        tostring(hero.dead) .. ", path " .. tostring(hero.path ~= nil) .. "]"
+                end
+                for _, e in ipairs(g.enemies) do if e.statuses and e.statuses.root then rooted = true end end
+            end
+            check(ok, hd.name .. ": Q/W/E all cast" .. (ok and "" or (" (not: " .. table.concat(names, ", ") .. ")")))
+            if hd.id == "morgana" then check(rooted, "Dark Binding roots enemies") end
+
+            -- Blocking: hero deals no damage and casts nothing, minions gone,
+            -- so enemies reach it
+            for _, u in ipairs(g.units) do if u ~= hero then u:die() end end
+            hero.damage = 0
+            for _, s in ipairs(hero.abilities) do s.cooldown = 1e9 end
+            if hero.dead then hero:respawn() end
+            local blocked, hurt = false, false
+            simulate(30, function()
+                for _, e in ipairs(g.enemies) do if e.blocker == hero then blocked = true end end
+                if hero.dead or hero.health < hero.maxHealth then hurt = true end
+                if #g.enemies == 0 and not g.waveInProgress then
+                    click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
+                end
+                return blocked and hurt
+            end)
+            check(blocked and hurt, hd.name .. ": blocks an enemy and takes hits")
+            if hd.id == "malachi" then
+                check((g.minionsSpawned or 0) >= 2, "Dark Ritual raised skeletons (" .. (g.minionsSpawned or 0) .. ")")
+            end
+        end
+    end
+
+    ------------------------------------------------------------------
+    log("== Tower behaviors up close")
+    do
+        -- Holy Bastion heals a hurt hero in range
+        local g = newGame("radiant", "sir_galahad")
+        g.resources = 5000
+        local c = g.roadPath[30]
+        g.hero:commandMove(c[1], c[2], g)
+        simulate(20, function() return g.hero.path == nil end)
+        local gx, gy = c[1] + 1, c[2] + 1
+        if g.grid[gy][gx] ~= 1 then gx, gy = c[1] - 1, c[2] - 1 end
+        check(placeTower(g, "holy_bastion", gx, gy), "Holy Bastion placed next to the hero")
+        local bastion = g.towers[#g.towers]
+        g.hero.health = g.hero.maxHealth * 0.5
+        local before = g.hero.health
+        simulate(3)
+        check((bastion.healed or 0) > 0 and g.hero.health > before,
+            "Holy Bastion heals the hero (" .. math.floor(before) .. " -> " .. math.floor(g.hero.health) .. ")")
+
+        -- Seraph's Watch with Divine Mark marks what it hits
+        g = newGame("radiant", "sir_galahad")
+        g.resources = 5000
+        check(placeTower(g, "seraphs_watch", 9, 7), "Seraph's Watch placed")
+        local watch = g.towers[#g.towers]
+        watch:buyUpgrade(1)
+        click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
+        local marked = simulate(40, function()
+            for _, e in ipairs(g.enemies) do if e.statuses and e.statuses.mark then return true end end
+        end)
+        check(marked, "Divine Mark marks enemies")
+
+        -- Soul Forge raises enemies that die in range
+        g = newGame("shadow", "malachi")
+        g.resources = 5000
+        check(placeTower(g, "soul_forge", 7, 3), "Soul Forge placed")
+        local forge = g.towers[#g.towers]
+        click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
+        local fx, fy = forge:getCenter()
+        simulate(60, function()
+            for _, e in ipairs(g.enemies) do
+                if not e.dead and (e.x - fx) ^ 2 + (e.y - fy) ^ 2 <= forge.range ^ 2 then
+                    e:takeDamage(10000)
+                end
+            end
+            return (forge.converted or 0) > 0
+        end)
+        check((forge.converted or 0) > 0, "Soul Forge raised a dead enemy as a minion")
+
+        -- Eclipse Monolith drains a target with no shots fired
+        g = newGame("twilight", "zephyr")
+        g.resources = 5000
+        check(placeTower(g, "eclipse_monolith", 9, 7), "Eclipse Monolith placed")
+        local mono = g.towers[#g.towers]
+        mono.fireRate = 0.0001 -- isolate the drain
+        mono.fireCooldown = 1e9
+        click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
+        local drained = simulate(40, function()
+            local t = mono.target
+            return t and not t.dead and t.health < t.maxHealth
+        end)
+        check(drained, "Eclipse Monolith drains its target")
+    end
+
+    ------------------------------------------------------------------
+    log("== Shop: buy with saved gold, applies in game")
+    local Save = require('systems.save')
+    Save.addGold(1000)
+    local Shop = require('states.shop')
+    local shop = Shop.new()
+    shop:setup("radiant", "sir_galahad")
+    Gamestate.switch(shop); wait(5)
+    local goldBefore = shop.resources
+    local sword
+    for _, it in ipairs(shop.items) do if it.id == "heroic_sword" then sword = it end end
+    shop:selectItem(sword)
+    shop:purchaseItem()
+    check(Save.getPurchases().heroic_sword == 1 and Save.getGold() == goldBefore - 200,
+        "bought Heroic Sword for 200 (gold " .. goldBefore .. " -> " .. Save.getGold() .. ")")
+    shot("shop")
+    local g = newGame("radiant", "sir_galahad")
+    local h = g.hero
+    local expected = h.base.damage * (1 + 0.1 * (h.level - 1)) * 1.15
+    check(math.abs(h.damage - expected) < 0.01, "Heroic Sword: hero damage x1.15 (" ..
+        string.format("%.1f", h.damage) .. ")")
+
+    ------------------------------------------------------------------
+    log("== JSON round trip")
+    local json = require('utils.json')
+    local src = { a = 1, b = { 1, 2, 3 }, c = "x\"y\n\195\169", d = true, e = 1.5, f = {} }
+    local back = json.decode(json.encode(src))
+    check(back.a == 1 and #back.b == 3 and back.c == src.c and back.d == true and back.e == 1.5,
+        "json encode/decode round trip")
+end
+
+local script
+function love.load(args)
+    gameLoad(args)
+    script = coroutine.create(run)
+end
+
+function love.update(dt)
+    gameUpdate(DT)
+    local ok, err = coroutine.resume(script)
+    if not ok then
+        log("CRASH", tostring(err))
+        log(debug.traceback(script))
+        os.exit(2)
+    end
+    if coroutine.status(script) == "dead" then
+        log(string.format("DONE passes=%d failures=%d", passes, failures))
+        os.exit(failures == 0 and 0 or 1)
+    end
+end
+
+function love.draw()
+    gameDraw()
+end

@@ -317,6 +317,37 @@ local function buildPrompts(root)
         entry(s.id, "sfx", nil, s.prompt, s.dur)
     end
 
+    if A.cTowers then
+        w("## 8. Faction towers (Model C)")
+        w("")
+        w("Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower`, then point")
+        w("that tower's `sprite` in `data/factions.lua` at the new file.")
+        w("")
+        for _, t in ipairs(A.cTowers) do
+            local p = A.towerRedo .. string.format(A.towerTemplate, t.name, t.desc)
+            entry(t.id, "tower", "image 1 = the approved `tower_archer` final", styled(p))
+        end
+
+        w("## 9. Hero walk sheets (Model C)")
+        w("")
+        w("Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor).")
+        w("")
+        for _, h in ipairs(A.cHeroes) do
+            entry(h.id, "sheet", "image 1 = the approved `enemy_zombie` sheet",
+                styled(string.format(A.sheetRedo, h.name, h.character, h.gear, h.notCarried)))
+        end
+
+        w("## 10. Missing hero portraits")
+        w("")
+        w("Attach an existing portrait (for example `assets/hero images/radiant order/Galahad/Sir Galahad.jpg`)")
+        w("as image 1. Opaque, 4:3. The game path for each is given at the end of its prompt.")
+        w("")
+        for _, p in ipairs(A.portraits) do
+            entry(p.id, "backdrop", "image 1 = an existing hero portrait",
+                string.format(A.portraitTemplate, p.desc) .. "\n\nGame path: " .. p.file)
+        end
+    end
+
     local path = root .. "/art/prompts.md"
     local f = assert(io.open(path, "wb"))
     f:write(table.concat(out, "\n"))

@@ -3,6 +3,7 @@ local Timer = require("libs.hump.timer")
 local Utils = require("utils")
 local Error = require("utils.error")
 local Animations = require("systems.animations")
+local Effects = require("systems.effects")
 
 -- Use local pathfinding instead of Jumper library which may be missing
 local Pathfinder = {}
@@ -77,6 +78,26 @@ Enemy.FOOT_OFFSET = 10                  -- feet sit this far below the cell cent
 Enemy.HOVER_HEIGHT = 22                 -- flyers' body center above their ground point
 -- On-map figure height in pixels, per enemy type (scale is data, per asset)
 Enemy.DRAW_HEIGHT = { default = 40, zombie = 40, skeleton = 40, orc = 46, necromancer = 44, dragon = 56 }
+
+-- Status dots drawn over enemies, in this order
+Enemy.STATUS_MARKERS = {
+    { "burn", { 1, 0.5, 0.1 } }, { "poison", { 0.4, 0.9, 0.3 } }, { "drain", { 0.7, 0.3, 0.9 } },
+    { "slow", { 0.3, 0.7, 1 } }, { "freeze", { 0.7, 0.9, 1 } }, { "root", { 0.5, 0.35, 0.2 } },
+    { "stun", { 1, 0.95, 0.3 } }, { "mark", { 1, 0.2, 0.2 } }, { "armorShred", { 0.8, 0.8, 0.8 } },
+    { "chain", { 0.5, 0.5, 0.6 } },
+}
+
+-- Combat stats used when allied units block an enemy. armor is the
+-- fraction of damage blocked. nature decides light/dark weakness (light
+-- hurts undead more, dark hurts the living more). Flying enemies cannot
+-- be blocked.
+Enemy.COMBAT = {
+    zombie      = { armor = 0.0, attackDamage = 8,  attackRate = 1.0, nature = "undead" },
+    skeleton    = { armor = 0.2, attackDamage = 10, attackRate = 1.0, nature = "undead" },
+    orc         = { armor = 0.1, attackDamage = 18, attackRate = 0.8, nature = "living" },
+    necromancer = { armor = 0.0, attackDamage = 12, attackRate = 1.0, nature = "undead" },
+    dragon      = { armor = 0.2, attackDamage = 0,  attackRate = 1.0, nature = "living", flying = true, boss = true },
+}
 
 -- Initialize enemy types and sprites
 function Enemy.init()
@@ -340,9 +361,23 @@ function Enemy.create(type, path, gridSize)
     -- Create animations
     enemy.animations = {}
     enemy.currentAnimation = "walk"
-    
+
+    -- Combat stats (see Enemy.COMBAT). blocker is the allied unit holding
+    -- this enemy in place; while blocked it stops and fights that unit.
+    local combat = Enemy.COMBAT[type] or {}
+    enemy.armor = combat.armor or 0
+    enemy.attackDamage = combat.attackDamage or 5
+    enemy.attackRate = combat.attackRate or 1
+    enemy.flying = combat.flying or false
+    enemy.nature = combat.nature or "living"
+    enemy.boss = combat.boss or false
+    enemy.blocker = nil
+    enemy.attackCooldown = 0
+    enemy.lunge = 0
+    enemy.statuses = {}
+
     -- Functions
-    
+
     -- Update enemy logic
     enemy.update = function(self, dt)
         -- Timers must keep running while dead: the death timer sets `removed`
@@ -354,41 +389,51 @@ function Enemy.create(type, path, gridSize)
             return
         end
 
-        -- Apply effects
-        self:applyEffects(dt)
-        
+        -- Statuses: damage over time and expiry (may kill)
+        Effects.update(self, dt)
+        if self.dead then return end
+        self.currentSpeed = self.speed * Effects.speedMult(self)
+        self.lunge = math.max(0, self.lunge - dt * 4)
+
+        -- Held by an allied unit: stand and fight it
+        local b = self.blocker
+        if b and (b.dead or b.removed or b.released) then
+            self.blocker = nil
+            b = nil
+        end
+        if b then
+            self:fight(b, dt)
+            return
+        end
+
         -- Update current animation
         self:updateAnimation(dt)
-        
+
         -- Movement logic
         if self.state == "walking" then
             self:move(dt)
         end
     end
-    
-    -- Apply status effects
-    enemy.applyEffects = function(self, dt)
-        local currentSpeed = self.speed
-        
-        -- Apply slow effect
-        if self.effects.slowed then
-            currentSpeed = currentSpeed * (1 - self.effects.slowed.amount)
+
+    -- Attack the unit blocking us
+    enemy.fight = function(self, unit, dt)
+        local dx, dy = unit.x - self.x, unit.y - self.y
+        if math.abs(dx) > math.abs(dy) then
+            self.direction = dx > 0 and "right" or "left"
+        else
+            self.direction = dy > 0 and "down" or "up"
         end
-        
-        -- Apply damage over time
-        if self.effects.dot then
-            self.effects.dot.tick = self.effects.dot.tick - dt
-            if self.effects.dot.tick <= 0 then
-                self:takeDamage(self.effects.dot.damage)
-                -- takeDamage may have killed us, which clears effects
-                if self.effects.dot then
-                    self.effects.dot.tick = self.effects.dot.interval
-                end
+        self.attackCooldown = self.attackCooldown - dt
+        if self.attackCooldown <= 0 and Effects.canAttack(self) then
+            self.attackCooldown = 1 / self.attackRate
+            self.lunge = 1
+            local dealt = unit:takeDamage(self.attackDamage, self) or 0
+            -- Holy Shield: some of it comes back
+            local refl = Effects.reflect(unit)
+            if refl > 0 and dealt > 0 then
+                self:takeDamage(dealt * refl, unit, { ignoreArmor = true })
             end
         end
-        
-        -- Update current speed
-        self.currentSpeed = currentSpeed
     end
     
     -- Move enemy along path
@@ -437,6 +482,11 @@ function Enemy.create(type, path, gridSize)
             end
         end
     end
+
+    -- How far along the road this enemy is (for "furthest enemy" targeting)
+    enemy.progress = function(self)
+        return self.currentPathIndex
+    end
     
     -- Update animation
     enemy.updateAnimation = function(self, dt)
@@ -449,28 +499,45 @@ function Enemy.create(type, path, gridSize)
         end
     end
     
-    -- Take damage
-    enemy.takeDamage = function(self, amount)
-        if self.state == "dead" then return end
-        
-        self.health = self.health - amount
-        
-        -- Create floating damage text
-        -- This would be implemented in the game state
-        
+    -- Take damage. opts: dot (damage over time), shared (from a chain),
+    -- ignoreArmor. Returns the damage actually dealt.
+    enemy.takeDamage = function(self, amount, source, opts)
+        if self.state == "dead" or amount <= 0 then return 0 end
+        opts = opts or {}
+
+        local dmg = amount * Effects.damageTakenMult(self)
+        if not opts.ignoreArmor then
+            local armor = math.max(0, self.armor - Effects.armorShred(self))
+            dmg = dmg * (1 - math.min(0.9, armor))
+        end
+        dmg = math.min(dmg, self.health)
+        self.health = self.health - dmg
+        if source then self.lastHitBy = source end
+
+        -- Soul Shackles: direct hits are shared along the chain
+        if not opts.dot and not opts.shared then
+            Effects.shareChainDamage(self, dmg, source)
+        end
+
         if self.health <= 0 then
             self:die()
         end
+        return dmg
     end
+
+    -- Enemies are never healed
+    enemy.heal = function(self, amount) end
     
     -- Die
     enemy.die = function(self)
         self.state = "dead"
         self.dead = true
+        self.justDied = true -- read once by the game (XP, conversion)
         self.currentAnimation = "die"
-        self.effects = {}
+        self.blocker = nil
+        Effects.clear(self)
 
-        -- Clear all timers (slow/dot expiry no longer matters)
+        -- Clear all timers
         self.timer:clear()
         self.timers = {}
 
@@ -479,48 +546,14 @@ function Enemy.create(type, path, gridSize)
             self.removed = true
         end)
     end
-    
-    -- Apply slow effect
-    enemy.applySlowEffect = function(self, amount, duration)
-        self.effects.slowed = {
-            amount = amount,
-            duration = duration
-        }
-        
-        -- Clear existing slow timer
-        if self.timers.slowTimer then
-            self.timer:cancel(self.timers.slowTimer)
-        end
 
-        -- Set timer to remove slow effect
-        self.timers.slowTimer = self.timer:after(duration, function()
-            self.effects.slowed = nil
-        end)
+    -- Older names some callers still use
+    enemy.applySlow = function(self, amount, duration)
+        Effects.apply(self, { type = "slow", amount = amount, duration = duration })
     end
-    
-    -- Apply damage over time effect
-    enemy.applyDotEffect = function(self, damage, duration, interval)
-        self.effects.dot = {
-            damage = damage,
-            duration = duration,
-            interval = interval or 1,
-            tick = interval or 1
-        }
-        
-        -- Clear existing dot timer
-        if self.timers.dotTimer then
-            self.timer:cancel(self.timers.dotTimer)
-        end
-
-        -- Set timer to remove dot effect
-        self.timers.dotTimer = self.timer:after(duration, function()
-            self.effects.dot = nil
-        end)
+    enemy.applyDot = function(self, damage, duration)
+        Effects.apply(self, { type = "burn", dps = damage, duration = duration })
     end
-
-    -- Names used by systems/tower.lua projectiles
-    enemy.applySlow = enemy.applySlowEffect
-    enemy.applyDot = enemy.applyDotEffect
     
     -- Draw enemy
     enemy.draw = function(self)
@@ -546,6 +579,15 @@ function Enemy.create(type, path, gridSize)
             local footY = flying and (groundY - Enemy.HOVER_HEIGHT) or groundY
             local alpha = 1
             if self.dead then alpha = math.max(0, 1 - (self.deadTime or 0)) end
+            -- Short lunge toward the unit we are fighting
+            if self.blocker and self.lunge > 0 then
+                local dx, dy = self.blocker.x - self.x, self.blocker.y - self.y
+                local d = math.sqrt(dx * dx + dy * dy)
+                if d > 0 then
+                    footX = footX + dx / d * 5 * self.lunge
+                    footY = footY + dy / d * 5 * self.lunge
+                end
+            end
 
             -- Shadow drawn in code on the ground, falling down-right like the
             -- towers'. A flyer's shadow is smaller and fainter.
@@ -554,12 +596,16 @@ function Enemy.create(type, path, gridSize)
                 h * (flying and 0.07 or 0.09))
 
             local row = Enemy.FACING_ROW[self.direction] or 1
-            local col = 2 -- standing frame when dead
-            if not self.dead then
+            local col = 2 -- standing frame when dead or fighting
+            if not self.dead and not self.blocker then
                 local step = math.floor((self.animTime or 0) / Enemy.FRAME_TIME) % #Enemy.WALK_CYCLE
                 col = Enemy.WALK_CYCLE[step + 1]
             end
-            love.graphics.setColor(1, 1, 1, alpha)
+            if self.statuses and self.statuses.freeze then
+                love.graphics.setColor(0.6, 0.8, 1, alpha)
+            else
+                love.graphics.setColor(1, 1, 1, alpha)
+            end
             love.graphics.draw(sheet.image, sheet.quads[row][col], footX, footY, 0, s, s,
                 meta.footX, meta.footY)
 
@@ -610,16 +656,14 @@ function Enemy.create(type, path, gridSize)
         -- Reset color
         love.graphics.setColor(1, 1, 1, 1)
 
-        -- Status markers above the health bar
-        local effectY = barY - 6
-        if self.effects.slowed then
-            love.graphics.setColor(0, 0.7, 1, 0.8)
-            love.graphics.circle("fill", barX + barWidth - 4, effectY, 3)
-            effectY = effectY - 6
-        end
-        if self.effects.dot then
-            love.graphics.setColor(0.7, 0.2, 0, 0.8)
-            love.graphics.circle("fill", barX + barWidth - 4, effectY, 3)
+        -- Status markers: a row of dots above the health bar
+        local mx = barX + 2
+        for _, m in ipairs(Enemy.STATUS_MARKERS) do
+            if self.statuses and self.statuses[m[1]] then
+                love.graphics.setColor(m[2][1], m[2][2], m[2][3], 0.9)
+                love.graphics.circle("fill", mx, barY - 5, 2.5)
+                mx = mx + 6
+            end
         end
 
         -- Reset color
@@ -627,6 +671,32 @@ function Enemy.create(type, path, gridSize)
     end
     
     return enemy
+end
+
+-- Draw one frame of an enemy type's walk sheet standing at (x, groundY).
+-- Used for minions (raised enemies and summoned skeletons). Returns the
+-- screen y of the figure's top, or nil if that type has no sheet.
+function Enemy.drawFigure(sheetType, x, groundY, direction, animTime, moving, tint, alpha, drawHeight)
+    local sheet = Enemy.sheets and Enemy.sheets[sheetType]
+    if not sheet then return nil end
+    local meta = sheet.meta
+    local h = drawHeight or Enemy.DRAW_HEIGHT[sheetType] or Enemy.DRAW_HEIGHT.default
+    local s = h / meta.figureH
+    local flying = meta.anchor == "mass"
+    local footY = flying and (groundY - Enemy.HOVER_HEIGHT) or groundY
+    love.graphics.setColor(0, 0, 0, 0.3 * (alpha or 1))
+    love.graphics.ellipse("fill", x + 2, groundY, h * 0.26, h * 0.08)
+    local row = Enemy.FACING_ROW[direction] or 1
+    local col = 2
+    if moving then
+        local step = math.floor((animTime or 0) / Enemy.FRAME_TIME) % #Enemy.WALK_CYCLE
+        col = Enemy.WALK_CYCLE[step + 1]
+    end
+    tint = tint or { 1, 1, 1 }
+    love.graphics.setColor(tint[1], tint[2], tint[3], alpha or 1)
+    love.graphics.draw(sheet.image, sheet.quads[row][col], x, footY, 0, s, s, meta.footX, meta.footY)
+    love.graphics.setColor(1, 1, 1, 1)
+    return footY - (meta.footY - (meta.topY or 0)) * s
 end
 
 -- Set up pathfinder for the grid map

@@ -182,7 +182,7 @@ function MenuState:continueGame()
     -- If faction and hero are already selected, go to hub
     if currentProfile.selectedFaction and currentProfile.selectedHero then
         local hubState = require('states.hub').new()
-        hubState:init(currentProfile.selectedFaction, currentProfile.selectedHero)
+        hubState:setup(currentProfile.selectedFaction, currentProfile.selectedHero)
         Gamestate.switch(hubState)
     else
         -- If faction not selected, go to faction selection

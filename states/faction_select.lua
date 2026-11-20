@@ -556,7 +556,7 @@ function FactionSelectState:selectFaction(faction)
     local heroSelectState = require('states.hero_select').new()
     
     -- Initialize with faction before switching to ensure data is available
-    heroSelectState:init(faction)
+    heroSelectState:setup(faction)
     
     -- Switch to the hero select state
     Gamestate.switch(heroSelectState)

@@ -17,7 +17,7 @@ function PauseState.new(previousState)
     
     -- Load background image
     local success, result = pcall(function()
-        self.background = love.graphics.newImage("assets/backgrounds/pause.jpg")
+        self.background = love.graphics.newImage("assets/backgrounds/pause.png")
     end)
     
     if not success then

@@ -1,5 +1,4 @@
 -- Load required libraries
-local Class = require("libs.class")
 local Timer = require("libs.hump.timer")
 local Utils = require("utils")
 local Error = require("utils.error")
@@ -68,6 +67,16 @@ local Enemy = {
     sprites = {},
     pathfinder = nil
 }
+
+-- Walk sheet playback (sheet layout: art/README.md and tools/artcut)
+Enemy.FACING_ROW = { down = 1, right = 2, left = 3, up = 4 }
+Enemy.WALK_CYCLE = { 1, 2, 3, 2 }      -- left foot, standing, right foot, standing
+Enemy.FRAME_TIME = 0.16                 -- seconds per frame at ANIM_BASE_SPEED
+Enemy.ANIM_BASE_SPEED = 40              -- px/s the frame time was tuned for
+Enemy.FOOT_OFFSET = 10                  -- feet sit this far below the cell center
+Enemy.HOVER_HEIGHT = 22                 -- flyers' body center above their ground point
+-- On-map figure height in pixels, per enemy type (scale is data, per asset)
+Enemy.DRAW_HEIGHT = { default = 40, zombie = 40, skeleton = 40, orc = 46, necromancer = 44, dragon = 56 }
 
 -- Initialize enemy types and sprites
 function Enemy.init()
@@ -196,7 +205,35 @@ function Enemy.init()
     for id, enemy in pairs(Enemy.types) do
         Enemy.sprites[id] = Enemy.createDefaultSprite(enemy)
     end
-    
+
+    -- Painted walk sheets cut by tools/artcut: a PNG plus a .lua file with
+    -- the frame layout next to it. Types without one keep the default.
+    Enemy.sheets = {}
+    for id, enemy in pairs(Enemy.types) do
+        local png = enemy.spriteSheet
+        local metaPath = png and (png:gsub("%.png$", ".lua"))
+        if png and love.filesystem.getInfo(png) and love.filesystem.getInfo(metaPath) then
+            local okMeta, meta = pcall(function() return love.filesystem.load(metaPath)() end)
+            local okImg, img = pcall(love.graphics.newImage, png, { mipmaps = true })
+            if okMeta and okImg and type(meta) == "table" then
+                img:setFilter("linear", "linear")
+                img:setMipmapFilter("linear")
+                local iw, ih = img:getDimensions()
+                local quads = {}
+                for r = 1, meta.rows do
+                    quads[r] = {}
+                    for c = 1, meta.cols do
+                        quads[r][c] = love.graphics.newQuad((c - 1) * meta.frameW, (r - 1) * meta.frameH,
+                            meta.frameW, meta.frameH, iw, ih)
+                    end
+                end
+                Enemy.sheets[id] = { image = img, quads = quads, meta = meta }
+            else
+                print("WARNING: could not load walk sheet for " .. id)
+            end
+        end
+    end
+
     Enemy.initialized = true
 end
 
@@ -256,16 +293,29 @@ function Enemy.create(type, path, gridSize)
         Error.show("Enemy type '" .. type .. "' not found")
         return nil
     end
-    
+
+    if not path or #path == 0 then
+        Error.show("No path found for enemy '" .. type .. "'")
+        return nil
+    end
+
+    -- Positions are pixel centers. Grid cell (gx, gy) is 1-based and spans
+    -- (gx-1)*gridSize .. gx*gridSize, so its center is (gx-0.5)*gridSize.
+    local function cellCenter(cell)
+        return (cell.x - 0.5) * gridSize, (cell.y - 0.5) * gridSize
+    end
+    local startX, startY = cellCenter(path[1])
+
     -- Create enemy instance
     local enemy = {
         id = Utils.generateID("enemy"),
         type = type,
         name = template.name,
-        x = path[1].x * gridSize,
-        y = path[1].y * gridSize,
+        x = startX,
+        y = startY,
         width = 32,
         height = 32,
+        radius = 12, -- hit radius used by projectiles
         health = template.health,
         maxHealth = template.health,
         speed = template.speed,
@@ -273,15 +323,18 @@ function Enemy.create(type, path, gridSize)
         value = template.value,
         path = path,
         currentPathIndex = 1,
-        targetX = path[1].x * gridSize,
-        targetY = path[1].y * gridSize,
+        targetX = startX,
+        targetY = startY,
         gridX = path[1].x,
         gridY = path[1].y,
         gridSize = gridSize,
         state = "walking", -- walking, attacking, dead
+        dead = false,       -- read by towers/projectiles
+        reachedEnd = false, -- read by towers/projectiles
         direction = "right", -- left, right, up, down
         effects = {}, -- slowed, poisoned, etc.
-        timers = {}
+        timer = Timer.new(), -- per-enemy timer instance (never the HUMP default)
+        timers = {}          -- handles into self.timer
     }
     
     -- Create animations
@@ -292,12 +345,15 @@ function Enemy.create(type, path, gridSize)
     
     -- Update enemy logic
     enemy.update = function(self, dt)
-        -- Skip if dead
-        if self.state == "dead" then return end
-        
-        -- Update timers
-        Timer.update(self.timers, dt)
-        
+        -- Timers must keep running while dead: the death timer sets `removed`
+        self.timer:update(dt)
+
+        -- Skip the rest if dead (the death fade reads deadTime)
+        if self.state == "dead" then
+            self.deadTime = (self.deadTime or 0) + dt
+            return
+        end
+
         -- Apply effects
         self:applyEffects(dt)
         
@@ -324,7 +380,10 @@ function Enemy.create(type, path, gridSize)
             self.effects.dot.tick = self.effects.dot.tick - dt
             if self.effects.dot.tick <= 0 then
                 self:takeDamage(self.effects.dot.damage)
-                self.effects.dot.tick = self.effects.dot.interval
+                -- takeDamage may have killed us, which clears effects
+                if self.effects.dot then
+                    self.effects.dot.tick = self.effects.dot.interval
+                end
             end
         end
         
@@ -335,8 +394,8 @@ function Enemy.create(type, path, gridSize)
     -- Move enemy along path
     enemy.move = function(self, dt)
         local speed = self.currentSpeed or self.speed
-        local targetX = self.path[self.currentPathIndex].x * self.gridSize
-        local targetY = self.path[self.currentPathIndex].y * self.gridSize
+        local targetX = (self.path[self.currentPathIndex].x - 0.5) * self.gridSize
+        local targetY = (self.path[self.currentPathIndex].y - 0.5) * self.gridSize
         
         -- Calculate direction to target
         local dx = targetX - self.x
@@ -373,6 +432,7 @@ function Enemy.create(type, path, gridSize)
             else
                 -- Reached end of path
                 self.state = "attacking"
+                self.reachedEnd = true
                 self.currentAnimation = "attack"
             end
         end
@@ -380,6 +440,10 @@ function Enemy.create(type, path, gridSize)
     
     -- Update animation
     enemy.updateAnimation = function(self, dt)
+        -- Walk cycle clock. Steps speed up and slow down with movement
+        -- speed, so a slowed enemy also walks slower.
+        local speed = self.currentSpeed or self.speed
+        self.animTime = (self.animTime or 0) + dt * speed / Enemy.ANIM_BASE_SPEED
         if self.animation then
             self.animation:update(dt)
         end
@@ -402,15 +466,18 @@ function Enemy.create(type, path, gridSize)
     -- Die
     enemy.die = function(self)
         self.state = "dead"
+        self.dead = true
         self.currentAnimation = "die"
-        
-        -- Clear all timers
+        self.effects = {}
+
+        -- Clear all timers (slow/dot expiry no longer matters)
+        self.timer:clear()
         self.timers = {}
-        
-        -- Add death timer
-        table.insert(self.timers, Timer.after(1, function()
+
+        -- Remove from the game after the death animation
+        self.timers.death = self.timer:after(1, function()
             self.removed = true
-        end))
+        end)
     end
     
     -- Apply slow effect
@@ -422,11 +489,11 @@ function Enemy.create(type, path, gridSize)
         
         -- Clear existing slow timer
         if self.timers.slowTimer then
-            Timer.cancel(self.timers.slowTimer)
+            self.timer:cancel(self.timers.slowTimer)
         end
-        
+
         -- Set timer to remove slow effect
-        self.timers.slowTimer = Timer.after(duration, function()
+        self.timers.slowTimer = self.timer:after(duration, function()
             self.effects.slowed = nil
         end)
     end
@@ -442,71 +509,119 @@ function Enemy.create(type, path, gridSize)
         
         -- Clear existing dot timer
         if self.timers.dotTimer then
-            Timer.cancel(self.timers.dotTimer)
+            self.timer:cancel(self.timers.dotTimer)
         end
-        
+
         -- Set timer to remove dot effect
-        self.timers.dotTimer = Timer.after(duration, function()
+        self.timers.dotTimer = self.timer:after(duration, function()
             self.effects.dot = nil
         end)
     end
+
+    -- Names used by systems/tower.lua projectiles
+    enemy.applySlow = enemy.applySlowEffect
+    enemy.applyDot = enemy.applyDotEffect
     
     -- Draw enemy
     enemy.draw = function(self)
         -- Skip if flagged for removal
         if self.removed then return end
-        
-        -- Draw shadow
-        love.graphics.setColor(0, 0, 0, 0.3)
-        love.graphics.ellipse("fill", self.x + self.width/2, self.y + self.height - 5, self.width/2 - 2, 6)
-        
-        -- Draw enemy
-        love.graphics.setColor(1, 1, 1, 1)
-        
-        -- Use sprite if available, otherwise use default
-        local sprite = Enemy.sprites[self.type]
-        if sprite then
-            love.graphics.draw(sprite, self.x, self.y)
-        else
-            -- Fallback: draw a colored circle
-            love.graphics.setColor(1, 0, 0)
-            love.graphics.circle("fill", self.x + self.width/2, self.y + self.height/2, self.width/3)
-            love.graphics.setColor(0, 0, 0)
-            love.graphics.circle("line", self.x + self.width/2, self.y + self.height/2, self.width/3)
-        end
-        
-        -- Draw health bar
-        local healthPercentage = self.health / self.maxHealth
+
+        -- self.x/self.y are the center; drawing below works from the top-left
+        local left, top = self.x - self.width/2, self.y - self.height/2
         local barWidth = self.width - 4
+        local barX, barY = left + 2, top - 8
+
+        local sheet = Enemy.sheets and Enemy.sheets[self.type]
+        if sheet then
+            -- Painted walk sheet: feet stand a little below the cell center
+            local meta = sheet.meta
+            local h = Enemy.DRAW_HEIGHT[self.type] or Enemy.DRAW_HEIGHT.default
+            local s = h / meta.figureH
+            local groundY = self.y + Enemy.FOOT_OFFSET
+            local flying = meta.anchor == "mass"
+            -- Walkers: the anchor is the feet, on the ground. Flyers: the
+            -- anchor is the body center, held above the ground.
+            local footX = self.x
+            local footY = flying and (groundY - Enemy.HOVER_HEIGHT) or groundY
+            local alpha = 1
+            if self.dead then alpha = math.max(0, 1 - (self.deadTime or 0)) end
+
+            -- Shadow drawn in code on the ground, falling down-right like the
+            -- towers'. A flyer's shadow is smaller and fainter.
+            love.graphics.setColor(0, 0, 0, (flying and 0.18 or 0.3) * alpha)
+            love.graphics.ellipse("fill", footX + 2, groundY, h * (flying and 0.22 or 0.28),
+                h * (flying and 0.07 or 0.09))
+
+            local row = Enemy.FACING_ROW[self.direction] or 1
+            local col = 2 -- standing frame when dead
+            if not self.dead then
+                local step = math.floor((self.animTime or 0) / Enemy.FRAME_TIME) % #Enemy.WALK_CYCLE
+                col = Enemy.WALK_CYCLE[step + 1]
+            end
+            love.graphics.setColor(1, 1, 1, alpha)
+            love.graphics.draw(sheet.image, sheet.quads[row][col], footX, footY, 0, s, s,
+                meta.footX, meta.footY)
+
+            -- Health bar just above the highest point any frame reaches
+            local topY = meta.topY or 0
+            barX, barY = self.x - barWidth / 2, footY - (meta.footY - topY) * s - 6
+            if self.dead then
+                love.graphics.setColor(1, 1, 1, 1)
+                return
+            end
+        else
+            -- Draw shadow
+            love.graphics.setColor(0, 0, 0, 0.3)
+            love.graphics.ellipse("fill", left + self.width/2, top + self.height - 5, self.width/2 - 2, 6)
+
+            -- Draw enemy
+            love.graphics.setColor(1, 1, 1, 1)
+
+            -- Use sprite if available, otherwise use default
+            local sprite = Enemy.sprites[self.type]
+            if sprite then
+                love.graphics.draw(sprite, left, top)
+            else
+                -- Fallback: draw a colored circle
+                love.graphics.setColor(1, 0, 0)
+                love.graphics.circle("fill", left + self.width/2, top + self.height/2, self.width/3)
+                love.graphics.setColor(0, 0, 0)
+                love.graphics.circle("line", left + self.width/2, top + self.height/2, self.width/3)
+            end
+        end
+
+        -- Draw health bar
+        local healthPercentage = math.max(0, self.health / self.maxHealth)
         local barHeight = 4
-        
+
         -- Background
         love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
-        love.graphics.rectangle("fill", self.x + 2, self.y - 8, barWidth, barHeight)
-        
+        love.graphics.rectangle("fill", barX, barY, barWidth, barHeight)
+
         -- Health
         love.graphics.setColor(1 - healthPercentage, healthPercentage, 0, 0.8)
-        love.graphics.rectangle("fill", self.x + 2, self.y - 8, barWidth * healthPercentage, barHeight)
-        
+        love.graphics.rectangle("fill", barX, barY, barWidth * healthPercentage, barHeight)
+
         -- Border
         love.graphics.setColor(0, 0, 0, 0.8)
-        love.graphics.rectangle("line", self.x + 2, self.y - 8, barWidth, barHeight)
-        
+        love.graphics.rectangle("line", barX, barY, barWidth, barHeight)
+
         -- Reset color
         love.graphics.setColor(1, 1, 1, 1)
-        
-        -- Draw effects (for debugging)
-        local effectY = self.y - 16
+
+        -- Status markers above the health bar
+        local effectY = barY - 6
         if self.effects.slowed then
             love.graphics.setColor(0, 0.7, 1, 0.8)
-            love.graphics.circle("fill", self.x + self.width - 8, effectY, 3)
+            love.graphics.circle("fill", barX + barWidth - 4, effectY, 3)
             effectY = effectY - 6
         end
         if self.effects.dot then
             love.graphics.setColor(0.7, 0.2, 0, 0.8)
-            love.graphics.circle("fill", self.x + self.width - 8, effectY, 3)
+            love.graphics.circle("fill", barX + barWidth - 4, effectY, 3)
         end
-        
+
         -- Reset color
         love.graphics.setColor(1, 1, 1, 1)
     end

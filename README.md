@@ -37,20 +37,17 @@ A Tower Defense game built with Lua and the LÖVE framework, featuring a faction
 - Bump.lua (for collision detection)
 - STI (for map loading)
 - HUMP (for state management and timers)
-- SUITE (for UI)
+- LoveFrames (submodule, not used by the game yet)
 
 ## Installation
 
 1. Install LÖVE framework from [love2d.org](https://love2d.org/)
 2. Clone this repository
-3. Install dependencies:
+3. Fetch the libraries (git submodules):
    ```bash
-   git submodule add https://github.com/Yonaba/Jumper.git libs/jumper
-   git submodule add https://github.com/kikito/bump.lua.git libs/bump
-   git submodule add https://github.com/karai17/Simple-Tiled-Implementation.git libs/sti
-   git submodule add https://github.com/vrld/hump.git libs/hump
-   git submodule add https://github.com/pelevesque/suite.git libs/suite
+   git submodule update --init
    ```
+   Or clone with `git clone --recursive`.
 
 ## Project Structure
 

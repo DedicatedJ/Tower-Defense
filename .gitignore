@@ -22,5 +22,7 @@ Thumbs.db
 saves/
 *.log
 
-# Dependencies
-libs/ 
+# Original art downloads: kept locally, not in git. The Higgsfield share
+# link for each one is recorded in art/manifest.md.
+art/incoming/*
+!art/incoming/.gitkeep

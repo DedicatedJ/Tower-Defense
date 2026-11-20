@@ -22,7 +22,17 @@ function HeroSelectState.new()
     return self
 end
 
-function HeroSelectState:init(faction)
+-- HUMP calls init() with no arguments the first time a state is switched to.
+-- Callers that have real data call setup(...) before switching; init() only
+-- fills in defaults when that didn't happen.
+function HeroSelectState:init()
+    if not self.isSetUp then
+        self:setup()
+    end
+end
+
+function HeroSelectState:setup(faction)
+    self.isSetUp = true
     if not faction then
         print("HeroSelectState init with faction:\tnil")
         faction = self:getDefaultFaction()
@@ -490,7 +500,7 @@ function HeroSelectState:draw()
                     "fill", 
                     button.x + 25, 
                     button.y + 205, 
-                    math.min(statBarWidth * (hero.health / maxStat), statBarWidth), 
+                    math.min(statBarWidth * ((hero.health or 0) / maxStat), statBarWidth), 
                     15, 4, 4
                 )
                 
@@ -506,7 +516,7 @@ function HeroSelectState:draw()
                     "fill", 
                     button.x + 25, 
                     button.y + 250, 
-                    math.min(statBarWidth * (hero.attack / 100), statBarWidth), 
+                    math.min(statBarWidth * ((hero.attack or 0) / 100), statBarWidth), 
                     15, 4, 4
                 )
                 
@@ -522,7 +532,7 @@ function HeroSelectState:draw()
                     "fill", 
                     button.x + 25, 
                     button.y + 295, 
-                    math.min(statBarWidth * (hero.speed / 150), statBarWidth), 
+                    math.min(statBarWidth * ((hero.speed or 0) / 150), statBarWidth), 
                     15, 4, 4
                 )
                 
@@ -657,9 +667,9 @@ function HeroSelectState:draw()
         love.graphics.print("Stats:", panel.x + 15, statsY)
         
         love.graphics.setColor(1, 1, 1, 0.9)
-        love.graphics.print("Health: " .. hero.health, panel.x + 15, statsY + 25)
-        love.graphics.print("Attack: " .. hero.attack, panel.x + 15, statsY + 45)
-        love.graphics.print("Speed: " .. hero.speed, panel.x + 15, statsY + 65)
+        love.graphics.print("Health: " .. (hero.health or "-"), panel.x + 15, statsY + 25)
+        love.graphics.print("Attack: " .. (hero.attack or "-"), panel.x + 15, statsY + 45)
+        love.graphics.print("Speed: " .. (hero.speed or "-"), panel.x + 15, statsY + 65)
     end
     
     -- Draw error notifications
@@ -785,7 +795,7 @@ function HeroSelectState:selectHero(hero)
     
     -- Create the hub state and initialize it with faction and hero
     local hubState = require('states.hub').new()
-    hubState:init(self.faction, self.selectedHero)
+    hubState:setup(self.faction, self.selectedHero)
     
     -- Switch to the hub state
     Gamestate.switch(hubState)

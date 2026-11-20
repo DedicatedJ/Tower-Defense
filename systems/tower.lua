@@ -113,7 +113,25 @@ function Tower.init()
             Tower.sprites[id] = Tower.createDefaultSprite(tower)
         end
     end
-    
+
+    -- Painted sprites (see art/README.md), loaded once and shared by every
+    -- instance. Towers without a file keep the generated default above.
+    Tower.images = {}
+    for _, faction in pairs({Tower.HUMAN, Tower.ELF, Tower.DWARF}) do
+        for id, tower in pairs(faction) do
+            if type(tower.sprite) == "string" and love.filesystem.getInfo(tower.sprite) then
+                local ok, img = pcall(love.graphics.newImage, tower.sprite, { mipmaps = true })
+                if ok then
+                    img:setFilter("linear", "linear")
+                    img:setMipmapFilter("linear")
+                    Tower.images[id] = img
+                else
+                    print("WARNING: Failed to load tower sprite: " .. tower.sprite)
+                end
+            end
+        end
+    end
+
     -- Create default projectile sprites
     Tower.projectileSprites = {
         arrow = Tower.createDefaultProjectileSprite({1, 0.8, 0}),
@@ -290,7 +308,7 @@ function Tower.getTowersByFaction(faction)
 end
 
 -- Create a new tower instance
-function Tower.create(towerType, gridX, gridY)
+function Tower.create(towerType, gridX, gridY, tileSize)
     if not Tower.initialized then
         Tower.init()
     end
@@ -326,22 +344,32 @@ function Tower.create(towerType, gridX, gridY)
     -- Set instance-specific properties
     instance.gridX = gridX
     instance.gridY = gridY
+    instance.tileSize = tileSize or 32
     instance.level = 1
     instance.target = nil
     instance.cooldown = 0
-    
-    -- Try to load sprite if specified
-    if instance.sprite and type(instance.sprite) == "string" then
-        local success, result = Error.pcall(function()
-            instance.spriteImg = love.graphics.newImage(instance.sprite)
-        end)
-        
-        if not success then
-            print("WARNING: Failed to load tower sprite: " .. instance.sprite)
-            -- Create a default sprite
-            instance.spriteImg = nil
+
+    -- Runtime state used by TowerInstance:update/attack/getInfo
+    instance.timer = Timer.new()
+    instance.attackTimer = 0
+    instance.appliedUpgrades = {}
+    instance.buffs = {}
+    instance.upgradeLevel = 0
+    instance.projectileSpeed = instance.projectileSpeed or 300
+
+    -- Flatten `special` (slow, AOE, ...) into the fields projectiles read
+    if type(towerData.special) == "table" then
+        for k, v in pairs(towerData.special) do
+            if instance[k] == nil then
+                instance[k] = v
+            end
         end
     end
+
+    -- Painted sprite if one was loaded in Tower.init, else the generated default
+    instance.painted = Tower.images and Tower.images[instance.id] ~= nil
+    instance.spriteImg = (Tower.images and Tower.images[instance.id])
+        or (Tower.sprites and Tower.sprites[instance.id])
     
     -- Mix in tower instance methods
     for k, v in pairs(TowerInstance) do
@@ -402,18 +430,23 @@ end
 
 -- Tower instance methods
 
--- Update tower logic
+-- Pixel center of the tower's grid cell. Grid cells are 1-based:
+-- cell (gx, gy) spans (gx-1)*tileSize .. gx*tileSize.
+function TowerInstance:getCenter()
+    local ts = self.tileSize or 32
+    return (self.gridX - 0.5) * ts, (self.gridY - 0.5) * ts
+end
+
+-- Update tower logic.
+-- gameState must provide: towers, enemies, projectiles, effects (lists).
+-- Enemies must provide: x, y (center), radius, dead, reachedEnd,
+-- takeDamage(amount), applySlow(amount, duration), applyDot(damage, duration).
 function TowerInstance:update(dt, gameState)
-    -- Skip if no map available
-    if not gameState.map then return end
-    
     -- Update timer
     self.timer:update(dt)
-    
+
     -- Get world position
-    local x, y = gameState.map:gridToWorld(self.gridX, self.gridY)
-    x = x + gameState.map.tileSize / 2
-    y = y + gameState.map.tileSize / 2
+    local x, y = self:getCenter()
     
     -- Calculate total stats with upgrades and buffs
     local totalDamage = self.damage
@@ -468,9 +501,7 @@ function TowerInstance:update(dt, gameState)
         -- Apply buffs to nearby towers
         for _, tower in ipairs(gameState.towers) do
             if tower ~= self then
-                local towerX, towerY = gameState.map:gridToWorld(tower.gridX, tower.gridY)
-                towerX = towerX + gameState.map.tileSize / 2
-                towerY = towerY + gameState.map.tileSize / 2
+                local towerX, towerY = tower:getCenter()
                 
                 local dist = math.sqrt((x - towerX)^2 + (y - towerY)^2)
                 if dist <= buffRange then
@@ -540,10 +571,8 @@ function TowerInstance:attack(gameState)
     if not self.target then return end
     
     -- Get tower position
-    local x, y = gameState.map:gridToWorld(self.gridX, self.gridY)
-    x = x + gameState.map.tileSize / 2
-    y = y + gameState.map.tileSize / 2
-    
+    local x, y = self:getCenter()
+
     -- Calculate direction
     local targetX, targetY = self.target.x, self.target.y
     local dx, dy = targetX - x, targetY - y
@@ -583,6 +612,13 @@ function TowerInstance:attack(gameState)
                 return
             end
             
+            -- Home in on the target while it is alive, so moving enemies
+            -- can't sidestep a shot that was aimed at their old position
+            local t = self.target
+            if t and not t.dead and not t.reachedEnd then
+                self.angle = math.atan2(t.y - self.y, t.x - self.x)
+            end
+
             -- Move projectile
             self.x = self.x + math.cos(self.angle) * self.speed * dt
             self.y = self.y + math.sin(self.angle) * self.speed * dt
@@ -598,7 +634,7 @@ function TowerInstance:attack(gameState)
             for _, enemy in ipairs(gameState.enemies) do
                 if not enemy.dead and not enemy.reachedEnd then
                     local dist = math.sqrt((self.x - enemy.x)^2 + (self.y - enemy.y)^2)
-                    if dist < enemy.radius or enemy == self.target then
+                    if dist < (enemy.radius or 12) then
                         -- Hit enemy
                         self:damageEnemy(enemy, gameState)
                         
@@ -714,9 +750,9 @@ function TowerInstance:attack(gameState)
                     self.currentTime = self.currentTime + dt
                     self.radius = (self.currentTime / self.duration) * self.maxRadius
                     if self.currentTime >= self.duration then
-                        return true -- Done
+                        self.done = true
                     end
-                    return false
+                    return self.done == true
                 end,
                 
                 draw = function(self)
@@ -787,18 +823,75 @@ function TowerInstance:attack(gameState)
     end
 end
 
+-- On-map width of a painted tower in pixels, a little wider than one
+-- 32 px cell so the base reads as filling it.
+Tower.DRAW_WIDTH = 44
+
+-- Draw a painted tower image standing on the cell centered at (cx, cy).
+-- Painted towers sit on a diamond base that spans the image width; in this
+-- three-quarter view the diamond is half as tall as it is wide, so its
+-- center is a quarter of the width above the bottom edge. That point goes
+-- on the cell center. No per-asset numbers needed.
+function Tower.drawPainted(img, cx, cy, drawWidth, alpha, shadow)
+    local w, h = img:getDimensions()
+    local s = drawWidth / w
+    if shadow then
+        -- Light comes from the upper left, so the shadow falls down-right
+        love.graphics.setColor(0, 0, 0, 0.28 * (alpha or 1))
+        love.graphics.ellipse("fill", cx + drawWidth * 0.08, cy + drawWidth * 0.06,
+            drawWidth * 0.46, drawWidth * 0.22)
+    end
+    love.graphics.setColor(1, 1, 1, alpha or 1)
+    love.graphics.draw(img, cx, cy, 0, s, s, w / 2, h - w / 4)
+end
+
+-- Draw a tower type as an icon fitted inside a box (UI panels)
+function Tower.drawIcon(id, x, y, boxW, boxH)
+    local img = Tower.images and Tower.images[id]
+    if img then
+        local w, h = img:getDimensions()
+        local s = math.min(boxW / w, boxH / h)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(img, x + boxW / 2, y + boxH / 2, 0, s, s, w / 2, h / 2)
+        return true
+    end
+    local sprite = Tower.sprites and Tower.sprites[id]
+    if sprite then
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(sprite, x + boxW / 2, y + boxH / 2, 0, 1, 1,
+            sprite:getWidth() / 2, sprite:getHeight() / 2)
+        return true
+    end
+    return false
+end
+
+-- Range circle, drawn by the game only for the hovered or selected tower
+function TowerInstance:drawRange()
+    if not self.range then return end
+    local cx, cy = self:getCenter()
+    love.graphics.setColor(0.2, 0.5, 0.8, 0.15)
+    love.graphics.circle("fill", cx, cy, self.range)
+    love.graphics.setColor(0.2, 0.5, 0.8, 0.5)
+    love.graphics.circle("line", cx, cy, self.range)
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 -- Draw the tower
 function TowerInstance:draw()
-    -- Get the world coordinates of the tower
-    local x = (self.gridX - 0.5) * 32
-    local y = (self.gridY - 0.5) * 32
-    
+    -- Top-left corner of the tower's cell (drawing below is relative to it)
+    local ts = self.tileSize or 32
+    local x = (self.gridX - 1) * ts
+    local y = (self.gridY - 1) * ts
+
     -- Draw tower sprite or fallback shape
-    if self.spriteImg then
+    if self.painted then
+        local cx, cy = self:getCenter()
+        Tower.drawPainted(self.spriteImg, cx, cy, Tower.DRAW_WIDTH, 1, true)
+    elseif self.spriteImg then
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(
-            self.spriteImg, 
-            x + 16, y + 16, 
+            self.spriteImg,
+            x + ts / 2, y + ts / 2,
             0, 1, 1, 
             self.spriteImg:getWidth() / 2, 
             self.spriteImg:getHeight() / 2
@@ -817,14 +910,6 @@ function TowerInstance:draw()
         love.graphics.circle("fill", x + 24, y + 8, 8)
         love.graphics.setColor(0, 0, 0, 1)
         love.graphics.print(self.level, x + 21, y + 3)
-    end
-    
-    -- Debug: Draw range circle
-    if self.range then
-        love.graphics.setColor(0.2, 0.5, 0.8, 0.15)
-        love.graphics.circle("fill", x + 16, y + 16, self.range)
-        love.graphics.setColor(0.2, 0.5, 0.8, 0.3)
-        love.graphics.circle("line", x + 16, y + 16, self.range)
     end
     
     -- Reset color

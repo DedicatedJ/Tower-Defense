@@ -125,14 +125,25 @@ function AchievementState:loadAchievements()
         }
     }
     
-    -- Try to load achievement icons
+    -- Try to load achievement icons. Icon files are named after the ids in
+    -- systems/achievement.lua; this screen uses some different ids for the
+    -- same achievements, mapped here. speed_run and upgrade_expert have no
+    -- icon yet. Missing files are skipped quietly (no error popup).
+    local ICON_FOR = {
+        first_win = "first_tower",
+        perfect_defense = "perfect_wave",
+        synergy_master = "tower_synergy",
+    }
     for _, achievement in ipairs(self.achievements) do
-        local success, result = Error.pcall(function()
-            achievement.icon = love.graphics.newImage("sprites/ui/achievements/" .. achievement.id .. ".png")
-        end)
-        
-        if not success then
-            achievement.icon = nil
+        local path = "sprites/ui/achievements/" .. (ICON_FOR[achievement.id] or achievement.id) .. ".png"
+        achievement.icon = nil
+        if love.filesystem.getInfo(path) then
+            local success, img = pcall(love.graphics.newImage, path, { mipmaps = true })
+            if success then
+                img:setFilter("linear", "linear")
+                img:setMipmapFilter("linear")
+                achievement.icon = img
+            end
         end
     end
 end
@@ -227,10 +238,12 @@ function AchievementState:draw()
             -- Achievement icon
             if achievement.icon then
                 love.graphics.setColor(1, 1, 1, 1)
-                love.graphics.draw(achievement.icon, 
-                    love.graphics.getWidth() / 2 - achievementWidth / 2 + 20, 
-                    y + 10, 
-                    0, 0.7, 0.7)
+                -- Fit any icon file into 70 px so it ends before the text at +100
+                local iconScale = 70 / achievement.icon:getWidth()
+                love.graphics.draw(achievement.icon,
+                    love.graphics.getWidth() / 2 - achievementWidth / 2 + 20,
+                    y + 10,
+                    0, iconScale, iconScale)
             else
                 -- Placeholder icon
                 if achievement.unlocked then

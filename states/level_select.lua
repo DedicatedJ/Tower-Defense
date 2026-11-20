@@ -23,13 +23,25 @@ function LevelSelectState.new()
     return self
 end
 
-function LevelSelectState:init(faction, hero)
-    self.selectedFaction = faction
-    self.selectedHero = hero
+-- HUMP calls init() with no arguments the first time a state is switched to.
+-- Callers that have real data call setup(...) before switching; init() only
+-- fills in defaults when that didn't happen.
+function LevelSelectState:init()
+    if not self.isSetUp then
+        self:setup()
+    end
+end
+
+function LevelSelectState:setup(faction, hero)
+    self.isSetUp = true
+    -- Saved profiles pass ids, the selection screens pass tables
+    local Selection = require("utils.selection")
+    self.selectedFaction = Selection.resolveFaction(faction)
+    self.selectedHero = Selection.resolveHero(self.selectedFaction, hero)
     
     -- Load background image
     local success, result = pcall(function()
-        self.background = love.graphics.newImage("assets/backgrounds/level_select.jpg")
+        self.background = love.graphics.newImage("assets/backgrounds/level_select.png")
     end)
     
     if not success then
@@ -94,7 +106,7 @@ function LevelSelectState:loadLevels()
                 description = "Open fields with multiple paths",
                 difficulty = 1,
                 unlocked = true,
-                image = "assets/levels/sunlit_meadows_thumb.jpg"
+                image = "assets/levels/sunlit_meadows_thumb.png"
             },
             {
                 id = "crystal_spires",
@@ -102,7 +114,7 @@ function LevelSelectState:loadLevels()
                 description = "Elevated platforms with bridges",
                 difficulty = 2,
                 unlocked = true,
-                image = "assets/levels/crystal_spires_thumb.jpg"
+                image = "assets/levels/crystal_spires_thumb.png"
             },
             {
                 id = "celestial_citadel",
@@ -110,7 +122,7 @@ function LevelSelectState:loadLevels()
                 description = "Circular, central defensive point",
                 difficulty = 3,
                 unlocked = false,
-                image = "assets/levels/celestial_citadel_thumb.jpg"
+                image = "assets/levels/celestial_citadel_thumb.png"
             }
         }
     elseif factionId == "shadow" or factionId:find("shadow") or factionId:find("dark") then
@@ -121,7 +133,7 @@ function LevelSelectState:loadLevels()
                 description = "Winding paths with dense trees",
                 difficulty = 1,
                 unlocked = true,
-                image = "assets/levels/haunted_forest_thumb.jpg"
+                image = "assets/levels/haunted_forest_thumb.png"
             },
             {
                 id = "obsidian_caves",
@@ -129,7 +141,7 @@ function LevelSelectState:loadLevels()
                 description = "Narrow tunnels with limited tower spots",
                 difficulty = 2,
                 unlocked = true,
-                image = "assets/levels/obsidian_caves_thumb.jpg"
+                image = "assets/levels/obsidian_caves_thumb.png"
             },
             {
                 id = "necropolis",
@@ -137,7 +149,7 @@ function LevelSelectState:loadLevels()
                 description = "Maze-like with teleportation portals",
                 difficulty = 3,
                 unlocked = false,
-                image = "assets/levels/necropolis_thumb.jpg"
+                image = "assets/levels/necropolis_thumb.png"
             }
         }
     elseif factionId == "twilight" or factionId:find("twilight") or factionId:find("balance") then
@@ -148,7 +160,7 @@ function LevelSelectState:loadLevels()
                 description = "Shifting fog reveals/hides paths",
                 difficulty = 1,
                 unlocked = true,
-                image = "assets/levels/misty_borderlands_thumb.jpg"
+                image = "assets/levels/misty_borderlands_thumb.png"
             },
             {
                 id = "ethereal_ruins",
@@ -156,7 +168,7 @@ function LevelSelectState:loadLevels()
                 description = "Destructible environments change pathing",
                 difficulty = 2,
                 unlocked = true,
-                image = "assets/levels/ethereal_ruins_thumb.jpg"
+                image = "assets/levels/ethereal_ruins_thumb.png"
             },
             {
                 id = "nexus_of_balance",
@@ -164,7 +176,7 @@ function LevelSelectState:loadLevels()
                 description = "Dynamic, alternates light/dark zones",
                 difficulty = 3,
                 unlocked = false,
-                image = "assets/levels/nexus_of_balance_thumb.jpg"
+                image = "assets/levels/nexus_of_balance_thumb.png"
             }
         }
     else
@@ -176,7 +188,7 @@ function LevelSelectState:loadLevels()
                 description = "Basic level for learning the game",
                 difficulty = 1,
                 unlocked = true,
-                image = "assets/levels/training_grounds_thumb.jpg"
+                image = "assets/levels/training_grounds_thumb.png"
             },
             {
                 id = "wilderness",
@@ -184,7 +196,7 @@ function LevelSelectState:loadLevels()
                 description = "Standard map with varied terrain",
                 difficulty = 2,
                 unlocked = true,
-                image = "assets/levels/wilderness_thumb.jpg"
+                image = "assets/levels/wilderness_thumb.png"
             },
             {
                 id = "ancient_ruins",
@@ -192,7 +204,7 @@ function LevelSelectState:loadLevels()
                 description = "Advanced map with complex paths",
                 difficulty = 3,
                 unlocked = false,
-                image = "assets/levels/ancient_ruins_thumb.jpg"
+                image = "assets/levels/ancient_ruins_thumb.png"
             }
         }
     end
@@ -295,7 +307,7 @@ end
 
 function LevelSelectState:goBack()
     local hubState = require('states.hub').new()
-    hubState:init(self.selectedFaction, self.selectedHero)
+    hubState:setup(self.selectedFaction, self.selectedHero)
     Gamestate.switch(hubState)
 end
 
@@ -304,7 +316,7 @@ function LevelSelectState:startLevel()
     
     -- Create and switch to game state with the selected level
     local gameState = require('states.game').new()
-    gameState:init(self.selectedFaction, self.selectedHero, self.selectedLevel.id)
+    gameState:setup(self.selectedFaction, self.selectedHero, self.selectedLevel.id)
     Gamestate.switch(gameState)
 end
 

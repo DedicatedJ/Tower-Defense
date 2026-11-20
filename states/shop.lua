@@ -26,13 +26,25 @@ function ShopState.new()
     return self
 end
 
-function ShopState:init(faction, hero)
-    self.selectedFaction = faction
-    self.selectedHero = hero
+-- HUMP calls init() with no arguments the first time a state is switched to.
+-- Callers that have real data call setup(...) before switching; init() only
+-- fills in defaults when that didn't happen.
+function ShopState:init()
+    if not self.isSetUp then
+        self:setup()
+    end
+end
+
+function ShopState:setup(faction, hero)
+    self.isSetUp = true
+    -- Saved profiles pass ids, the selection screens pass tables
+    local Selection = require("utils.selection")
+    self.selectedFaction = Selection.resolveFaction(faction)
+    self.selectedHero = Selection.resolveHero(self.selectedFaction, hero)
     
     -- Load background image
     local success, result = pcall(function()
-        self.background = love.graphics.newImage("assets/backgrounds/shop.jpg")
+        self.background = love.graphics.newImage("assets/backgrounds/shop.png")
     end)
     
     if not success then
@@ -288,7 +300,7 @@ end
 
 function ShopState:goBack()
     local hubState = require('states.hub').new()
-    hubState:init(self.selectedFaction, self.selectedHero)
+    hubState:setup(self.selectedFaction, self.selectedHero)
     Gamestate.switch(hubState)
 end
 

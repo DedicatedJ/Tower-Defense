@@ -1,6 +1,7 @@
 local sti = require 'libs.sti.sti'
 local bump = require 'libs.bump.bump'
-local jumper = require 'libs.jumper.jumper'
+local JumperGrid = require 'libs.jumper.jumper.grid'
+local JumperPathfinder = require 'libs.jumper.jumper.pathfinder'
 local Error = require 'utils.error'
 
 local Map = {}
@@ -454,8 +455,8 @@ function Map:initPathfinding()
     end
     
     -- Initialize Jumper pathfinder
-    local Grid = jumper.grid(self.grid)
-    self.pathfinder = jumper.pathFinder(Grid, "ASTAR", true)
+    local Grid = JumperGrid(self.grid)
+    self.pathfinder = JumperPathfinder(Grid, "ASTAR", 0) -- 0 = walkable cell
     self.pathfinder:setMode("ORTHOGONAL")
 end
 
@@ -575,8 +576,8 @@ function Map:updatePathing()
     end
     
     -- Reinitialize the pathfinder with the updated grid
-    local Grid = jumper.grid(self.grid)
-    self.pathfinder = jumper.pathFinder(Grid, "ASTAR", true)
+    local Grid = JumperGrid(self.grid)
+    self.pathfinder = JumperPathfinder(Grid, "ASTAR", 0) -- 0 = walkable cell
     self.pathfinder:setMode("ORTHOGONAL")
 end
 

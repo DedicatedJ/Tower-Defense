@@ -3,7 +3,7 @@ Save.__index = Save
 
 -- Import dependencies
 local Error = require 'utils.error'
-local json = require 'libs.json'
+local json = require 'utils.json'
 
 -- Save slot definitions
 local SAVE_SLOTS = {

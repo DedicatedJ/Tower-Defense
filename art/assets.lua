@@ -257,4 +257,84 @@ A.sfx = {
       prompt = "a hollow mortar thump followed by a short fizzing fuse" },
 }
 
+------------------------------------------------------------------------
+-- Faction Model C (data/factions.lua). Towers attach the approved
+-- tower_archer final as image 1 (same plinth, scale, light); hero sheets
+-- attach the approved enemy_zombie sheet as image 1 (same grid, poses,
+-- size). When a file is cut in, point that tower's `sprite` in
+-- data/factions.lua at sprites/towers/<id>.png.
+------------------------------------------------------------------------
+A.cTowers = {
+    { id = "tower_holy_bastion", file = "sprites/towers/holy_bastion.png", name = "healing shrine tower",
+      desc = "A round tower of white stone with gold trim, topped by an open gold-domed shrine holding a softly glowing pale gold orb." },
+    { id = "tower_seraphim_altar", file = "sprites/towers/seraphim_altar.png", name = "holy fire altar tower",
+      desc = "A square stone tower topped by a gold altar bowl holding a tall steady white-gold flame, with two small carved stone wings at its sides." },
+    { id = "tower_seraphs_watch", file = "sprites/towers/seraphs_watch.png", name = "tall sniper watchtower",
+      desc = "A tall slender white stone spire with a gold-roofed lookout at the very top and a long gold crossbow mounted pointing straight forward." },
+    { id = "tower_cursed_spire", file = "sprites/towers/cursed_spire.png", name = "cursed poison spire",
+      desc = "A narrow black stone spire with cracked surfaces, sickly green crystals set into its sides and a hollow top holding still pale green mist." },
+    { id = "tower_oblivion_engine", file = "sprites/towers/oblivion_engine.png", name = "necromantic summoning tower",
+      desc = "A dark violet stone tower ringed with bone ribs, a round summoning circle carved on its flat top, and a violet crystal floating above it." },
+    { id = "tower_soul_forge", file = "sprites/towers/soul_forge.png", name = "soul forge tower",
+      desc = "A squat dark iron forge tower with a glowing teal furnace mouth on its front, a short chimney, and chains hanging from iron hooks." },
+    { id = "tower_dawn_dusk_nexus", file = "sprites/towers/dawn_dusk_nexus.png", name = "dawn and dusk tower",
+      desc = "A round tower split down the middle: the left half pale stone with gold trim, the right half dark slate with silver trim, topped by an orb that is half gold and half deep blue." },
+    { id = "tower_eclipse_monolith", file = "sprites/towers/eclipse_monolith.png", name = "eclipse monolith",
+      desc = "A tall black obsidian monolith with a ring-shaped opening near its top, and a dark disc with a thin bright rim floating inside the ring." },
+    { id = "tower_elemental_nexus", file = "sprites/towers/elemental_nexus.png", name = "fire and ice tower",
+      desc = "A round tower of blue-grey stone crowned with two crystals side by side: one ember orange, one ice blue." },
+}
+
+A.cHeroes = {
+    { id = "hero_sir_galahad", file = "sprites/heroes/sir_galahad.png", name = "knight",
+      character = "A broad, sturdy knight with short grey hair and a short beard. One dominant color: polished steel with gold trim.",
+      gear = "Full plate armor with gold edges, a white tabard, a large kite shield on his left arm and a longsword in his right hand.",
+      notCarried = "No hood, no green skin, no torn clothing. He is a healthy human man." },
+    { id = "hero_lady_celestia", file = "sprites/heroes/lady_celestia.png", name = "priestess",
+      character = "A tall woman with long golden hair. One dominant color: white and gold.",
+      gear = "A long white robe with gold trim and a gold staff topped with a small sun disc in her right hand.",
+      notCarried = "No hood, no green skin, no torn clothing. She is a healthy human woman." },
+    { id = "hero_archangel_michael", file = "sprites/heroes/archangel_michael.png", name = "archangel",
+      character = "A tall angelic warrior with short golden hair and large white feathered wings folded behind him. One dominant color: gold.",
+      gear = "Gold breastplate over a white tunic, a gold bow in his left hand and a quiver on his back between the wings.",
+      notCarried = "No hood, no green skin, no torn clothing." },
+    { id = "hero_malachi", file = "sprites/heroes/malachi.png", name = "necromancer lord",
+      character = "A pale man with long white hair and a gaunt face. One dominant color: black and dark blue.",
+      gear = "Black spiked pauldrons, a dark blue robe with silver trim and a skull clasp, a bone staff in his right hand.",
+      notCarried = "No green skin, no torn clothing, no hood." },
+    { id = "hero_morgana", file = "sprites/heroes/morgana.png", name = "dark sorceress",
+      character = "A slim woman with long straight black hair. One dominant color: black with silver.",
+      gear = "A long black high-collared robe with silver embroidery and small skull ornaments, a gold staff with a ring top in her right hand.",
+      notCarried = "No green skin, no torn clothing, no hood." },
+    { id = "hero_dark_lord_malak", file = "sprites/heroes/dark_lord_malak.png", name = "dark warlord",
+      character = "A towering armored warlord with glowing violet eyes behind a horned helm. One dominant color: black with violet.",
+      gear = "Spiked black plate armor, a black cape, a large two-handed black greatsword held in both hands.",
+      notCarried = "No green skin, no hood." },
+    { id = "hero_zephyr", file = "sprites/heroes/zephyr.png", name = "twilight duelist",
+      character = "A lean young man with short silver hair. One dominant color: deep blue and silver.",
+      gear = "A fitted blue and silver coat, light armor on the shoulders, a curved sword in each hand.",
+      notCarried = "No green skin, no torn clothing, no hood." },
+    { id = "hero_lyra", file = "sprites/heroes/lyra.png", name = "twilight druid",
+      character = "A woman with long auburn hair braided with small leaves. One dominant color: forest green and violet.",
+      gear = "A green and violet layered dress with a leaf-pattern cloak and a wooden staff topped with a pale blue crystal in her right hand.",
+      notCarried = "No green skin, no torn clothing, no hood." },
+    { id = "hero_elemental_sage", file = "sprites/heroes/elemental_sage.png", name = "elemental sage",
+      character = "An old man with a long white beard. One dominant color: half orange, half ice blue.",
+      gear = "A long robe whose left half is ember orange and right half is ice blue, and a staff topped with one orange and one blue crystal.",
+      notCarried = "No green skin, no torn clothing, no hood." },
+}
+
+A.portraitTemplate = "A character portrait in exactly the same painting style, framing and light as image 1 " ..
+    "(an approved portrait from the same set): %s Upper body, facing the viewer, a soft landscape behind. " ..
+    "No text, no logos, no watermark."
+
+A.portraits = {
+    { id = "portrait_archangel_michael", file = "assets/hero images/radiant order/Michael/Archangel Michael.jpg",
+      desc = "a tall angelic warrior with short golden hair, large white feathered wings and a gold breastplate, holding a gold bow." },
+    { id = "portrait_dark_lord_malak", file = "assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg",
+      desc = "a towering warlord in spiked black plate armor and a horned helm with glowing violet eyes, a black greatsword on his shoulder." },
+    { id = "portrait_elemental_sage", file = "assets/hero images/twilight balance/Sage/Elemental Sage.jpg",
+      desc = "an old sage with a long white beard in a robe that is half ember orange and half ice blue, holding a staff with an orange and a blue crystal." },
+}
+
 return A

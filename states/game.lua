@@ -56,8 +56,12 @@ function GameState:setup(selectedFaction, selectedHero)
     self.map = nil
     self.grid = nil
     self.tileSize = 32
-    self.selectedFaction = selectedFaction or "human"
-    self.selectedHero = selectedHero
+    -- Canonical faction and hero records (data/factions.lua), whatever
+    -- shape the caller passed (table, saved id or nothing)
+    local Selection = require('utils.selection')
+    self.factionData, self.heroData = Selection.canonical(selectedFaction, selectedHero)
+    self.selectedFaction = self.factionData.id
+    self.selectedHero = self.heroData.id
     self.resources = 200
     self.lives = 20
     self.wave = 0
@@ -91,20 +95,163 @@ function GameState:setup(selectedFaction, selectedHero)
         self.fonts = gFonts
     end
     
+    self.units = {}          -- allied units: the hero and minions
+    self.hero = nil
+    self.focusTower = nil    -- placed tower whose upgrade panel is open
+    self.goldEarned = 0      -- gold from kills this game (for the profile)
+
     -- Load map
     self:loadMap("level1")
-    
+
+    -- Faction bonus, hero passive and shop items
+    self:computeMods()
+    self.resources = self.resources + self.shop.startGold
+    self.lives = self.lives + self.shop.startLives
+    self.freezeCharge = self.shop.freezeDuration
+
     -- Load tower data
     self:loadTowerData()
-    
+
     -- Initialize UI
     self:initUI()
-    
+
     -- Initialize enemy system
     require("systems.enemy").init()
-    
+
     -- Initialize tower system
     require("systems.tower").init()
+
+    -- The hero takes the field
+    self:spawnHero()
+end
+
+-- Multipliers from the faction bonus, the hero's passive and shop items.
+--   mods       read by units (systems/unit.lua)
+--   towerMods  passed to every tower (systems/tower.lua)
+function GameState:computeMods()
+    local Save = require('systems.save')
+    local ShopItems = require('data.shop_items')
+    local b = self.factionData.bonus or {}
+    local p = self.heroData.passive or {}
+    local ok, purchases = pcall(Save.getPurchases)
+    self.shop = ShopItems.modsFor(ok and purchases or {}, true)
+    if #self.shop.used > 0 then pcall(Save.useConsumables, self.shop.used) end
+
+    self.mods = {
+        abilityDurationMult = 1 + (b.abilityDuration or 0),
+        heroHealingMult = 1 + (b.heroHealing or 0),
+        minionHealthMult = 1 + (b.minionHealth or 0),
+        minionDurationMult = (p.kind == "minionDuration") and p.mult or 1,
+        allyArmorMult = (p.kind == "allyArmor") and p.mult or 1,
+    }
+    self.towerMods = {
+        damageMult = (1 + (b.towerDamage or 0)) * self.shop.towerDamage,
+        poisonMult = 1 + (b.poisonDamage or 0),
+        hybridMult = (1 + (b.hybridDamage or 0)) * ((p.kind == "towerHybridDamage") and p.mult or 1),
+        rangeMult = self.shop.towerRange,
+        fireRateMult = self.shop.towerFireRate,
+        towerStat = {},
+    }
+    if p.kind == "towerStat" then
+        table.insert(self.towerMods.towerStat, { tower = p.tower, stat = p.stat, mult = p.mult, set = p.set })
+    end
+    self.heroStatMods = {
+        damage = self.shop.heroDamage, health = self.shop.heroHealth, speed = self.shop.heroSpeed,
+    }
+end
+
+------------------------------------------------------------------------
+-- Map helpers used by units and towers (map coordinates, not screen)
+------------------------------------------------------------------------
+function GameState:isRoad(gx, gy)
+    return self.grid and self.grid[gy] and self.grid[gy][gx] == 0 or false
+end
+
+function GameState:cellCenter(gx, gy)
+    return (gx - 0.5) * self.tileSize, (gy - 0.5) * self.tileSize
+end
+
+-- Road cell nearest to a point
+function GameState:nearestRoadCell(x, y)
+    local best, bestD
+    for _, c in ipairs(self.roadPath or {}) do
+        local cx, cy = self:cellCenter(c[1], c[2])
+        local d = (cx - x) ^ 2 + (cy - y) ^ 2
+        if not bestD or d < bestD then best, bestD = c, d end
+    end
+    if best then return best[1], best[2] end
+end
+
+-- Road cell nearest to a point, but only within radius r
+function GameState:nearestRoadCellWithin(x, y, r)
+    local gx, gy = self:nearestRoadCell(x, y)
+    if not gx then return nil end
+    local cx, cy = self:cellCenter(gx, gy)
+    if (cx - x) ^ 2 + (cy - y) ^ 2 <= r * r then return gx, gy end
+end
+
+------------------------------------------------------------------------
+-- Units
+------------------------------------------------------------------------
+function GameState:spawnHero()
+    local Unit = require('systems.unit')
+    local Save = require('systems.save')
+    local ok, progress = pcall(Save.getHeroProgress, self.heroData.id)
+    if not ok then progress = { level = 1, xp = 0 } end
+    -- Start a little past the middle of the road
+    local cell = self.roadPath[math.max(1, math.floor(#self.roadPath * 0.6))]
+    local x, y = self:cellCenter(cell[1], cell[2])
+    self.hero = Unit.newHero(self.heroData, self.factionData, x, y, {
+        level = progress.level, xp = progress.xp, statMods = self.heroStatMods,
+    })
+    self.hero.game = self
+    table.insert(self.units, self.hero)
+end
+
+-- Add minions at a spot on the road. Returns the new units.
+function GameState:spawnMinion(def, x, y, count)
+    local Unit = require('systems.unit')
+    local made = {}
+    for i = 1, count or 1 do
+        local jitter = (i - 1) * 10 - ((count or 1) - 1) * 5
+        local m = Unit.newMinion(def, x + jitter, y, {
+            healthMult = self.mods.minionHealthMult, durationMult = self.mods.minionDurationMult,
+        })
+        m.game = self
+        table.insert(self.units, m)
+        table.insert(made, m)
+    end
+    self.minionsSpawned = (self.minionsSpawned or 0) + #made
+    return made
+end
+
+-- XP for the hero and Soul Forge conversion when an enemy dies
+function GameState:onEnemyDeath(enemy)
+    local Unit = require('systems.unit')
+    local h = self.hero
+    if h and not h.dead then
+        local dx, dy = h.x - enemy.x, h.y - enemy.y
+        if dx * dx + dy * dy <= Unit.XP_RADIUS * Unit.XP_RADIUS then
+            h:gainXp(enemy.boss and 50 or 5)
+        end
+    end
+    for _, t in ipairs(self.towers) do
+        if t.convertChance then
+            local tx, ty = t:getCenter()
+            if (tx - enemy.x) ^ 2 + (ty - enemy.y) ^ 2 <= t.range * t.range
+                and love.math.random() < t.convertChance and not enemy.flying then
+                local def = {}
+                for k, v in pairs(t.convertMinion) do def[k] = v end
+                def.sheet = enemy.type
+                local gx, gy = self:nearestRoadCell(enemy.x, enemy.y)
+                local mx, my = enemy.x, enemy.y
+                if gx then mx, my = self:cellCenter(gx, gy) end
+                self:spawnMinion(def, mx, my, 1)
+                t.converted = (t.converted or 0) + 1
+                break
+            end
+        end
+    end
 end
 
 function GameState:initMap()
@@ -372,7 +519,7 @@ function GameState:initUI()
         x = panelX,
         y = 155,
         width = panelW,
-        height = 420,
+        height = 260,
         draw = function()
             -- Draw panel background
             love.graphics.setColor(0, 0, 0, 0.7)
@@ -464,48 +611,211 @@ function GameState:initUI()
         self.ui.wave.draw()
         self.ui.startWave.draw()
         self.ui.towerPanel.draw()
+        self:drawHeroPanel()
     end
+
+    -- Hero panel under the tower panel
+    self.ui.heroPanel = { x = panelX, y = 425, width = panelW, height = 150 }
 end
 
--- Faction ids from data/factions.lua mapped to the tower sets that
--- systems/tower.lua actually defines. PLACEHOLDER: replace once each
--- faction has its own towers in the tower system.
-local FACTION_TOWER_SETS = {
-    radiant = "HUMAN",
-    shadow = "ELF",
-    twilight = "DWARF",
-    human = "HUMAN",
-    elf = "ELF",
-    dwarf = "DWARF"
-}
-
--- selectedFaction arrives as a faction table (hero select), an id string
--- (saved profile), or nil. Return a lowercase id string.
-local function factionId(faction)
-    if type(faction) == "table" then
-        faction = faction.id or faction.name
-    end
-    if type(faction) ~= "string" then
-        return "human"
-    end
-    return faction:lower()
-end
-
+-- The selected faction's towers, keyed by id (data/factions.lua)
 function GameState:loadTowerData()
     local Tower = require("systems.tower")
-    local id = factionId(self.selectedFaction)
-
-    -- Initialize tower system if needed
     if not Tower.initialized then
         Tower.init()
     end
+    self.towerData = Tower.getSet(self.selectedFaction)
+end
 
-    local set = FACTION_TOWER_SETS[id]
-    if not set then
-        print("No tower set for faction '" .. id .. "', using HUMAN towers")
-        set = "HUMAN"
+------------------------------------------------------------------------
+-- Hero panel (right column) and tower panel (strip under the map)
+------------------------------------------------------------------------
+function GameState:getAbilityButtons()
+    local p = self.ui.heroPanel
+    local buttons = {}
+    local w, gap = 56, 6
+    for i = 1, 3 do
+        buttons[i] = { index = i, key = ({ "Q", "W", "E" })[i],
+            x = p.x + 4 + (i - 1) * (w + gap), y = p.y + 98, width = w, height = 46 }
     end
-    self.towerData = Tower[set]
+    return buttons
+end
+
+local function bar(x, y, w, h, frac, color)
+    love.graphics.setColor(0.15, 0.15, 0.15, 0.9)
+    love.graphics.rectangle("fill", x, y, w, h)
+    love.graphics.setColor(color[1], color[2], color[3], 1)
+    love.graphics.rectangle("fill", x, y, w * math.max(0, math.min(1, frac)), h)
+    love.graphics.setColor(0, 0, 0, 0.8)
+    love.graphics.rectangle("line", x, y, w, h)
+end
+
+function GameState:drawHeroPanel()
+    local h = self.hero
+    local p = self.ui.heroPanel
+    if not h or not p then return end
+    love.graphics.setColor(0, 0, 0, 0.7)
+    love.graphics.rectangle("fill", p.x, p.y, p.width, p.height)
+    love.graphics.setColor(0.3, 0.3, 0.3, 1)
+    love.graphics.rectangle("line", p.x, p.y, p.width, p.height)
+
+    -- Portrait
+    local px, py, r = p.x + 26, p.y + 28, 20
+    love.graphics.setColor(0.1, 0.1, 0.12, 1)
+    love.graphics.circle("fill", px, py, r + 2)
+    if h.portraitImage then
+        local s = (r * 2) / h.portraitImage:getWidth()
+        love.graphics.setColor(1, 1, 1, h.dead and 0.4 or 1)
+        love.graphics.draw(h.portraitImage, px, py, 0, s, s,
+            h.portraitImage:getWidth() / 2, h.portraitImage:getHeight() / 2)
+    end
+    if h.selected then
+        love.graphics.setColor(1, 0.9, 0.3, 1)
+        love.graphics.setLineWidth(2)
+        love.graphics.circle("line", px, py, r + 2)
+        love.graphics.setLineWidth(1)
+    end
+
+    love.graphics.setFont(self.fonts.small)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(h.name, p.x + 52, p.y + 6)
+    love.graphics.setColor(1, 0.85, 0.3, 1)
+    love.graphics.print("Level " .. h.level .. "  " .. h.role, p.x + 52, p.y + 22)
+    if h.dead then
+        love.graphics.setColor(1, 0.5, 0.5, 1)
+        love.graphics.print("Respawn in " .. math.ceil(h.respawnTimer or 0) .. " s", p.x + 52, p.y + 38)
+    else
+        bar(p.x + 52, p.y + 40, p.width - 60, 7, h.health / h.maxHealth, { 0.3, 0.9, 0.4 })
+    end
+    local xpFrac = h.level >= 10 and 1 or h.xp / 200
+    bar(p.x + 52, p.y + 52, p.width - 60, 4, xpFrac, { 1, 0.8, 0.3 })
+    love.graphics.setColor(0.8, 0.8, 0.8, 1)
+    love.graphics.print("Passive: " .. (h.passive and h.passive.name or "-"), p.x + 6, p.y + 62)
+    love.graphics.setColor(0.6, 0.6, 0.6, 1)
+    love.graphics.print("Click hero, then the road to move", p.x + 6, p.y + 78)
+
+    -- Ability buttons
+    local mx, my = love.mouse.getPosition()
+    for _, b in ipairs(self:getAbilityButtons()) do
+        local slot = h.abilities[b.index]
+        if slot then
+            local ready = slot.cooldown <= 0 and not h.dead
+            love.graphics.setColor(ready and 0.25 or 0.15, ready and 0.3 or 0.15, ready and 0.45 or 0.2, 0.95)
+            love.graphics.rectangle("fill", b.x, b.y, b.width, b.height, 4, 4)
+            if slot.cooldown > 0 then
+                local frac = slot.cooldown / slot.data.cooldown
+                love.graphics.setColor(0, 0, 0, 0.55)
+                love.graphics.rectangle("fill", b.x, b.y, b.width, b.height * frac, 4, 4)
+            end
+            if slot.flash > 0 then
+                love.graphics.setColor(1, 0.9, 0.4, slot.flash / 0.3)
+                love.graphics.rectangle("fill", b.x, b.y, b.width, b.height, 4, 4)
+            end
+            love.graphics.setColor(0.8, 0.8, 0.8, 1)
+            love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 4, 4)
+            love.graphics.setColor(1, 0.85, 0.3, 1)
+            love.graphics.print(b.key, b.x + 4, b.y + 2)
+            love.graphics.setColor(1, 1, 1, 1)
+            -- First word of the name, trimmed to fit on one line
+            local short = slot.data.name:match("^(%S+)") or slot.data.name
+            local font = love.graphics.getFont()
+            while #short > 1 and font:getWidth(short) > b.width - 6 do short = short:sub(1, -2) end
+            love.graphics.printf(short, b.x, b.y + 18, b.width, "center")
+            if slot.cooldown > 0 then
+                love.graphics.printf(tostring(math.ceil(slot.cooldown)), b.x, b.y + 31, b.width, "center")
+            end
+            if self:pointInRect(mx, my, b) then
+                self.tooltip = { x = mx - 260, y = my - 90, width = 250,
+                    title = slot.data.name .. " (" .. b.key .. ")",
+                    description = slot.data.description .. "\nCooldown " .. slot.data.cooldown .. " s",
+                    stats = {} }
+            end
+        end
+    end
+end
+
+-- Buttons for the placed tower that is selected (strip under the map)
+function GameState:getFocusButtons()
+    local t = self.focusTower
+    if not t then return {} end
+    local y = GameState.MAP_OFFSET_Y + #self.grid * self.tileSize + 8
+    local buttons = {}
+    for i, up in ipairs(t.data.upgrades) do
+        buttons[#buttons + 1] = { kind = "upgrade", index = i, upgrade = up,
+            x = 250 + (i - 1) * 215, y = y, width = 205, height = 64 }
+    end
+    buttons[#buttons + 1] = { kind = "sell", x = 680, y = y, width = 80, height = 64 }
+    return buttons
+end
+
+function GameState:drawFocusPanel()
+    local t = self.focusTower
+    if not t then return end
+    local y = GameState.MAP_OFFSET_Y + #self.grid * self.tileSize + 4
+    love.graphics.setColor(0, 0, 0, 0.75)
+    love.graphics.rectangle("fill", 0, y, #self.grid[1] * self.tileSize, 76)
+    love.graphics.setFont(self.fonts.medium)
+    love.graphics.setColor(1, 0.9, 0.5, 1)
+    love.graphics.print(t.name, 10, y + 6)
+    love.graphics.setFont(self.fonts.small)
+    love.graphics.setColor(0.85, 0.85, 0.85, 1)
+    love.graphics.printf(t.description, 10, y + 30, 230)
+    for _, b in ipairs(self:getFocusButtons()) do
+        if b.kind == "upgrade" then
+            local bought = t.bought[b.index]
+            local afford = self.resources >= b.upgrade.cost
+            if bought then love.graphics.setColor(0.2, 0.4, 0.25, 0.95)
+            elseif afford then love.graphics.setColor(0.2, 0.3, 0.45, 0.95)
+            else love.graphics.setColor(0.3, 0.15, 0.15, 0.95) end
+            love.graphics.rectangle("fill", b.x, b.y, b.width, b.height, 4, 4)
+            love.graphics.setColor(0.8, 0.8, 0.8, 1)
+            love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 4, 4)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.print(b.upgrade.name, b.x + 6, b.y + 4)
+            love.graphics.setColor(0.8, 0.8, 0.8, 1)
+            love.graphics.printf(b.upgrade.description, b.x + 6, b.y + 20, b.width - 12)
+            love.graphics.setColor(1, 0.85, 0.3, 1)
+            love.graphics.print(bought and "Bought" or ("Cost: " .. b.upgrade.cost), b.x + 6, b.y + 48)
+        else
+            love.graphics.setColor(0.35, 0.25, 0.1, 0.95)
+            love.graphics.rectangle("fill", b.x, b.y, b.width, b.height, 4, 4)
+            love.graphics.setColor(0.8, 0.8, 0.8, 1)
+            love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 4, 4)
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.printf("Sell", b.x, b.y + 12, b.width, "center")
+            love.graphics.setColor(1, 0.85, 0.3, 1)
+            love.graphics.printf("+" .. t:sellValue(), b.x, b.y + 34, b.width, "center")
+        end
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+function GameState:towerAt(gx, gy)
+    for _, t in ipairs(self.towers) do
+        if t.gridX == gx and t.gridY == gy then return t end
+    end
+end
+
+function GameState:setFocusTower(t)
+    if self.focusTower then self.focusTower.selected = false end
+    self.focusTower = t
+    if t then t.selected = true end
+end
+
+function GameState:sellTower(t)
+    self.resources = self.resources + t:sellValue()
+    for i, other in ipairs(self.towers) do
+        if other == t then table.remove(self.towers, i) break end
+    end
+    self.grid[t.gridY][t.gridX] = 1
+    if self.focusTower == t then self:setFocusTower(nil) end
+end
+
+function GameState:clearSelection()
+    self.selectedTower = nil
+    self.towerPreview = nil
+    if self.hero then self.hero.selected = false end
+    self:setFocusTower(nil)
 end
 
 -- Tower panel buttons in a fixed order (pairs() order is unspecified),
@@ -572,10 +882,9 @@ function GameState:mousepressed(x, y, button)
         return
     end
 
-    -- Right click cancels placement
+    -- Right click cancels whatever is selected
     if button == 2 then
-        self.selectedTower = nil
-        self.towerPreview = nil
+        self:clearSelection()
         return
     end
 
@@ -587,20 +896,49 @@ function GameState:mousepressed(x, y, button)
         return
     end
 
+    -- Hero ability buttons
+    for _, b in ipairs(self:getAbilityButtons()) do
+        if self:pointInRect(x, y, b) then
+            if self.hero then self.hero:castAbility(b.index, self, true) end
+            return
+        end
+    end
+
     -- Tower panel buttons
     for _, b in ipairs(self:getTowerButtons()) do
         if self:pointInRect(x, y, b) then
+            if self.hero then self.hero.selected = false end
+            self:setFocusTower(nil)
             self:selectTowerType(b.id)
             return
         end
     end
 
-    -- Ignore other clicks on the side panel
-    if x >= self.ui.towerPanel.x then return end
+    -- Upgrade / sell strip for the selected tower
+    for _, b in ipairs(self:getFocusButtons()) do
+        if self:pointInRect(x, y, b) then
+            local t = self.focusTower
+            if b.kind == "sell" then
+                self:sellTower(t)
+            elseif t.bought[b.index] then
+                self:showError("Already bought")
+            elseif self.resources < b.upgrade.cost then
+                self:showError("Not enough resources!")
+            else
+                self.resources = self.resources - t:buyUpgrade(b.index)
+            end
+            return
+        end
+    end
 
-    -- Place the selected tower on the map
+    -- Ignore other clicks on the side panel or below the map
+    if x >= self.ui.towerPanel.x then return end
+    local mapY = y - GameState.MAP_OFFSET_Y
+    if mapY < 0 or mapY >= #self.grid * self.tileSize then return end
+    local gridX, gridY = self:pixelToGrid(x, y)
+
+    -- Place the selected tower type on the map
     if self.selectedTower then
-        local gridX, gridY = self:pixelToGrid(x, y)
         if self:placeTower(gridX, gridY, self.selectedTower) then
             -- Keep the tower selected for repeat placement while affordable
             local data = self.towerData[self.selectedTower]
@@ -611,6 +949,54 @@ function GameState:mousepressed(x, y, button)
         else
             self:showError("Can't build there")
         end
+        return
+    end
+
+    local hero = self.hero
+    -- Click the hero to select it
+    if hero and hero:isUnder(x, mapY) then
+        self:setFocusTower(nil)
+        hero.selected = not hero.selected
+        return
+    end
+
+    -- Hero selected: click the road to send it there
+    if hero and hero.selected then
+        if self:isRoad(gridX, gridY) then
+            if hero:commandMove(gridX, gridY, self) then
+                hero.selected = false
+            else
+                self:showError("The hero can't get there")
+            end
+        else
+            self:showError("Heroes move along the road")
+        end
+        return
+    end
+
+    -- Click a tower to open its upgrades
+    local t = self:towerAt(gridX, gridY)
+    if t then
+        self:setFocusTower(t ~= self.focusTower and t or nil)
+        return
+    end
+    self:clearSelection()
+end
+
+function GameState:keypressed(key)
+    if self.isGameOver then return end
+    local slots = { q = 1, w = 2, e = 3 }
+    if slots[key] and self.hero then
+        self.hero:castAbility(slots[key], self, true)
+    elseif key == "f" and self.freezeCharge then
+        -- Freeze Potion from the shop: once per game
+        local Effects = require('systems.effects')
+        for _, e in ipairs(self.enemies) do
+            if not e.dead then Effects.apply(e, { type = "freeze", duration = self.freezeCharge }) end
+        end
+        self.freezeCharge = nil
+    elseif key == "escape" then
+        self:clearSelection()
     end
 end
 
@@ -646,12 +1032,25 @@ function GameState:update(dt)
     for _, tower in ipairs(self.towers) do
         tower:update(dt, self)
     end
-    
+
+    -- Update allied units (hero and minions)
+    for i = #self.units, 1, -1 do
+        local u = self.units[i]
+        u:update(dt, self)
+        if u.removed then table.remove(self.units, i) end
+    end
+
     -- Update enemies
     for i = #self.enemies, 1, -1 do
         local enemy = self.enemies[i]
         enemy:update(dt)
-        
+
+        -- Killed this frame (by anything): XP and Soul Forge conversion
+        if enemy.justDied then
+            enemy.justDied = false
+            self:onEnemyDeath(enemy)
+        end
+
         -- Check if enemy reached the end
         if enemy.state == "attacking" then
             self.lives = self.lives - enemy.damage
@@ -665,6 +1064,7 @@ function GameState:update(dt)
         elseif enemy.removed then
             -- Enemy was killed, add resources
             self.resources = self.resources + enemy.value
+            self.goldEarned = self.goldEarned + enemy.value
             table.remove(self.enemies, i)
         end
     end
@@ -860,20 +1260,35 @@ function GameState:draw()
     for _, enemy in ipairs(self.enemies) do
         drawables[#drawables + 1] = { y = enemy.y + (enemy.height or 32) / 4, obj = enemy }
     end
+    for _, u in ipairs(self.units) do
+        drawables[#drawables + 1] = { y = u.y + 8, obj = u }
+    end
     table.sort(drawables, function(a, b) return a.y < b.y end)
     for _, d in ipairs(drawables) do
         d.obj:draw()
     end
 
-    -- Range of the tower under the mouse
-    if not self.towerPreview then
+    -- Range of the selected tower, or the tower under the mouse
+    if self.focusTower then
+        self.focusTower:drawRange()
+    elseif not self.towerPreview then
         local gx, gy = self:pixelToGrid(love.mouse.getPosition())
-        for _, tower in ipairs(self.towers) do
-            if tower.gridX == gx and tower.gridY == gy then
-                tower:drawRange()
-                break
-            end
+        local t = self:towerAt(gx, gy)
+        if t then t:drawRange() end
+    end
+
+    -- Hero selected: outline the road cell under the mouse as the move target
+    if self.hero and self.hero.selected then
+        local gx, gy = self:pixelToGrid(love.mouse.getPosition())
+        if self:isRoad(gx, gy) then
+            love.graphics.setColor(1, 0.9, 0.3, 0.8)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", (gx - 1) * self.tileSize + 2, (gy - 1) * self.tileSize + 2,
+                self.tileSize - 4, self.tileSize - 4, 4, 4)
+            love.graphics.setLineWidth(1)
         end
+        love.graphics.setColor(1, 0.9, 0.3, 0.35)
+        love.graphics.circle("line", self.hero.x, self.hero.y, self.hero.range)
     end
 
     -- Draw projectiles
@@ -912,7 +1327,14 @@ function GameState:draw()
 
     -- Draw UI
     self.ui:draw()
-    
+    self:drawFocusPanel()
+    if self.freezeCharge then
+        love.graphics.setFont(self.fonts.small)
+        love.graphics.setColor(0.6, 0.85, 1, 1)
+        love.graphics.print("F: Freeze Potion ready", self.ui.heroPanel.x, self.ui.heroPanel.y + self.ui.heroPanel.height + 6)
+        love.graphics.setColor(1, 1, 1, 1)
+    end
+
     -- Draw tooltip
     if self.tooltip then
         self:drawTooltip()
@@ -963,7 +1385,7 @@ function GameState:placeTower(gridX, gridY, type)
     
     -- Create tower
     local Tower = require("systems.tower")
-    local tower = Tower.create(type, gridX, gridY, self.tileSize)
+    local tower = Tower.create(type, gridX, gridY, self.tileSize, self.towerMods)
     
     -- Add tower to the game
     table.insert(self.towers, tower)
@@ -1029,6 +1451,7 @@ function GameState:loadMap(mapName)
 
     -- Set up enemy pathfinder
     require("systems.enemy").setPathfinder(self.grid, 0)
+    self.roadPath = path -- ordered road cells, start to end
 
     -- Painted ground plate (art/README.md). The path above stays the source
     -- of truth; the plate is cut and warped to match it (tools/artcut mapfix).
@@ -1065,6 +1488,14 @@ function GameState:gameOver(victory)
         -- Achievement.unlock("complete_game")
     end
     
+    -- Hero progress and shop gold carry over to the next game
+    local Save = require("systems.save")
+    if self.hero then
+        pcall(Save.updateHeroProgress, self.hero.id, self.hero.level, self.hero.xp)
+    end
+    self.shopGoldAwarded = math.floor(self.goldEarned / 5) + (victory and 100 or 0)
+    pcall(Save.addGold, self.shopGoldAwarded)
+
     -- Save game state
     require("systems.save").saveGameState({
         victory = victory,

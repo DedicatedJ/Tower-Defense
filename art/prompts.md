@@ -562,3 +562,344 @@ a heavy crossbow thunk and a bolt whoosh
 ```text
 a hollow mortar thump followed by a short fizzing fuse
 ```
+
+## 8. Faction towers (Model C)
+
+Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower`, then point
+that tower's `sprite` in `data/factions.lua` at the new file.
+
+### tower_holy_bastion
+
+- Save as: `art/incoming/tower_holy_bastion_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single healing shrine tower for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A round tower of white stone with gold trim, topped by an open gold-domed shrine holding a softly glowing pale gold orb. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_seraphim_altar
+
+- Save as: `art/incoming/tower_seraphim_altar_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single holy fire altar tower for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A square stone tower topped by a gold altar bowl holding a tall steady white-gold flame, with two small carved stone wings at its sides. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_seraphs_watch
+
+- Save as: `art/incoming/tower_seraphs_watch_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single tall sniper watchtower for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A tall slender white stone spire with a gold-roofed lookout at the very top and a long gold crossbow mounted pointing straight forward. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_cursed_spire
+
+- Save as: `art/incoming/tower_cursed_spire_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single cursed poison spire for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A narrow black stone spire with cracked surfaces, sickly green crystals set into its sides and a hollow top holding still pale green mist. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_oblivion_engine
+
+- Save as: `art/incoming/tower_oblivion_engine_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single necromantic summoning tower for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A dark violet stone tower ringed with bone ribs, a round summoning circle carved on its flat top, and a violet crystal floating above it. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_soul_forge
+
+- Save as: `art/incoming/tower_soul_forge_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single soul forge tower for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A squat dark iron forge tower with a glowing teal furnace mouth on its front, a short chimney, and chains hanging from iron hooks. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_dawn_dusk_nexus
+
+- Save as: `art/incoming/tower_dawn_dusk_nexus_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single dawn and dusk tower for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A round tower split down the middle: the left half pale stone with gold trim, the right half dark slate with silver trim, topped by an orb that is half gold and half deep blue. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_eclipse_monolith
+
+- Save as: `art/incoming/tower_eclipse_monolith_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single eclipse monolith for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A tall black obsidian monolith with a ring-shaped opening near its top, and a dark disc with a thin bright rim floating inside the ring. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### tower_elemental_nexus
+
+- Save as: `art/incoming/tower_elemental_nexus_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `tower_archer` final
+
+```text
+Image 1 is an approved tower from the same set. Draw a different tower in the same set: keep exactly the square stone base, its size and shape, the camera angle, the scale, the light and the painting style. Change only the tower above the base. A single fire and ice tower for a tower defense game, alone and centered on a transparent background, top-down three-quarter view. A round tower of blue-grey stone crowned with two crystals side by side: one ember orange, one ice blue. It stands on a square grey stone base that fills the lower third. The whole tower is in frame with clear space on all sides. No ground, no shadow under it, no people.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+## 9. Hero walk sheets (Model C)
+
+Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor).
+
+### hero_sir_galahad
+
+- Save as: `art/incoming/hero_sir_galahad_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different knight. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A broad, sturdy knight with short grey hair and a short beard. One dominant color: polished steel with gold trim.
+
+Gear: Full plate armor with gold edges, a white tabard, a large kite shield on his left arm and a longsword in his right hand. Plain surfaces throughout.
+
+Not carried over: No hood, no green skin, no torn clothing. He is a healthy human man.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_lady_celestia
+
+- Save as: `art/incoming/hero_lady_celestia_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different priestess. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A tall woman with long golden hair. One dominant color: white and gold.
+
+Gear: A long white robe with gold trim and a gold staff topped with a small sun disc in her right hand. Plain surfaces throughout.
+
+Not carried over: No hood, no green skin, no torn clothing. She is a healthy human woman.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_archangel_michael
+
+- Save as: `art/incoming/hero_archangel_michael_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different archangel. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A tall angelic warrior with short golden hair and large white feathered wings folded behind him. One dominant color: gold.
+
+Gear: Gold breastplate over a white tunic, a gold bow in his left hand and a quiver on his back between the wings. Plain surfaces throughout.
+
+Not carried over: No hood, no green skin, no torn clothing.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_malachi
+
+- Save as: `art/incoming/hero_malachi_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different necromancer lord. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A pale man with long white hair and a gaunt face. One dominant color: black and dark blue.
+
+Gear: Black spiked pauldrons, a dark blue robe with silver trim and a skull clasp, a bone staff in his right hand. Plain surfaces throughout.
+
+Not carried over: No green skin, no torn clothing, no hood.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_morgana
+
+- Save as: `art/incoming/hero_morgana_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different dark sorceress. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A slim woman with long straight black hair. One dominant color: black with silver.
+
+Gear: A long black high-collared robe with silver embroidery and small skull ornaments, a gold staff with a ring top in her right hand. Plain surfaces throughout.
+
+Not carried over: No green skin, no torn clothing, no hood.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_dark_lord_malak
+
+- Save as: `art/incoming/hero_dark_lord_malak_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different dark warlord. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A towering armored warlord with glowing violet eyes behind a horned helm. One dominant color: black with violet.
+
+Gear: Spiked black plate armor, a black cape, a large two-handed black greatsword held in both hands. Plain surfaces throughout.
+
+Not carried over: No green skin, no hood.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_zephyr
+
+- Save as: `art/incoming/hero_zephyr_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different twilight duelist. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A lean young man with short silver hair. One dominant color: deep blue and silver.
+
+Gear: A fitted blue and silver coat, light armor on the shoulders, a curved sword in each hand. Plain surfaces throughout.
+
+Not carried over: No green skin, no torn clothing, no hood.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_lyra
+
+- Save as: `art/incoming/hero_lyra_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different twilight druid. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: A woman with long auburn hair braided with small leaves. One dominant color: forest green and violet.
+
+Gear: A green and violet layered dress with a leaf-pattern cloak and a wooden staff topped with a pale blue crystal in her right hand. Plain surfaces throughout.
+
+Not carried over: No green skin, no torn clothing, no hood.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### hero_elemental_sage
+
+- Save as: `art/incoming/hero_elemental_sage_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = the approved `enemy_zombie` sheet
+
+```text
+Scene: Image 1 is an approved walk sheet. Redraw the whole sheet as a different elemental sage. Keep exactly: the grid, the place of every figure, every pose and facing, the camera, the height of the figures, the proportions, the painting style and the transparent background. Change only the creature and its gear.
+
+Character: An old man with a long white beard. One dominant color: half orange, half ice blue.
+
+Gear: A long robe whose left half is ember orange and right half is ice blue, and a staff topped with one orange and one blue crystal. Plain surfaces throughout.
+
+Not carried over: No green skin, no torn clothing, no hood.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+## 10. Missing hero portraits
+
+Attach an existing portrait (for example `assets/hero images/radiant order/Galahad/Sir Galahad.jpg`)
+as image 1. Opaque, 4:3. The game path for each is given at the end of its prompt.
+
+### portrait_archangel_michael
+
+- Save as: `art/incoming/portrait_archangel_michael_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = an existing hero portrait
+
+```text
+A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): a tall angelic warrior with short golden hair, large white feathered wings and a gold breastplate, holding a gold bow. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
+
+Game path: assets/hero images/radiant order/Michael/Archangel Michael.jpg
+```
+
+### portrait_dark_lord_malak
+
+- Save as: `art/incoming/portrait_dark_lord_malak_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = an existing hero portrait
+
+```text
+A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): a towering warlord in spiked black plate armor and a horned helm with glowing violet eyes, a black greatsword on his shoulder. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
+
+Game path: assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg
+```
+
+### portrait_elemental_sage
+
+- Save as: `art/incoming/portrait_elemental_sage_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K.
+- Attach: image 1 = an existing hero portrait
+
+```text
+A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): an old sage with a long white beard in a robe that is half ember orange and half ice blue, holding a staff with an orange and a blue crystal. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
+
+Game path: assets/hero images/twilight balance/Sage/Elemental Sage.jpg
+```

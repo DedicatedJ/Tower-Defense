@@ -450,6 +450,28 @@ function HeroSelectState:draw()
                 8, 8
             )
             
+            -- Portrait (circle-cropped) and saved level, when available
+            local portrait = hero.portrait and require('systems.unit').portrait(hero.portrait)
+            if portrait then
+                local size = 96 * button.scale
+                local ps = size / portrait:getWidth()
+                love.graphics.setColor(1, 1, 1, button.alpha)
+                love.graphics.draw(portrait,
+                    button.x + button.width * button.scale / 2, button.y + 75 * button.scale,
+                    0, ps, ps, portrait:getWidth() / 2, portrait:getHeight() / 2)
+            end
+            local okSave, progress = pcall(require('systems.save').getHeroProgress, hero.id)
+            if okSave and progress then
+                local font = fonts.small or fonts.main
+                love.graphics.setFont(font)
+                local label = "Lv " .. progress.level .. "  " .. (hero.role or "")
+                love.graphics.setColor(0, 0, 0, 0.6 * button.alpha)
+                love.graphics.rectangle("fill", button.x + 25 * button.scale, button.y + 107 * button.scale,
+                    font:getWidth(label) + 10, font:getHeight() + 2, 3, 3)
+                love.graphics.setColor(1, 0.85, 0.3, button.alpha)
+                love.graphics.print(label, button.x + 30 * button.scale, button.y + 108 * button.scale)
+            end
+
             -- Draw hero class icon (placeholder)
             love.graphics.setColor(1, 1, 1, 0.9 * button.alpha)
             love.graphics.circle(

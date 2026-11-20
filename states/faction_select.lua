@@ -38,8 +38,11 @@ function FactionSelectState:init()
         -- Create a reference to the original faction data to ensure heroes are correctly passed
         local faction = {
             id = id,
+            order = factionData.order,
             name = factionData.name,
-            description = factionData.description,
+            -- The faction bonus is part of the description shown on the card
+            description = factionData.description ..
+                (factionData.bonusText and ("  Bonus: " .. factionData.bonusText .. ".") or ""),
             color = factionData.color,
             heroes = factionData.heroes
         }
@@ -55,6 +58,7 @@ function FactionSelectState:init()
         
         table.insert(self.factions, faction)
     end
+    table.sort(self.factions, function(a, b) return (a.order or 9) < (b.order or 9) end)
     
     -- Create UI elements
     self:createUI()

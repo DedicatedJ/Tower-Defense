@@ -71,117 +71,23 @@ function ShopState:setup(faction, hero)
 end
 
 function ShopState:loadItems()
-    -- Hero items
-    local heroItems = {
-        {
-            id = "heroic_sword",
-            name = "Heroic Sword",
-            description = "Increases hero damage by 15%",
-            cost = 200,
-            category = "Heroes",
-            icon = "hero_sword.png",
-            effect = "damage_boost",
-            effectValue = 0.15
-        },
-        {
-            id = "heavy_armor",
-            name = "Heavy Armor",
-            description = "Increases hero health by 20%",
-            cost = 250,
-            category = "Heroes",
-            icon = "hero_armor.png",
-            effect = "health_boost",
-            effectValue = 0.2
-        },
-        {
-            id = "swiftness_boots",
-            name = "Swiftness Boots",
-            description = "Increases hero movement speed by 10%",
-            cost = 180,
-            category = "Heroes",
-            icon = "hero_boots.png",
-            effect = "speed_boost",
-            effectValue = 0.1
-        }
-    }
-    
-    -- Tower items
-    local towerItems = {
-        {
-            id = "tower_crystal",
-            name = "Focus Crystal",
-            description = "Increases all tower range by 5%",
-            cost = 300,
-            category = "Towers",
-            icon = "tower_crystal.png",
-            effect = "range_boost",
-            effectValue = 0.05
-        },
-        {
-            id = "power_core",
-            name = "Power Core",
-            description = "Increases all tower damage by 10%",
-            cost = 350,
-            category = "Towers",
-            icon = "tower_core.png",
-            effect = "damage_boost",
-            effectValue = 0.1
-        },
-        {
-            id = "agility_shard",
-            name = "Agility Shard",
-            description = "Increases all tower attack speed by 8%",
-            cost = 320,
-            category = "Towers",
-            icon = "tower_shard.png",
-            effect = "speed_boost",
-            effectValue = 0.08
-        }
-    }
-    
-    -- Consumable items
-    local consumableItems = {
-        {
-            id = "repair_kit",
-            name = "Repair Kit",
-            description = "Restores 5 lives during a game",
-            cost = 150,
-            category = "Consumables",
-            icon = "consumable_repair.png",
-            effect = "restore_lives",
-            effectValue = 5,
-            usableInGame = true
-        },
-        {
-            id = "gold_potion",
-            name = "Gold Potion",
-            description = "Grants 100 bonus resources at the start of a game",
-            cost = 200,
-            category = "Consumables",
-            icon = "consumable_gold.png",
-            effect = "bonus_resources",
-            effectValue = 100,
-            usableInGame = false
-        },
-        {
-            id = "freeze_potion",
-            name = "Freeze Potion",
-            description = "Freezes all enemies for 3 seconds",
-            cost = 250,
-            category = "Consumables",
-            icon = "consumable_freeze.png",
-            effect = "freeze_enemies",
-            effectValue = 3,
-            usableInGame = true
-        }
-    }
-    
-    -- Combine all items
+    -- Items and what the player owns come from data/shop_items.lua and
+    -- the profile (systems/save.lua); gold is earned by playing games.
+    local ShopItems = require('data.shop_items')
+    local Save = require('systems.save')
+    local ok, gold = pcall(Save.getGold)
+    self.resources = ok and gold or 0
+    local okP, purchases = pcall(Save.getPurchases)
+    purchases = okP and purchases or {}
+
     self.items = {}
-    for _, item in ipairs(heroItems) do table.insert(self.items, item) end
-    for _, item in ipairs(towerItems) do table.insert(self.items, item) end
-    for _, item in ipairs(consumableItems) do table.insert(self.items, item) end
-    
+    for _, def in ipairs(ShopItems.list) do
+        local item = {}
+        for k, v in pairs(def) do item[k] = v end
+        item.count = purchases[def.id] or 0
+        table.insert(self.items, item)
+    end
+
     -- Load item icons
     for _, item in ipairs(self.items) do
         local iconPath = "assets/items/" .. item.icon
@@ -197,8 +103,8 @@ function ShopState:loadItems()
             end
         end
         
-        -- Set owned status (placeholder - would come from player data)
-        item.owned = false
+        -- Permanent items can be owned once; consumables stack
+        item.owned = (not item.consumable) and item.count > 0
     end
 end
 
@@ -324,30 +230,28 @@ function ShopState:selectItem(item)
 end
 
 function ShopState:purchaseItem()
-    if not self.selectedItem or self.selectedItem.owned or self.resources < self.selectedItem.cost then
+    local item = self.selectedItem
+    if not item or item.owned or self.resources < item.cost then
         return
     end
-    
-    -- Deduct resources
-    self.resources = self.resources - self.selectedItem.cost
-    
-    -- Mark as owned
-    self.selectedItem.owned = true
-    
+
+    local Save = require('systems.save')
+    local ok, bought = pcall(Save.buyItem, item.id, item.cost, item.consumable)
+    if not ok or not bought then return end
+
+    self.resources = Save.getGold()
+    item.count = item.count + 1
+    item.owned = (not item.consumable) and item.count > 0
+
     -- Update purchase button
     for _, button in ipairs(self.buttons) do
         if button.text == "Purchase" then
-            button.enabled = false
+            button.enabled = not item.owned and self.resources >= item.cost
         end
     end
-    
-    -- Play purchase sound
-    -- playSound('sfx', 'purchase')
-    
+
     -- Show purchase animation
     self:playPurchaseAnimation()
-    
-    -- TODO: Actually apply the item effects to the player's data
 end
 
 function ShopState:playPurchaseAnimation()
@@ -423,7 +327,7 @@ function ShopState:draw()
     -- Draw resources
     love.graphics.setFont(fonts.main)
     love.graphics.setColor(1, 0.8, 0.2, 1)
-    local resourceText = "Resources: " .. self.resources
+    local resourceText = "Gold: " .. self.resources
     local resourceWidth = fonts.main:getWidth(resourceText)
     love.graphics.print(resourceText, love.graphics.getWidth() - resourceWidth - 20, 20)
     

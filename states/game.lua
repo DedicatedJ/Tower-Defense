@@ -13,7 +13,6 @@ function GameState.new()
     
     -- Game properties
     self.map = nil
-    self.heroes = {}
     self.towers = {}
     self.enemies = {}
     self.projectiles = {}
@@ -21,7 +20,6 @@ function GameState.new()
     self.lives = 20
     self.wave = 0
     self.waveInProgress = false
-    self.currentHero = nil
     self.selectedFaction = nil
     self.selectedTower = nil
     self.placingTower = false
@@ -391,18 +389,6 @@ function GameState:drawDefaultMap()
     
     -- Reset color
     love.graphics.setColor(1, 1, 1, 1)
-end
-
-function GameState:initHero(selectedHero)
-    local success, result = Error.pcall(function()
-        local Hero = require('systems.hero')
-        self.currentHero = Hero.create(selectedHero, self.selectedFaction)
-        table.insert(self.heroes, self.currentHero)
-    end)
-    
-    if not success then
-        Error.show("Failed to create hero: " .. tostring(result))
-    end
 end
 
 function GameState:initUI()

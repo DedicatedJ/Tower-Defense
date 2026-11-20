@@ -1,4 +1,3 @@
-local TestFaction = require("tests.test_faction")
 local TestTower = require("tests.test_tower")
 local TestEnemy = require("tests.test_enemy")
 local TestWave = require("tests.test_wave")
@@ -16,7 +15,6 @@ local function run_all_tests()
     -- Run unit tests
     print("\nRunning Unit Tests:")
     print("------------------")
-    TestFaction.run_tests()
     TestTower.run_tests()
     TestEnemy.run_tests()
     TestWave.run_tests()

@@ -340,11 +340,10 @@ local function buildPrompts(root)
         w("## 10. Missing hero portraits")
         w("")
         w("Attach an existing portrait (for example `assets/hero images/radiant order/Galahad/Sir Galahad.jpg`)")
-        w("as image 1. Opaque, 4:3. The game path for each is given at the end of its prompt.")
+        w("as image 1. Opaque, 4:3. Each goes to its `file` in `art/assets.lua` (A.portraits).")
         w("")
         for _, p in ipairs(A.portraits) do
-            entry(p.id, "backdrop", "image 1 = an existing hero portrait",
-                string.format(A.portraitTemplate, p.desc) .. "\n\nGame path: " .. p.file)
+            entry(p.id, "backdrop", "image 1 = an existing hero portrait", string.format(A.portraitTemplate, p.desc))
         end
     end
 

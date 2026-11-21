@@ -863,7 +863,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 ## 10. Missing hero portraits
 
 Attach an existing portrait (for example `assets/hero images/radiant order/Galahad/Sir Galahad.jpg`)
-as image 1. Opaque, 4:3. The game path for each is given at the end of its prompt.
+as image 1. Opaque, 4:3. Each goes to its `file` in `art/assets.lua` (A.portraits).
 
 ### portrait_archangel_michael
 
@@ -874,8 +874,6 @@ as image 1. Opaque, 4:3. The game path for each is given at the end of its promp
 
 ```text
 A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): a tall angelic warrior with short golden hair, large white feathered wings and a gold breastplate, holding a gold bow. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
-
-Game path: assets/hero images/radiant order/Michael/Archangel Michael.jpg
 ```
 
 ### portrait_dark_lord_malak
@@ -887,8 +885,6 @@ Game path: assets/hero images/radiant order/Michael/Archangel Michael.jpg
 
 ```text
 A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): a towering warlord in spiked black plate armor and a horned helm with glowing violet eyes, a black greatsword on his shoulder. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
-
-Game path: assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg
 ```
 
 ### portrait_elemental_sage
@@ -900,8 +896,6 @@ Game path: assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg
 
 ```text
 A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): an old sage with a long white beard in a robe that is half ember orange and half ice blue, holding a staff with an orange and a blue crystal. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
-
-Game path: assets/hero images/twilight balance/Sage/Elemental Sage.jpg
 ```
 
 ## 11. Level maps

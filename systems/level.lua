@@ -1,454 +1,304 @@
+-- Levels: look-up, progression order, map building and the generated
+-- ground for levels without a painted plate. Content is in data/levels.lua.
+--
+-- Grid cell values:
+--   0 road (enemies walk, the hero can stand)
+--   1 open ground (towers can be built)
+--   2 tower
+--   3 rock (nothing can be built)
+
+local Levels = require('data.levels')
+
 local Level = {}
-Level.__index = Level
 
--- Area definitions
-local AREAS = {
-    radiant = {
-        name = "Radiant Realm",
-        description = "Sunlit lands of divine power",
-        color = {1, 1, 0.5},
-        maps = {
-            sunlitMeadows = {
-                name = "Sunlit Meadows",
-                description = "Open fields with multiple paths",
-                difficulty = 1,
-                features = {
-                    "multiple_paths",
-                    "open_terrain",
-                    "high_ground"
-                }
-            },
-            crystalSpires = {
-                name = "Crystal Spires",
-                description = "Elevated platforms and bridges",
-                difficulty = 2,
-                features = {
-                    "elevated_platforms",
-                    "bridges",
-                    "crystal_terrain"
-                }
-            },
-            celestialCitadel = {
-                name = "Celestial Citadel",
-                description = "Circular fortress with central defense point",
-                difficulty = 3,
-                features = {
-                    "circular_layout",
-                    "central_defense",
-                    "holy_ground"
-                }
-            }
-        }
-    },
-    shadow = {
-        name = "Shadow Lands",
-        description = "Dark realm of forbidden magic",
-        color = {0.2, 0.2, 0.3},
-        maps = {
-            hauntedForest = {
-                name = "Haunted Forest",
-                description = "Winding paths through dense trees",
-                difficulty = 1,
-                features = {
-                    "winding_paths",
-                    "dense_cover",
-                    "dark_terrain"
-                }
-            },
-            obsidianCaves = {
-                name = "Obsidian Caves",
-                description = "Narrow tunnels with limited tower spots",
-                difficulty = 2,
-                features = {
-                    "narrow_tunnels",
-                    "limited_spots",
-                    "cave_terrain"
-                }
-            },
-            necropolis = {
-                name = "Necropolis",
-                description = "Maze-like city with teleportation portals",
-                difficulty = 3,
-                features = {
-                    "maze_layout",
-                    "teleporters",
-                    "undead_terrain"
-                }
-            }
-        }
-    },
-    twilight = {
-        name = "Twilight Frontier",
-        description = "Mystical border between light and dark",
-        color = {0.5, 0.3, 0.8},
-        maps = {
-            mistyBorderlands = {
-                name = "Misty Borderlands",
-                description = "Shifting fog reveals and hides paths",
-                difficulty = 1,
-                features = {
-                    "shifting_fog",
-                    "hidden_paths",
-                    "border_terrain"
-                }
-            },
-            etherealRuins = {
-                name = "Ethereal Ruins",
-                description = "Destructible environments with changing paths",
-                difficulty = 2,
-                features = {
-                    "destructible",
-                    "changing_paths",
-                    "ruin_terrain"
-                }
-            },
-            nexusOfBalance = {
-                name = "Nexus of Balance",
-                description = "Dynamic map alternating light and dark zones",
-                difficulty = 3,
-                features = {
-                    "dynamic_zones",
-                    "light_dark_cycle",
-                    "nexus_terrain"
-                }
-            }
-        }
-    }
-}
+Level.ROAD, Level.OPEN, Level.TOWER, Level.ROCK = 0, 1, 2, 3
 
--- Secret challenges
-local SECRET_CHALLENGES = {
-    noLivesLost = {
-        name = "Perfect Defense",
-        description = "Complete the level without losing any lives",
-        reward = {
-            type = "cosmetic",
-            name = "Golden Tower Skin"
-        }
-    },
-    speedRun = {
-        name = "Lightning Fast",
-        description = "Kill the Mini-Boss in 20 seconds",
-        reward = {
-            type = "powerup",
-            name = "Damage Boost",
-            effect = {
-                damage = 1.05 -- +5% global damage
-            }
-        }
-    },
-    resourceMaster = {
-        name = "Resource Master",
-        description = "Complete the level with at least 500 resources remaining",
-        reward = {
-            type = "cosmetic",
-            name = "Resource Aura"
-        }
-    }
-}
+Level.byId = {}
+for _, l in ipairs(Levels.list) do Level.byId[l.id] = l end
 
-function Level.new(areaId, mapId)
-    local self = setmetatable({}, Level)
-    
-    self.areaId = areaId
-    self.mapId = mapId
-    self.area = AREAS[areaId]
-    self.map = self.area.maps[mapId]
-    self.difficulty = self.map.difficulty
-    self.features = self.map.features
-    self.completed = false
-    self.secretChallenges = {}
-    self.rewards = {}
-    
-    -- Load map using STI
-    self.mapData = sti.new("maps/" .. areaId .. "/" .. mapId .. ".lua")
-    
-    -- Initialize map-specific features
-    self:initializeFeatures()
-    
-    return self
+function Level.get(id) return Level.byId[id] end
+
+-- A faction's levels in play order
+function Level.forFaction(factionId)
+    local out = {}
+    for _, l in ipairs(Levels.list) do
+        if l.faction == factionId then out[#out + 1] = l end
+    end
+    table.sort(out, function(a, b) return a.order < b.order end)
+    return out
 end
 
-function Level:initializeFeatures()
-    -- Initialize map-specific features
-    for _, feature in ipairs(self.features) do
-        if feature == "multiple_paths" then
-            self:setupMultiplePaths()
-        elseif feature == "elevated_platforms" then
-            self:setupElevatedPlatforms()
-        elseif feature == "teleporters" then
-            self:setupTeleporters()
-        elseif feature == "shifting_fog" then
-            self:setupShiftingFog()
-        elseif feature == "destructible" then
-            self:setupDestructible()
-        elseif feature == "dynamic_zones" then
-            self:setupDynamicZones()
-        end
+-- The level after this one for the same faction, or nil
+function Level.nextOf(id)
+    local l = Level.byId[id]
+    if not l then return nil end
+    for _, o in ipairs(Level.forFaction(l.faction)) do
+        if o.order == l.order + 1 then return o end
     end
 end
 
-function Level:setupMultiplePaths()
-    -- Find all possible paths in the map
-    self.paths = {}
-    local pathLayer = self.mapData.layers["paths"]
-    if pathLayer then
-        for _, object in ipairs(pathLayer.objects) do
-            table.insert(self.paths, {
-                points = object.polygon,
-                type = object.properties.type
-            })
-        end
-    end
+-- First level of the faction (or of the game)
+function Level.first(factionId)
+    return Level.forFaction(factionId)[1] or Levels.list[1]
 end
 
-function Level:setupElevatedPlatforms()
-    -- Set up elevated platforms and their effects
-    self.platforms = {}
-    local platformLayer = self.mapData.layers["platforms"]
-    if platformLayer then
-        for _, object in ipairs(platformLayer.objects) do
-            table.insert(self.platforms, {
-                x = object.x,
-                y = object.y,
-                width = object.width,
-                height = object.height,
-                height = object.properties.height
-            })
-        end
-    end
-end
+------------------------------------------------------------------------
+-- Map building
+------------------------------------------------------------------------
 
-function Level:setupTeleporters()
-    -- Set up teleportation portals
-    self.teleporters = {}
-    local teleporterLayer = self.mapData.layers["teleporters"]
-    if teleporterLayer then
-        for _, object in ipairs(teleporterLayer.objects) do
-            table.insert(self.teleporters, {
-                x = object.x,
-                y = object.y,
-                target = object.properties.target,
-                cooldown = 0
-            })
-        end
-    end
-end
-
-function Level:setupShiftingFog()
-    -- Initialize fog system
-    self.fog = {
-        opacity = 0.5,
-        shiftTimer = 0,
-        shiftInterval = 5,
-        currentZone = 1
-    }
-end
-
-function Level:setupDestructible()
-    -- Set up destructible objects
-    self.destructibles = {}
-    local destructibleLayer = self.mapData.layers["destructibles"]
-    if destructibleLayer then
-        for _, object in ipairs(destructibleLayer.objects) do
-            table.insert(self.destructibles, {
-                x = object.x,
-                y = object.y,
-                width = object.width,
-                height = object.height,
-                health = object.properties.health,
-                destroyed = false
-            })
-        end
-    end
-end
-
-function Level:setupDynamicZones()
-    -- Initialize light/dark zone system
-    self.zones = {
-        light = {},
-        dark = {}
-    }
-    local zoneLayer = self.mapData.layers["zones"]
-    if zoneLayer then
-        for _, object in ipairs(zoneLayer.objects) do
-            table.insert(self.zones[object.properties.type], {
-                x = object.x,
-                y = object.y,
-                width = object.width,
-                height = object.height
-            })
-        end
-    end
-end
-
-function Level:update(dt)
-    -- Update map-specific features
-    if self.features["shifting_fog"] then
-        self:updateFog(dt)
-    end
-    
-    if self.features["destructible"] then
-        self:updateDestructibles(dt)
-    end
-    
-    if self.features["dynamic_zones"] then
-        self:updateZones(dt)
-    end
-    
-    -- Update teleporters
-    for _, teleporter in ipairs(self.teleporters) do
-        if teleporter.cooldown > 0 then
-            teleporter.cooldown = teleporter.cooldown - dt
-        end
-    end
-end
-
-function Level:updateFog(dt)
-    self.fog.shiftTimer = self.fog.shiftTimer + dt
-    if self.fog.shiftTimer >= self.fog.shiftInterval then
-        self.fog.shiftTimer = 0
-        self.fog.currentZone = self.fog.currentZone % #self.zones + 1
-    end
-end
-
-function Level:updateDestructibles(dt)
-    for _, destructible in ipairs(self.destructibles) do
-        if not destructible.destroyed then
-            -- Check for collisions with projectiles
-            for _, projectile in ipairs(gameState.projectiles) do
-                if self:checkCollision(projectile, destructible) then
-                    destructible.health = destructible.health - projectile.damage
-                    if destructible.health <= 0 then
-                        destructible.destroyed = true
-                        self:onDestructibleDestroyed(destructible)
-                    end
+-- Expand waypoints into an ordered list of cells {x=, y=}. A "portal"
+-- marker makes the next cell a jump; the jump is listed in `portals`.
+-- Returns cells, portals, or nil and an error message.
+function Level.expandPath(waypoints)
+    local cells, portals = {}, {}
+    local prev, jump = nil, false
+    for i, wp in ipairs(waypoints) do
+        if wp == "portal" then
+            jump = true
+        else
+            local x, y = wp[1], wp[2]
+            if not prev or jump then
+                if jump then portals[#portals + 1] = { from = prev, to = { x = x, y = y } } end
+                cells[#cells + 1] = { x = x, y = y }
+                jump = false
+            else
+                if x ~= prev.x and y ~= prev.y then
+                    return nil, string.format("waypoint %d (%d,%d) is not in line with (%d,%d)", i, x, y, prev.x, prev.y)
+                end
+                local dx = x > prev.x and 1 or (x < prev.x and -1 or 0)
+                local dy = y > prev.y and 1 or (y < prev.y and -1 or 0)
+                local cx, cy = prev.x, prev.y
+                while cx ~= x or cy ~= y do
+                    cx, cy = cx + dx, cy + dy
+                    cells[#cells + 1] = { x = cx, y = cy }
                 end
             end
+            prev = cells[#cells]
         end
     end
+    return cells, portals
 end
 
-function Level:updateZones(dt)
-    -- Update light/dark zone effects
-    for _, tower in ipairs(gameState.towers) do
-        local inLight = self:isInZone(tower, "light")
-        local inDark = self:isInZone(tower, "dark")
-        
-        if inLight and tower.faction == "radiant" then
-            tower.stats.damage = tower.stats.damage * 1.1
-        elseif inDark and tower.faction == "shadow" then
-            tower.stats.damage = tower.stats.damage * 1.1
+-- Build the playable map. Returns a table:
+--   cols, rows, grid[y][x]
+--   paths       list of cell lists, one per road, start to end
+--   roadCells   every road cell once as {gx, gy}; path 1 first, in order
+--   portals     list of {from = cell, to = cell}
+function Level.build(level)
+    local cols, rows = Levels.cols, Levels.rows
+    local grid = {}
+    for y = 1, rows do
+        grid[y] = {}
+        for x = 1, cols do grid[y][x] = Level.OPEN end
+    end
+    for _, r in ipairs(level.rocks or {}) do
+        for y = math.max(1, r[2]), math.min(rows, r[4]) do
+            for x = math.max(1, r[1]), math.min(cols, r[3]) do grid[y][x] = Level.ROCK end
         end
     end
-end
 
-function Level:checkCollision(obj1, obj2)
-    return obj1.x < obj2.x + obj2.width and
-           obj1.x + obj1.width > obj2.x and
-           obj1.y < obj2.y + obj2.height and
-           obj1.y + obj1.height > obj2.y
-end
-
-function Level:isInZone(obj, zoneType)
-    for _, zone in ipairs(self.zones[zoneType]) do
-        if obj.x >= zone.x and obj.x <= zone.x + zone.width and
-           obj.y >= zone.y and obj.y <= zone.y + zone.height then
-            return true
-        end
-    end
-    return false
-end
-
-function Level:onDestructibleDestroyed(destructible)
-    -- Update pathing when destructible is destroyed
-    self:updatePaths()
-end
-
-function Level:updatePaths()
-    -- Recalculate paths based on destroyed objects
-    self:setupMultiplePaths()
-end
-
-function Level:checkSecretChallenges()
-    -- Check for secret challenge completion
-    if not self.secretChallenges.noLivesLost and gameState.lives == gameState.maxLives then
-        self:completeSecretChallenge("noLivesLost")
-    end
-    
-    if not self.secretChallenges.speedRun and gameState.miniBossKillTime <= 20 then
-        self:completeSecretChallenge("speedRun")
-    end
-    
-    if not self.secretChallenges.resourceMaster and gameState.resources >= 500 then
-        self:completeSecretChallenge("resourceMaster")
-    end
-end
-
-function Level:completeSecretChallenge(challengeId)
-    self.secretChallenges[challengeId] = true
-    local challenge = SECRET_CHALLENGES[challengeId]
-    
-    -- Apply reward
-    if challenge.reward.type == "cosmetic" then
-        table.insert(gameState.cosmetics, challenge.reward.name)
-    elseif challenge.reward.type == "powerup" then
-        gameState:applyPowerup(challenge.reward.effect)
-    end
-    
-    -- Show notification
-    gameState:showNotification("Secret Challenge Completed: " .. challenge.name)
-end
-
-function Level:draw()
-    -- Draw map layers
-    self.mapData:draw()
-    
-    -- Draw map-specific features
-    if self.features["shifting_fog"] then
-        self:drawFog()
-    end
-    
-    if self.features["destructible"] then
-        self:drawDestructibles()
-    end
-    
-    if self.features["dynamic_zones"] then
-        self:drawZones()
-    end
-    
-    -- Draw teleporters
-    for _, teleporter in ipairs(self.teleporters) do
-        love.graphics.setColor(0.5, 0, 0.5, 0.5)
-        love.graphics.circle("fill", teleporter.x, teleporter.y, 20)
-    end
-end
-
-function Level:drawFog()
-    love.graphics.setColor(0.5, 0.5, 0.5, self.fog.opacity)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
-end
-
-function Level:drawDestructibles()
-    for _, destructible in ipairs(self.destructibles) do
-        if not destructible.destroyed then
-            love.graphics.setColor(0.7, 0.7, 0.7)
-            love.graphics.rectangle("fill", destructible.x, destructible.y, destructible.width, destructible.height)
-        end
-    end
-end
-
-function Level:drawZones()
-    for zoneType, zones in pairs(self.zones) do
-        for _, zone in ipairs(zones) do
-            if zoneType == "light" then
-                love.graphics.setColor(1, 1, 0, 0.1)
-            else
-                love.graphics.setColor(0, 0, 0, 0.1)
+    local built = { cols = cols, rows = rows, grid = grid, paths = {}, roadCells = {}, portals = {} }
+    local seen = {}
+    for _, wps in ipairs(level.paths) do
+        local cells, portals = Level.expandPath(wps)
+        assert(cells, level.id .. ": " .. tostring(portals))
+        built.paths[#built.paths + 1] = cells
+        for _, p in ipairs(portals) do built.portals[#built.portals + 1] = p end
+        for _, c in ipairs(cells) do
+            if grid[c.y] and grid[c.y][c.x] then grid[c.y][c.x] = Level.ROAD end
+            local key = c.x .. "," .. c.y
+            if not seen[key] then
+                seen[key] = true
+                built.roadCells[#built.roadCells + 1] = { c.x, c.y }
             end
-            love.graphics.rectangle("fill", zone.x, zone.y, zone.width, zone.height)
         end
     end
+    return built
 end
 
-return Level 
+-- Problems with a level's data, as a list of messages (empty if fine)
+function Level.validate(level)
+    local problems = {}
+    local function bad(msg) problems[#problems + 1] = level.id .. ": " .. msg end
+    if not (level.paths and #level.paths > 0) then bad("no paths"); return problems end
+    local rock = {}
+    for _, r in ipairs(level.rocks or {}) do
+        for y = r[2], r[4] do for x = r[1], r[3] do rock[x .. "," .. y] = true end end
+    end
+    for pi, wps in ipairs(level.paths) do
+        local cells, err = Level.expandPath(wps)
+        if not cells then
+            bad("path " .. pi .. ": " .. err)
+        else
+            for _, c in ipairs(cells) do
+                if c.x < 1 or c.y < 1 or c.x > Levels.cols or c.y > Levels.rows then
+                    bad(string.format("path %d leaves the map at (%d,%d)", pi, c.x, c.y))
+                end
+                if rock[c.x .. "," .. c.y] then bad(string.format("rock on the road at (%d,%d)", c.x, c.y)) end
+            end
+            -- A road that touches itself sideways lets enemies cut corners
+            local index = {}
+            for i, c in ipairs(cells) do
+                local key = c.x .. "," .. c.y
+                if index[key] then bad(string.format("path %d crosses itself at (%d,%d)", pi, c.x, c.y)) end
+                index[key] = i
+            end
+        end
+    end
+    if not Levels.palettes[level.palette or ""] then bad("unknown palette " .. tostring(level.palette)) end
+    if not (level.startGold and level.lives and level.waves and level.waves.count) then
+        bad("needs startGold, lives and waves.count")
+    end
+    return problems
+end
+
+------------------------------------------------------------------------
+-- Generated ground
+------------------------------------------------------------------------
+
+local function shade(c, f, a) return { c[1] * f, c[2] * f, c[3] * f, a or 1 } end
+
+-- Seeded from the level id, so a level always looks the same
+local function rngFor(id)
+    local seed = 7
+    for i = 1, #id do seed = (seed * 31 + id:byte(i)) % 2147483647 end
+    return love.math.newRandomGenerator(seed)
+end
+
+-- Draw the ground of a level into a new canvas, `cell` pixels per cell
+function Level.renderGround(level, built, cell)
+    local pal = Levels.palettes[level.palette] or Levels.palettes.meadow
+    local w, h = built.cols * cell, built.rows * cell
+    local canvas = love.graphics.newCanvas(w, h, { msaa = 4 })
+    local rng = rngFor(level.id)
+    local s = cell / 32
+
+    love.graphics.push("all")
+    love.graphics.setCanvas(canvas)
+    love.graphics.origin()
+    love.graphics.clear(pal.ground[1], pal.ground[2], pal.ground[3], 1)
+
+    -- Ground texture: soft patches, then speckles and tufts
+    for _ = 1, built.cols * built.rows / 3 do
+        local f = 0.9 + rng:random() * 0.2
+        love.graphics.setColor(shade(pal.ground, f, 0.5))
+        love.graphics.circle("fill", rng:random() * w, rng:random() * h, (6 + rng:random() * 18) * s)
+    end
+    for _ = 1, built.cols * built.rows * 2 do
+        love.graphics.setColor(shade(pal.speck, 0.85 + rng:random() * 0.3, 0.55))
+        local x, y = rng:random() * w, rng:random() * h
+        love.graphics.rectangle("fill", x, y, (1 + rng:random() * 2) * s, (2 + rng:random() * 3) * s)
+    end
+
+    -- Rocks: rounded clusters filling their cells
+    for y = 1, built.rows do
+        for x = 1, built.cols do
+            if built.grid[y][x] == Level.ROCK then
+                local cx, cy = (x - 0.5) * cell, (y - 0.5) * cell
+                love.graphics.setColor(shade(pal.rock, 0.7))
+                love.graphics.circle("fill", cx + 2 * s, cy + 3 * s, cell * 0.62)
+                love.graphics.setColor(shade(pal.rock, 0.9 + rng:random() * 0.2))
+                love.graphics.circle("fill", cx, cy, cell * 0.58)
+                love.graphics.setColor(shade(pal.rock, 1.25, 0.6))
+                love.graphics.circle("fill", cx - cell * 0.15, cy - cell * 0.18, cell * 0.2)
+            end
+        end
+    end
+
+    -- Road: a darker edge, then the surface, drawn as rounded strokes along
+    -- each path so corners are soft
+    local function strokeRoad(width, color)
+        love.graphics.setColor(color)
+        love.graphics.setLineWidth(width)
+        love.graphics.setLineJoin("bevel")
+        for _, cells in ipairs(built.paths) do
+            local pts = {}
+            local function flush()
+                if #pts >= 4 then love.graphics.line(pts) end
+                for i = 1, #pts, 2 do love.graphics.circle("fill", pts[i], pts[i + 1], width / 2) end
+                pts = {}
+            end
+            local prev
+            for _, c in ipairs(cells) do
+                if prev and math.abs(prev.x - c.x) + math.abs(prev.y - c.y) > 1 then flush() end
+                pts[#pts + 1] = (c.x - 0.5) * cell
+                pts[#pts + 1] = (c.y - 0.5) * cell
+                prev = c
+            end
+            flush()
+        end
+    end
+    strokeRoad(cell * 1.08, shade(pal.edge, 1))
+    strokeRoad(cell * 0.86, shade(pal.road, 1))
+    -- Road wear: pebbles and ruts
+    for _, c in ipairs(built.roadCells) do
+        for _ = 1, 3 do
+            love.graphics.setColor(shade(pal.road, 0.8 + rng:random() * 0.35, 0.7))
+            love.graphics.circle("fill", (c[1] - 0.5 + (rng:random() - 0.5) * 0.7) * cell,
+                (c[2] - 0.5 + (rng:random() - 0.5) * 0.7) * cell, (1 + rng:random() * 1.5) * s)
+        end
+    end
+
+    -- Start and end markers: a dark gate stone at each road end
+    for _, cells in ipairs(built.paths) do
+        local last = cells[#cells]
+        love.graphics.setColor(0.2, 0.15, 0.12, 0.8)
+        love.graphics.rectangle("fill", (last.x - 1) * cell + 3 * s, (last.y - 1) * cell + 3 * s, cell - 6 * s, cell - 6 * s, 4 * s)
+        love.graphics.setColor(0.85, 0.75, 0.4, 0.9)
+        love.graphics.setLineWidth(2 * s)
+        love.graphics.rectangle("line", (last.x - 1) * cell + 3 * s, (last.y - 1) * cell + 3 * s, cell - 6 * s, cell - 6 * s, 4 * s)
+    end
+
+    love.graphics.pop()
+    return canvas
+end
+
+-- Portals glow on top of the ground (animated, so drawn every frame)
+function Level.drawPortals(built, cell, time)
+    for _, p in ipairs(built.portals) do
+        for i, c in ipairs({ p.from, p.to }) do
+            local cx, cy = (c.x - 0.5) * cell, (c.y - 0.5) * cell
+            local pulse = 0.5 + 0.5 * math.sin(time * 3 + i)
+            love.graphics.setColor(0.55, 0.3, 0.9, 0.35 + 0.25 * pulse)
+            love.graphics.circle("fill", cx, cy, cell * (0.55 + 0.1 * pulse))
+            love.graphics.setColor(0.85, 0.7, 1, 0.9)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle("line", cx, cy, cell * 0.45)
+        end
+    end
+    love.graphics.setLineWidth(1)
+end
+
+-- Painted ground plate for a level: its `plate` field, or
+-- sprites/maps/<id>.png when that file exists. nil means generate one.
+function Level.platePath(level)
+    local p = level.plate or ("sprites/maps/" .. level.id .. ".png")
+    if love.filesystem.getInfo(p) then return p end
+end
+
+-- A small picture of the level for the level select screen
+local thumbs = {}
+function Level.thumbnail(level)
+    if not thumbs[level.id] then
+        local built = Level.build(level)
+        local canvas = Level.renderGround(level, built, 10)
+        local plate = Level.platePath(level)
+        if plate then
+            local ok, img = pcall(love.graphics.newImage, plate)
+            if ok then
+                local c = love.graphics.newCanvas(canvas:getWidth(), canvas:getHeight())
+                love.graphics.push("all")
+                love.graphics.setCanvas(c)
+                love.graphics.origin()
+                love.graphics.setColor(1, 1, 1, 1)
+                love.graphics.draw(img, 0, 0, 0, c:getWidth() / img:getWidth(), c:getHeight() / img:getHeight())
+                love.graphics.pop()
+                canvas = c
+            end
+        end
+        thumbs[level.id] = canvas
+    end
+    return thumbs[level.id]
+end
+
+return Level

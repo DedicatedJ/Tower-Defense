@@ -437,9 +437,169 @@ local function testSave()
     check(p.level == 4 and p.xp == 120, "hero level and XP are kept")
     check(Save.getHeroProgress("lady_celestia").level == 1, "an unplayed hero starts at level 1")
 
+    check(Save.getLevelResult("sunlit_meadows") == nil, "an unplayed level has no result")
+    Save.recordLevelResult("sunlit_meadows", 2)
+    Save.recordLevelResult("sunlit_meadows", 1)
+    check(Save.getLevelResult("sunlit_meadows").stars == 2, "a level keeps its best stars (2, not a later 1)")
+    Save.recordLevelResult("sunlit_meadows", 3)
+    check(Save.getLevelResult("sunlit_meadows").stars == 3, "a better result replaces it (3)")
+
     local disk = Save.loadProfile(1)
-    check(disk and disk.heroes.sir_galahad.level == 4 and disk.purchases.heroic_sword == 1 and disk.gold == 0,
-        "the profile file on disk has the hero level, purchases and gold")
+    check(disk and disk.heroes.sir_galahad.level == 4 and disk.purchases.heroic_sword == 1 and disk.gold == 0
+        and disk.levels.sunlit_meadows.stars == 3,
+        "the profile file on disk has the hero level, purchases, gold and level stars")
+
+    -- Level select opens levels in order
+    local LS = require('states.level_select')
+    local function openLevels()
+        local ls = LS.new()
+        ls.selectedFaction = Factions.radiant
+        ls:loadLevels()
+        local open = {}
+        for _, l in ipairs(ls.levels) do open[#open + 1] = l.unlocked and "open" or "locked" end
+        return table.concat(open, ","), ls
+    end
+    local state, ls = openLevels()
+    check(state == "open,open,locked" and ls.selectedLevel.id == "crystal_spires",
+        "after winning level 1: level 2 opens and is preselected, level 3 stays locked")
+    check(ls.levels[1].stars == 3 and ls.levels[1].thumbnail ~= nil, "level card shows 3 stars and a map picture")
+    Save.recordLevelResult("crystal_spires", 1)
+    check(openLevels() == "open,open,open", "winning level 2 opens level 3")
+    local sh = LS.new()
+    sh.selectedFaction = Factions.shadow
+    sh:loadLevels()
+    check(sh.levels[1].unlocked and not sh.levels[2].unlocked, "another faction's levels are separate")
+end
+
+------------------------------------------------------------------------
+local function testLevels()
+    log("== Levels")
+    local Levels = require('data.levels')
+    local Level = require('systems.level')
+
+    local problems = {}
+    for _, l in ipairs(Levels.list) do
+        for _, p in ipairs(Level.validate(l)) do problems[#problems + 1] = p end
+    end
+    for _, p in ipairs(problems) do log("  " .. p) end
+    check(#problems == 0, "all " .. #Levels.list .. " levels have valid roads, rocks and settings (" .. #problems .. " problems)")
+
+    for _, fid in ipairs(FACTION_IDS) do
+        local list = Level.forFaction(fid)
+        check(#list == 3 and list[1].order == 1 and list[2].order == 2 and list[3].order == 3,
+            fid .. ": 3 levels in order 1, 2, 3")
+        check(Level.nextOf(list[1].id) == list[2] and Level.nextOf(list[3].id) == nil,
+            fid .. ": level 1 leads to level 2, level 3 is the last")
+        check(Level.first(fid) == list[1], fid .. ": first level is " .. list[1].id)
+    end
+
+    -- Waypoints expand to every cell between them
+    local cells = Level.expandPath({ { 1, 1 }, { 4, 1 }, { 4, 3 } })
+    check(#cells == 6 and cells[4].x == 4 and cells[4].y == 1 and cells[6].x == 4 and cells[6].y == 3,
+        "waypoints (1,1)-(4,1)-(4,3) expand to 6 cells")
+    local pc, portals = Level.expandPath({ { 1, 1 }, { 2, 1 }, "portal", { 10, 5 }, { 10, 6 } })
+    check(#pc == 4 and #portals == 1 and portals[1].from.x == 2 and portals[1].to.x == 10,
+        "a portal joins (2,1) to (10,5) without filling cells between")
+    local bad = Level.expandPath({ { 1, 1 }, { 3, 3 } })
+    check(bad == nil, "a diagonal waypoint is rejected")
+
+    -- Level 1 keeps the original road exactly
+    local b1 = Level.build(Level.get("sunlit_meadows"))
+    check(#b1.paths[1] == 72 and b1.paths[1][1].x == 1 and b1.paths[1][72].x == 18 and b1.paths[1][72].y == 17,
+        "Sunlit Meadows: the original 72-cell road from (1,1) to (18,17)")
+
+    -- Two roads that merge share their cells once
+    local cs = Level.build(Level.get("crystal_spires"))
+    local shared = {}
+    for _, c in ipairs(cs.paths[1]) do shared[c.x .. "," .. c.y] = true end
+    local overlap = 0
+    for _, c in ipairs(cs.paths[2]) do if shared[c.x .. "," .. c.y] then overlap = overlap + 1 end end
+    check(#cs.paths == 2 and overlap > 0 and #cs.roadCells == #cs.paths[1] + #cs.paths[2] - overlap,
+        "Crystal Spires: 2 roads that merge, shared cells counted once")
+    local rockCells = 0
+    for y = 1, cs.rows do for x = 1, cs.cols do if cs.grid[y][x] == Level.ROCK then rockCells = rockCells + 1 end end end
+    check(rockCells == 5 * 5 + 4 * 3, "Crystal Spires: rock areas cover 37 cells")
+
+    local nc = Level.build(Level.get("necropolis"))
+    check(#nc.portals == 1 and nc.portals[1].from.x == 3 and nc.portals[1].from.y == 13
+        and nc.portals[1].to.x == 15 and nc.portals[1].to.y == 4, "Necropolis: a portal from (3,13) to (15,4)")
+
+    -- Enemies step through portals
+    local walker = Enemy.create("zombie", nc.paths[1], 32)
+    local jumped = false
+    for _ = 1, 60 * 120 do
+        walker:update(1 / 60)
+        if walker.gridX == 15 and walker.gridY == 4 then jumped = true end
+        if walker.reachedEnd then break end
+    end
+    check(jumped and walker.reachedEnd, "a zombie walks the Necropolis road through the portal to the end")
+
+    -- Stars for a win
+    local GameState = require('states.game')
+    check(GameState.starsFor(20, 20) == 3 and GameState.starsFor(18, 20) == 3 and GameState.starsFor(17, 20) == 2
+        and GameState.starsFor(10, 20) == 2 and GameState.starsFor(9, 20) == 1,
+        "stars: 3 at 90%+ lives, 2 at 50%+, else 1")
+end
+
+------------------------------------------------------------------------
+local function testWaves()
+    log("== Waves")
+    local Wave = require('systems.wave')
+    local Level = require('systems.level')
+    local sm = Level.get("sunlit_meadows") -- difficulty 1, 10 waves
+
+    local a, b = Wave.plan(sm), Wave.plan(sm)
+    local same = #a == #b
+    for n = 1, #a do
+        if #a[n].entries ~= #b[n].entries then same = false end
+        for i, e in ipairs(a[n].entries) do
+            if b[n].entries[i].type ~= e.type then same = false end
+        end
+    end
+    check(same and #a == 10, "a level's waves are the same every time (10 waves)")
+
+    -- Budget (6 + d) * (1 + 0.35 n): wave 1 of difficulty 1 = 9.45 points
+    local function points(w)
+        local p = 0
+        for _, e in ipairs(w.entries) do if e.type ~= "dragon" then p = p + Wave.COST[e.type] end end
+        return p
+    end
+    check(points(a[1]) <= 9.45 + 1e-9 and points(a[1]) > 8.45, "wave 1 spends its 9.45-point budget (" .. points(a[1]) .. ")")
+    check(points(a[10]) > points(a[5]) and points(a[5]) > points(a[1]), "later waves bring more enemies")
+
+    local only = {}
+    for _, e in ipairs(a[1].entries) do only[e.type] = true end
+    check(only.zombie and not only.skeleton and not only.orc and not only.necromancer and not only.dragon,
+        "wave 1 is zombies only")
+    local w2 = {}
+    for _, e in ipairs(a[2].entries) do w2[e.type] = true end
+    check(not w2.skeleton and not w2.orc, "no skeletons or orcs in wave 2")
+    local hasNecro = false
+    for n = 1, 3 do for _, e in ipairs(a[n].entries) do if e.type == "necromancer" then hasNecro = true end end end
+    check(not hasNecro, "no necromancers before 40% of the waves")
+
+    local function dragons(w) local n = 0; for _, e in ipairs(w.entries) do if e.type == "dragon" then n = n + 1 end end; return n end
+    check(dragons(a[10]) == 1 and dragons(a[5]) == 0, "difficulty 1: a dragon ends the last wave only")
+    local cc = Wave.plan(Level.get("celestial_citadel")) -- difficulty 3, 15 waves
+    check(dragons(cc[15]) == 1 and dragons(cc[8]) == 1 and dragons(cc[7]) == 0, "difficulty 3: dragons at wave 8 and 15")
+
+    -- Health (1 + (0.10 + 0.08 d)(n - 1) + 0.008 d (n - 1)^2) * sqrt(road / 60) * toughness
+    checkNear(a[10].healthMult, (1 + 0.18 * 9 + 0.008 * 81) * math.sqrt(72 / 60),
+        "difficulty 1 wave 10 on a 72-cell road: health x3.58")
+    checkNear(cc[15].healthMult, (1 + 0.34 * 14 + 0.024 * 196) * math.sqrt(104 / 60) * 0.85,
+        "difficulty 3 wave 15 on a 104-cell road, toughness 0.85: health x11.71")
+    check(a[1].bonus == 24 and a[10].bonus == 60, "wave bonus 20 + 4 per wave (24 .. 60)")
+
+    -- Two roads: groups of 6 take turns
+    local ws = Wave.build(Level.get("crystal_spires"), 8)
+    local ok = #ws.entries > 6
+    for i, e in ipairs(ws.entries) do
+        if e.type ~= "dragon" and e.path ~= (math.floor((i - 1) / 6) % 2) + 1 then ok = false end
+    end
+    check(ok, "Crystal Spires: groups of 6 alternate between the 2 roads")
+
+    check(Wave.summary({ entries = { { type = "zombie" }, { type = "zombie" }, { type = "orc" } } }) == "2 Zombie, 1 Orc",
+        "HUD summary reads \"2 Zombie, 1 Orc\"")
 end
 
 ------------------------------------------------------------------------
@@ -451,6 +611,8 @@ function love.load()
     testUnits()
     testTowers()
     testShop()
+    testLevels()
+    testWaves()
     testSave()
     log(string.format("DONE passes=%d failures=%d", passes, failures))
     os.exit(failures == 0 and 0 or 1)

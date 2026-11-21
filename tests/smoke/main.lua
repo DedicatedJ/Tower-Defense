@@ -62,11 +62,12 @@ local function cellScreen(gx, gy) return (gx - 0.5) * 32, (gy - 0.5) * 32 + offY
 local Factions = require('data.factions')
 local FACTION_IDS = { "radiant", "shadow", "twilight" }
 
-local function newGame(factionId, heroId)
+-- Gameplay checks use the level 1 map (cell coordinates below are on it)
+local function newGame(factionId, heroId, levelId)
     love.math.setRandomSeed(1)
     local GameState = require('states.game')
     local g = GameState.new()
-    g:setup(factionId, heroId)
+    g:setup(factionId, heroId, levelId or "sunlit_meadows")
     Gamestate.switch(g)
     wait(2)
     return g
@@ -410,6 +411,89 @@ local function run()
     local expected = h.base.damage * (1 + 0.1 * (h.level - 1)) * 1.15
     check(math.abs(h.damage - expected) < 0.01, "Heroic Sword: hero damage x1.15 (" ..
         string.format("%.1f", h.damage) .. ")")
+
+    ------------------------------------------------------------------
+    log("== Levels")
+    local Levels = require('data.levels')
+    local LevelSys = require('systems.level')
+    for _, lv in ipairs(Levels.list) do
+        local f = Factions[lv.faction]
+        local g = newGame(lv.faction, f.heroes[1].id, lv.id)
+        local built = LevelSys.build(lv)
+        local heroOnRoad = g.hero and g:isRoad(g:pixelToGrid(g.hero.x, g.hero.y + offY()))
+        check(g.levelId == lv.id and #g.paths == #lv.paths and #g.roadPath == #built.roadCells
+            and g.resources >= lv.startGold and g.maxWaves == lv.waves.count and heroOnRoad,
+            lv.id .. ": map, " .. #lv.paths .. " road(s), " .. lv.waves.count .. " waves, hero on the road")
+        shot("level_" .. lv.id)
+        -- Wave 1 runs to the end on every road and pays its bonus
+        g.resources = 5000
+        for i, t in ipairs(f.towers) do
+            local spot
+            for _, c in ipairs(g.roadPath) do
+                for _, d in ipairs({ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 } }) do
+                    if not spot and g:canPlaceTower(c[1] + d[1], c[2] + d[2]) and (_ * 7 + i) % 5 == 0 then
+                        spot = { c[1] + d[1], c[2] + d[2] }
+                    end
+                end
+            end
+            if spot then g:placeTower(spot[1], spot[2], t.id) end
+        end
+        local goldBefore = g.resources
+        g:startNextWave()
+        local done = simulate(240, function() return not g.waveInProgress end)
+        check(done and g.wave == 1 and g.resources >= goldBefore + g.waves[1].bonus,
+            lv.id .. ": wave 1 cleared, bonus " .. g.waves[1].bonus .. " paid (lives " .. g.lives .. ")")
+    end
+
+    -- Necromancers raise skeletons as they walk
+    do
+        local g = newGame("radiant", "sir_galahad")
+        g.hero.dead = true
+        g.hero.respawnTimer = 1e9
+        g.waveInProgress = true
+        g.waveEnemies = {}
+        g.waves[1] = { entries = {}, healthMult = 1, bonus = 0 }
+        g.wave = 1
+        local n = g:addEnemy("necromancer", 1, 50)
+        simulate(14, function() return (g.raisedCount or 0) >= 2 end)
+        local raised = 0
+        for _, e in ipairs(g.enemies) do if e.raised and e.type == "skeleton" then raised = raised + 1 end end
+        check(raised >= 2 and n.currentPathIndex > 1, "a necromancer raises a skeleton every 6 s (" .. raised .. " raised)")
+    end
+
+    -- End screen: stars saved, Next Level and Level Select work
+    do
+        local g = newGame("shadow", "malachi", "haunted_forest")
+        g.lives = 19
+        g.wave = g.maxWaves
+        g:gameOver(true)
+        local rec = Save.getLevelResult("haunted_forest")
+        check(g.stars == 3 and rec and rec.stars == 3, "a win at 19/20 lives saves 3 stars")
+        shot("end_victory")
+        local labels = {}
+        for _, b in ipairs(g:getEndButtons()) do labels[#labels + 1] = b.label end
+        check(table.concat(labels, ",") == "Next Level,Replay,Level Select", "victory offers Next Level, Replay, Level Select")
+        local nb = g:getEndButtons()[1]
+        click(nb.x + 5, nb.y + 5)
+        wait(2)
+        local cur = Gamestate.current()
+        check(isState('states.game') and cur.levelId == "obsidian_caves", "Next Level starts Obsidian Caves")
+
+        cur:gameOver(false)
+        labels = {}
+        for _, b in ipairs(cur:getEndButtons()) do labels[#labels + 1] = b.label end
+        check(table.concat(labels, ",") == "Retry,Level Select", "defeat offers Retry, Level Select")
+        check(Save.getLevelResult("obsidian_caves") == nil, "a loss records no stars")
+        local lb = cur:getEndButtons()[2]
+        click(lb.x + 5, lb.y + 5)
+        wait(3)
+        local ls = Gamestate.current()
+        check(isState('states.level_select') and ls.levels[2].unlocked and not ls.levels[3].unlocked
+            and ls.selectedLevel.id == "obsidian_caves",
+            "Level Select: Obsidian Caves open and selected, Necropolis locked")
+        wait(30) -- let the cards slide in
+        shot("level_select")
+    end
 
     ------------------------------------------------------------------
     log("== JSON round trip")

@@ -550,6 +550,7 @@ local function currentProfile()
         }
     end
     gameState.heroes = gameState.heroes or {}
+    gameState.levels = gameState.levels or {}
     gameState.purchases = gameState.purchases or {}
     gameState.gold = gameState.gold or 0
     return gameState
@@ -592,6 +593,22 @@ function Save.buyItem(itemId, cost, consumable)
     p.purchases[itemId] = owned + 1
     Save.saveProfile(p, currentSlot)
     return true
+end
+
+-- Best result on a level: { stars = 1..3 } or nil if never won
+function Save.getLevelResult(levelId)
+    return currentProfile().levels[levelId]
+end
+
+-- Record a win; keeps the best star count
+function Save.recordLevelResult(levelId, stars)
+    if not levelId then return false end
+    local p = currentProfile()
+    local old = p.levels[levelId]
+    if not old or (old.stars or 0) < stars then
+        p.levels[levelId] = { stars = stars }
+    end
+    return Save.saveProfile(p, currentSlot)
 end
 
 -- Use up one of each listed consumable

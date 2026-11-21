@@ -863,7 +863,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 ## 10. Missing hero portraits
 
 Attach an existing portrait (for example `assets/hero images/radiant order/Galahad/Sir Galahad.jpg`)
-as image 1. Opaque, 4:3. The game path for each is given at the end of its prompt.
+as image 1. Opaque, 4:3. Each goes to its `file` in `art/assets.lua` (A.portraits).
 
 ### portrait_archangel_michael
 
@@ -874,8 +874,6 @@ as image 1. Opaque, 4:3. The game path for each is given at the end of its promp
 
 ```text
 A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): a tall angelic warrior with short golden hair, large white feathered wings and a gold breastplate, holding a gold bow. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
-
-Game path: assets/hero images/radiant order/Michael/Archangel Michael.jpg
 ```
 
 ### portrait_dark_lord_malak
@@ -887,8 +885,6 @@ Game path: assets/hero images/radiant order/Michael/Archangel Michael.jpg
 
 ```text
 A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): a towering warlord in spiked black plate armor and a horned helm with glowing violet eyes, a black greatsword on his shoulder. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
-
-Game path: assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg
 ```
 
 ### portrait_elemental_sage
@@ -900,6 +896,162 @@ Game path: assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg
 
 ```text
 A character portrait in exactly the same painting style, framing and light as image 1 (an approved portrait from the same set): an old sage with a long white beard in a robe that is half ember orange and half ice blue, holding a staff with an orange and a blue crystal. Upper body, facing the viewer, a soft landscape behind. No text, no logos, no watermark.
+```
 
-Game path: assets/hero images/twilight balance/Sage/Elemental Sage.jpg
+## 11. Level maps
+
+Attach the level's gray layout from `art/guides/` as image 1. Cut each with `tools/artcut mapfix`
+(24 x 18 cells) and save it as `sprites/maps/<level id>.png`; the game picks it up from there.
+Until then the game draws a generated ground for the level.
+
+### map_crystal_spires
+
+- Save as: `art/incoming/map_crystal_spires_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_crystal_spires_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (2 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: a high plateau of pale grass with clusters of blue crystal, the road paved in pale stone. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+The near-black areas are solid rock or rubble that nothing can be built on: fill each one edge to edge with it, and keep it inside the black area.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_celestial_citadel
+
+- Save as: `art/incoming/map_celestial_citadel_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_celestial_citadel_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (1 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: the sunlit courtyard of a white and gold citadel, the road a spiral of cream flagstones. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+There is no near-black area in this layout.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_haunted_forest
+
+- Save as: `art/incoming/map_haunted_forest_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_haunted_forest_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (1 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: a dark dead forest floor of moss and fallen leaves, the road a muddy trail. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+There is no near-black area in this layout.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_obsidian_caves
+
+- Save as: `art/incoming/map_obsidian_caves_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_obsidian_caves_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (1 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: a cave floor of dark ash and gravel with glints of obsidian, the road worn smooth. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+The near-black areas are solid rock or rubble that nothing can be built on: fill each one edge to edge with it, and keep it inside the black area.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_necropolis
+
+- Save as: `art/incoming/map_necropolis_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_necropolis_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (1 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: a city of crypts on gray-violet stone, the road cracked paving; two violet portal circles mark where the road breaks off and starts again. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+The near-black areas are solid rock or rubble that nothing can be built on: fill each one edge to edge with it, and keep it inside the black area.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_misty_borderlands
+
+- Save as: `art/incoming/map_misty_borderlands_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_misty_borderlands_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (1 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: a misty marsh border of blue-green grass and shallow pools, the road a raised dirt causeway. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+There is no near-black area in this layout.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_ethereal_ruins
+
+- Save as: `art/incoming/map_ethereal_ruins_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_ethereal_ruins_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (2 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: ancient sandstone ruins half buried in dry grass, the road old cracked paving. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+The near-black areas are solid rock or rubble that nothing can be built on: fill each one edge to edge with it, and keep it inside the black area.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_nexus_of_balance
+
+- Save as: `art/incoming/map_nexus_of_balance_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves the road again, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_nexus_of_balance_blockout.png`
+
+```text
+Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road (2 road(s), which may join) and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
+
+Setting: a twilight plain where violet ground meets golden ground, the road pale stone with silver inlay. Any edging lies inside the band, so the road with its edging is no wider than the band.
+
+The near-black areas are solid rock or rubble that nothing can be built on: fill each one edge to edge with it, and keep it inside the black area.
+
+Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees standing on open ground, no buildings, no towers, no units, no animals, no text.
+
+Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```

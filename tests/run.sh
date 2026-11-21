@@ -7,6 +7,8 @@
 #   tests/run.sh            unit, then smoke
 #   tests/run.sh unit       fast logic checks with exact expected values
 #   tests/run.sh smoke      drives the real game through menus and 10 waves
+#   tests/run.sh balance    a simple AI plays every level; prints a difficulty
+#                           read-out (not run by default; BALANCE_LEVEL=<id> for one)
 #   LOVEC=/path/to/lovec tests/run.sh
 #
 # Exit code 0 = every check passed, 1 = a check failed, 2 = crash.
@@ -29,7 +31,8 @@ for suite in ${1:-unit smoke}; do
     case "$suite" in
         unit)  run_suite unit 120 ;;
         smoke) run_suite smoke 900 ;;
-        *) echo "unknown suite: $suite (use unit or smoke)"; exit 2 ;;
+        balance) run_suite balance 3000 ;;
+        *) echo "unknown suite: $suite (use unit, smoke or balance)"; exit 2 ;;
     esac
     rc=$?
     echo "== $suite exit=$rc"

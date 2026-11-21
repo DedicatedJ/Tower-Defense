@@ -151,6 +151,35 @@ A.map = {
 }
 
 ------------------------------------------------------------------------
+-- Map plates for the other levels (data/levels.lua). Same rules as level 1:
+-- a repaint of the gray layout, road exactly where the dark band is.
+-- %d = number of roads, %s = scene, %s = rock sentence.
+------------------------------------------------------------------------
+A.levelMapTemplate = "Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from " ..
+    "directly above. Image 1 is a gray layout: the mid gray band is the road (%d road(s), which may join) " ..
+    "and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the " ..
+    "same width, the same square corners, in the same places across the whole image. Do not add, move, " ..
+    "straighten, widen or smooth any part of it.\n\n" ..
+    "Setting: %s. Any edging lies inside the band, so the road with its edging is no wider than the band.\n\n" ..
+    "%s\n\n" ..
+    "Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees " ..
+    "standing on open ground, no buildings, no towers, no units, no animals, no text."
+
+A.levelRocks = "The near-black areas are solid rock or rubble that nothing can be built on: fill each one " ..
+    "edge to edge with it, and keep it inside the black area."
+
+A.levelScenes = {
+    crystal_spires    = "a high plateau of pale grass with clusters of blue crystal, the road paved in pale stone",
+    celestial_citadel = "the sunlit courtyard of a white and gold citadel, the road a spiral of cream flagstones",
+    haunted_forest    = "a dark dead forest floor of moss and fallen leaves, the road a muddy trail",
+    obsidian_caves    = "a cave floor of dark ash and gravel with glints of obsidian, the road worn smooth",
+    necropolis        = "a city of crypts on gray-violet stone, the road cracked paving; two violet portal circles mark where the road breaks off and starts again",
+    misty_borderlands = "a misty marsh border of blue-green grass and shallow pools, the road a raised dirt causeway",
+    ethereal_ruins    = "ancient sandstone ruins half buried in dry grass, the road old cracked paving",
+    nexus_of_balance  = "a twilight plain where violet ground meets golden ground, the road pale stone with silver inlay",
+}
+
+------------------------------------------------------------------------
 -- Screen backdrops (UI is drawn over the middle, so keep it calm).
 ------------------------------------------------------------------------
 A.backdropTemplate = "A wide painted backdrop for a game menu screen, %s. The center of the image is calm " ..

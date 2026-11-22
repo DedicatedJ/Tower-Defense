@@ -1,0 +1,48 @@
+name: Tests
+
+# Runs the unit and smoke suites (tests/run.sh) under LÖVE 11.5 on every
+# push and pull request. The smoke suite drives the real game, so it needs
+# a display: xvfb provides a virtual one, and SDL's dummy audio driver
+# stands in for a sound card.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # The game uses only HUMP; the other submodules are unused
+      - name: Fetch HUMP
+        run: git submodule update --init libs/hump
+
+      - name: Install LÖVE and a virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y love xvfb
+          love --version
+
+      - name: Unit tests
+        env:
+          LOVEC: love
+          SDL_AUDIODRIVER: dummy
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" bash tests/run.sh unit
+
+      - name: Smoke tests
+        env:
+          LOVEC: love
+          SDL_AUDIODRIVER: dummy
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" bash tests/run.sh smoke
+
+      # Screenshots the smoke suite takes of every screen and level
+      - name: Upload smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: ~/.local/share/love/tower-defense-smoketest/*.png
+          if-no-files-found: ignore

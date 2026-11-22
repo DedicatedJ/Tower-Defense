@@ -129,6 +129,8 @@ Factions.radiant = {
             name = "Archangel Michael",
             role = "dps",
             description = "Ranged damage dealer with a devastating single-target strike.",
+            -- Art batch 2; until the file exists the game shows a lettered token
+            portrait = "assets/hero images/radiant order/Michael/Archangel Michael.jpg",
             stats = { health = 380, damage = 30, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 1 },
             abilities = {
                 { name = "Divine Judgment", description = "200 damage to the strongest enemy in range",
@@ -265,6 +267,7 @@ Factions.shadow = {
             name = "Dark Lord Malak",
             role = "dps",
             description = "Melee brawler who steals life and steps through shadows.",
+            portrait = "assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg",
             stats = { health = 450, damage = 35, attackRate = 1.2, range = 40, speed = 65, armor = 0.2, blockCount = 2 },
             abilities = {
                 { name = "Soul Drain", description = "30 damage to enemies nearby, heals for half the damage dealt",
@@ -398,6 +401,7 @@ Factions.twilight = {
             name = "Elemental Sage",
             role = "dps",
             description = "Elemental caster whose burns hit harder.",
+            portrait = "assets/hero images/twilight balance/Sage/Elemental Sage.jpg",
             stats = { health = 360, damage = 26, attackRate = 1.1, range = 150, speed = 65, armor = 0.1, blockCount = 1 },
             abilities = {
                 { name = "Elemental Burst", description = "Enemies nearby burn (25/s for 3 s) or freeze (2 s), alternating each cast",

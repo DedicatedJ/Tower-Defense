@@ -27,6 +27,7 @@ Unit.MAX_LEVEL = 10
 Unit.LEVEL_BONUS = 0.10    -- +10% health and damage per level
 Unit.XP_RADIUS = 300
 Unit.FOOT_OFFSET = 10      -- same ground line as enemies
+Unit.HERO_HEIGHT = 44      -- drawn height of a hero walk sheet figure (a little over a zombie)
 
 Unit.ROLE_COLORS = {
     tank = { 0.95, 0.8, 0.3 }, healer = { 1, 1, 0.6 }, dps = { 1, 0.45, 0.3 },
@@ -43,7 +44,7 @@ end
 ------------------------------------------------------------------------
 local portraitCache = {}
 function Unit.portrait(path)
-    if not path then return nil end
+    if not path or not love.filesystem.getInfo(path) then return nil end
     if portraitCache[path] ~= nil then return portraitCache[path] or nil end
     local ok, img = pcall(function()
         local src = love.image.newImageData(path)
@@ -97,6 +98,10 @@ function Unit.newHero(heroData, factionData, x, y, opts)
     u.xp = opts.xp or 0
     u.passive = heroData.passive
     u.portraitImage = Unit.portrait(heroData.portrait)
+    -- Walk sheet (art batch 2): sprites/heroes/<id>.png plus its .lua
+    if Enemy.loadSheet("hero_" .. heroData.id, "sprites/heroes/" .. heroData.id .. ".png") then
+        u.sheetKey = "hero_" .. heroData.id
+    end
     u.abilities = {}
     for i, ab in ipairs(heroData.abilities) do
         u.abilities[i] = { data = ab, cooldown = 0, flash = 0, altIndex = 0 }
@@ -638,9 +643,45 @@ function Unit:draw()
         return
     end
 
-    -- Hero: a portrait token standing on the road
     local c = Unit.ROLE_COLORS[self.role] or { 1, 1, 1 }
     local alpha = self.dead and 0.35 or 1
+
+    -- Hero with a walk sheet: the figure, a role-colored ring at its feet
+    if self.sheetKey then
+        if self.selected then
+            love.graphics.setColor(1, 0.9, 0.3, 0.9)
+            love.graphics.setLineWidth(2)
+            love.graphics.ellipse("line", x, groundY, 16, 6)
+        end
+        love.graphics.setColor(c[1], c[2], c[3], 0.8 * alpha)
+        love.graphics.setLineWidth(self.hitFlash and self.hitFlash > 0 and 3 or 1.5)
+        love.graphics.ellipse("line", x, groundY, 12, 4)
+        love.graphics.setLineWidth(1)
+        local tint = (self.hitFlash and self.hitFlash > 0) and { 1, 0.6, 0.6 } or nil
+        local top = Enemy.drawFigure(self.sheetKey, x, groundY, self.direction, self.animTime, self.moving,
+            tint, alpha, Unit.HERO_HEIGHT) or (groundY - Unit.HERO_HEIGHT)
+        if self.dead then
+            love.graphics.setColor(1, 1, 1, 0.9)
+            local txt = tostring(math.ceil(self.respawnTimer or 0))
+            love.graphics.print(txt, x - love.graphics.getFont():getWidth(txt) / 2, top - 14)
+            love.graphics.setColor(1, 1, 1, 1)
+            return
+        end
+        self:drawBar(x - 14, top - 8, 28, self.health / self.maxHealth, { 0.3, 0.95, 0.4 })
+        love.graphics.setColor(0.1, 0.1, 0.15, 0.9)
+        love.graphics.circle("fill", x + 17, top - 5, 6)
+        love.graphics.setColor(1, 0.85, 0.3, 1)
+        local lv = tostring(self.level)
+        love.graphics.print(lv, x + 17 - love.graphics.getFont():getWidth(lv) / 2, top - 12)
+        if self.levelFlash and self.levelFlash > 0 then
+            love.graphics.setColor(1, 0.9, 0.3, self.levelFlash / 1.5)
+            love.graphics.circle("line", x, groundY - Unit.HERO_HEIGHT / 2, 18 + (1.5 - self.levelFlash) * 10)
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    -- Hero without a sheet: a portrait token standing on the road
     love.graphics.setColor(0, 0, 0, 0.3 * alpha)
     love.graphics.ellipse("fill", x + 2, groundY, 12, 4)
     if self.selected then

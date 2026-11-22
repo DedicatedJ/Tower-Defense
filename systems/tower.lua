@@ -65,18 +65,19 @@ function Tower.init()
     Tower.images = {}
     local loaded = {}
     for id, t in pairs(Tower.byId) do
-        if type(t.sprite) == "string" and love.filesystem.getInfo(t.sprite) then
-            if not loaded[t.sprite] then
-                local ok, img = pcall(love.graphics.newImage, t.sprite, { mipmaps = true })
+        local path = Tower.spritePath(t)
+        if path then
+            if not loaded[path] then
+                local ok, img = pcall(love.graphics.newImage, path, { mipmaps = true })
                 if ok then
                     img:setFilter("linear", "linear")
                     img:setMipmapFilter("linear")
-                    loaded[t.sprite] = img
+                    loaded[path] = img
                 else
-                    print("WARNING: Failed to load tower sprite: " .. t.sprite)
+                    print("WARNING: Failed to load tower sprite: " .. path)
                 end
             end
-            Tower.images[id] = loaded[t.sprite]
+            Tower.images[id] = loaded[path]
         end
     end
 
@@ -86,6 +87,15 @@ function Tower.init()
     end
 
     Tower.initialized = true
+end
+
+-- The painted sprite for a tower: its own sprites/towers/<id>.png when that
+-- file exists (art batch 2), else the stand-in named in data/factions.lua,
+-- else nil (a generated placeholder is drawn)
+function Tower.spritePath(t)
+    local own = "sprites/towers/" .. t.id .. ".png"
+    if love.filesystem.getInfo(own) then return own end
+    if type(t.sprite) == "string" and love.filesystem.getInfo(t.sprite) then return t.sprite end
 end
 
 -- Placeholder tower drawn in code, tinted by faction

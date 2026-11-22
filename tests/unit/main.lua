@@ -92,6 +92,7 @@ local function testData()
     local HERO_STATS = { "health", "damage", "attackRate", "range", "speed", "armor", "blockCount" }
 
     local orders, towerIds, heroIds = {}, {}, {}
+    local pendingPortraits = {} -- paths with no file yet: must be on the art list
     local bad = {}
     local function fail(msg) bad[#bad + 1] = msg end
 
@@ -134,7 +135,8 @@ local function testData()
                 end)
             end
             if not (h.passive and KNOWN_PASSIVES[h.passive.kind]) then fail(h.id .. " passive kind is unknown") end
-            if h.portrait and not love.filesystem.getInfo(h.portrait) then fail(h.id .. " portrait file is missing: " .. h.portrait) end
+            if not h.portrait then fail(h.id .. " has no portrait path") end
+            if h.portrait and not love.filesystem.getInfo(h.portrait) then pendingPortraits[#pendingPortraits + 1] = h.portrait end
         end
     end
     table.sort(orders)
@@ -144,6 +146,12 @@ local function testData()
 
     -- Art pipeline lists every tower and hero, so missing art has a prompt
     local A = love.filesystem.load("art/assets.lua")()
+    local onList = {}
+    for _, p in ipairs(A.portraits or {}) do onList[p.file] = true end
+    local unlisted = {}
+    for _, path in ipairs(pendingPortraits) do if not onList[path] then unlisted[#unlisted + 1] = path end end
+    check(#unlisted == 0, "every portrait not painted yet is on the art list (" .. #pendingPortraits .. " pending)" ..
+        (#unlisted > 0 and (": " .. table.concat(unlisted, ", ")) or ""))
     local listed = {}
     for _, t in ipairs(A.cTowers or {}) do listed[t.id] = true end
     for _, h in ipairs(A.cHeroes or {}) do listed[h.id] = true end

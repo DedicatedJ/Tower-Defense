@@ -329,8 +329,8 @@ A.sfx = {
 -- Faction Model C (data/factions.lua). Towers attach the approved
 -- tower_archer final as image 1 (same plinth, scale, light); hero sheets
 -- attach the approved enemy_zombie sheet as image 1 (same grid, poses,
--- size). When a file is cut in, point that tower's `sprite` in
--- data/factions.lua at sprites/towers/<id>.png.
+-- size). Cut files go to sprites/towers/<id>.png and
+-- sprites/heroes/<id>.png (+ .lua); the game picks them up by name.
 ------------------------------------------------------------------------
 A.cTowers = {
     { id = "tower_holy_bastion", file = "sprites/towers/holy_bastion.png", name = "healing shrine tower",

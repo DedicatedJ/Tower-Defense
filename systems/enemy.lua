@@ -231,30 +231,9 @@ function Enemy.init()
 
     -- Painted walk sheets cut by tools/artcut: a PNG plus a .lua file with
     -- the frame layout next to it. Types without one keep the default.
-    Enemy.sheets = {}
+    Enemy.sheets = Enemy.sheets or {}
     for id, enemy in pairs(Enemy.types) do
-        local png = enemy.spriteSheet
-        local metaPath = png and (png:gsub("%.png$", ".lua"))
-        if png and love.filesystem.getInfo(png) and love.filesystem.getInfo(metaPath) then
-            local okMeta, meta = pcall(function() return love.filesystem.load(metaPath)() end)
-            local okImg, img = pcall(love.graphics.newImage, png, { mipmaps = true })
-            if okMeta and okImg and type(meta) == "table" then
-                img:setFilter("linear", "linear")
-                img:setMipmapFilter("linear")
-                local iw, ih = img:getDimensions()
-                local quads = {}
-                for r = 1, meta.rows do
-                    quads[r] = {}
-                    for c = 1, meta.cols do
-                        quads[r][c] = love.graphics.newQuad((c - 1) * meta.frameW, (r - 1) * meta.frameH,
-                            meta.frameW, meta.frameH, iw, ih)
-                    end
-                end
-                Enemy.sheets[id] = { image = img, quads = quads, meta = meta }
-            else
-                print("WARNING: could not load walk sheet for " .. id)
-            end
-        end
+        if enemy.spriteSheet then Enemy.loadSheet(id, enemy.spriteSheet) end
     end
 
     Enemy.initialized = true
@@ -717,6 +696,35 @@ function Enemy.drawFigure(sheetType, x, groundY, direction, animTime, moving, ti
     love.graphics.draw(sheet.image, sheet.quads[row][col], x, footY, 0, s, s, meta.footX, meta.footY)
     love.graphics.setColor(1, 1, 1, 1)
     return footY - (meta.footY - (meta.topY or 0)) * s
+end
+
+-- Load a walk sheet (PNG plus its .lua frame layout from tools/artcut sheet)
+-- under `key`, for Enemy.drawFigure. Returns the sheet, or nil when the
+-- files are not there. Heroes use this too ("hero_<id>").
+function Enemy.loadSheet(key, png)
+    Enemy.sheets = Enemy.sheets or {}
+    if Enemy.sheets[key] then return Enemy.sheets[key] end
+    local metaPath = png:gsub("%.png$", ".lua")
+    if not (love.filesystem.getInfo(png) and love.filesystem.getInfo(metaPath)) then return nil end
+    local okMeta, meta = pcall(function() return love.filesystem.load(metaPath)() end)
+    local okImg, img = pcall(love.graphics.newImage, png, { mipmaps = true })
+    if not (okMeta and okImg and type(meta) == "table") then
+        print("WARNING: could not load walk sheet " .. png)
+        return nil
+    end
+    img:setFilter("linear", "linear")
+    img:setMipmapFilter("linear")
+    local iw, ih = img:getDimensions()
+    local quads = {}
+    for r = 1, meta.rows do
+        quads[r] = {}
+        for c = 1, meta.cols do
+            quads[r][c] = love.graphics.newQuad((c - 1) * meta.frameW, (r - 1) * meta.frameH,
+                meta.frameW, meta.frameH, iw, ih)
+        end
+    end
+    Enemy.sheets[key] = { image = img, quads = quads, meta = meta }
+    return Enemy.sheets[key]
 end
 
 -- Set up pathfinder for the grid map

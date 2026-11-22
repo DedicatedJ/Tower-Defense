@@ -389,8 +389,8 @@ local function buildPrompts(root)
     if A.cTowers then
         w("## 8. Faction towers (Model C)")
         w("")
-        w("Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower`, then point")
-        w("that tower's `sprite` in `data/factions.lua` at the new file.")
+        w("Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower` to")
+        w("`sprites/towers/<tower id>.png`; the game uses it in place of the stand-in sprite automatically.")
         w("")
         for _, t in ipairs(A.cTowers) do
             -- Faction towers have their own colors; say so, or the style line's
@@ -403,7 +403,8 @@ local function buildPrompts(root)
 
         w("## 9. Hero walk sheets (Model C)")
         w("")
-        w("Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor).")
+        w("Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor)")
+        w("to `sprites/heroes/<hero id>.png` and `.lua`; the hero is drawn from it automatically.")
         w("")
         for _, h in ipairs(A.cHeroes) do
             entry(h.id, "sheet", "image 1 = the approved `enemy_zombie` sheet",

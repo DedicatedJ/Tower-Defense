@@ -565,8 +565,8 @@ a quick icy crystalline shatter and hiss
 
 ## 8. Faction towers (Model C)
 
-Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower`, then point
-that tower's `sprite` in `data/factions.lua` at the new file.
+Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower` to
+`sprites/towers/<tower id>.png`; the game uses it in place of the stand-in sprite automatically.
 
 ### tower_holy_bastion
 
@@ -687,7 +687,8 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ## 9. Hero walk sheets (Model C)
 
-Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor).
+Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor)
+to `sprites/heroes/<hero id>.png` and `.lua`; the hero is drawn from it automatically.
 
 ### hero_sir_galahad
 
@@ -904,27 +905,6 @@ Attach the level's gray layout from `art/guides/` as image 1. Cut each with `too
 (24 x 18 cells) and save it as `sprites/maps/<level id>.png`; the game picks it up from there.
 Until then the game draws a generated ground for the level.
 
-### map_crystal_spires
-
-- Save as: `art/incoming/map_crystal_spires_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
-- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_crystal_spires_blockout.png`
-
-```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There are two roads. The first road enters at the left edge near the top, has exactly six right-angle turns in all and leaves at the right edge in the middle. A second road enters at the left edge near the bottom, makes two right-angle turns and joins the first road at the center of the map; from there they are one road.
-
-Ground: a high plateau of short pale green grass with small clusters of blue crystal shards.
-
-Road: warm tan packed earth. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
-
-The near-black areas are tall jagged outcrops of pale blue crystal, where nothing can be built: fill each one edge to edge and keep it inside its black area.
-
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
-
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
-```
-
 ### map_celestial_citadel
 
 - Save as: `art/incoming/map_celestial_citadel_v1.png` (next try `_v2`; never overwrite). Format: png.
@@ -961,27 +941,6 @@ Ground: a dark mossy forest floor in deep green and grey-green, scattered with d
 Road: a muddy brown dirt trail. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
 
 Every part of the layout that is not road is open ground.
-
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
-
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
-```
-
-### map_obsidian_caves
-
-- Save as: `art/incoming/map_obsidian_caves_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
-- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_obsidian_caves_blockout.png`
-
-```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There is one road. It enters at the left edge in the middle, has exactly six right-angle turns in all and leaves at the right edge in the middle.
-
-Ground: a cave floor of dark grey ash and gravel with small glints of black obsidian.
-
-Road: rust-brown packed earth worn smooth. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
-
-The near-black areas are solid black obsidian rock with sharp glassy edges, where nothing can be built: fill each one edge to edge and keep it inside its black area.
 
 Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
 

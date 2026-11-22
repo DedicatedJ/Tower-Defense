@@ -578,6 +578,44 @@ local function run()
     love.mouse.setPosition(0, 0)
 
     ------------------------------------------------------------------
+    log("== Dropped-in art is picked up by name")
+    do
+        -- The save folder is searched before the game folder, so files
+        -- written there stand in for art batch 2 files
+        local function copy(from, to)
+            love.filesystem.createDirectory(to:match("^(.*)/"))
+            assert(love.filesystem.write(to, love.filesystem.read(from)))
+        end
+        local Tower = require('systems.tower')
+        local Enemy = require('systems.enemy')
+        copy("sprites/towers/cannon.png", "sprites/towers/holy_bastion.png")
+        copy("sprites/enemies/zombie.png", "sprites/heroes/sir_galahad.png")
+        copy("sprites/enemies/zombie.lua", "sprites/heroes/sir_galahad.lua")
+        Tower.initialized = false
+        Tower.init()
+        check(Tower.spritePath(Tower.byId.holy_bastion) == "sprites/towers/holy_bastion.png"
+            and Tower.images.holy_bastion ~= nil, "a tower uses sprites/towers/<id>.png when it exists")
+        check(Tower.spritePath(Tower.byId.seraphim_altar) == "sprites/towers/cannon.png",
+            "a tower without its own file keeps its stand-in")
+        local g = newGame("radiant", "sir_galahad")
+        check(g.hero.sheetKey == "hero_sir_galahad", "a hero uses sprites/heroes/<id>.png when it exists")
+        local ok, err = pcall(function() g:draw() end)
+        check(ok, "a hero with a walk sheet draws" .. (ok and "" or (": " .. tostring(err))))
+        g:startNextWave()
+        simulate(4)
+        shot("hero_walk_sheet")
+        local m = newGame("radiant", "archangel_michael")
+        check(m.hero.sheetKey == nil and m.hero.portraitImage == nil, "a hero with no art yet falls back to the lettered token")
+
+        love.filesystem.remove("sprites/towers/holy_bastion.png")
+        love.filesystem.remove("sprites/heroes/sir_galahad.png")
+        love.filesystem.remove("sprites/heroes/sir_galahad.lua")
+        Enemy.sheets.hero_sir_galahad = nil
+        Tower.initialized = false
+        Tower.init()
+    end
+
+    ------------------------------------------------------------------
     log("== Sounds over a whole run")
     do
         local Audio = require('systems.audio')

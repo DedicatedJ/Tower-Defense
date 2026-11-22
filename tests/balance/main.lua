@@ -43,27 +43,30 @@ local DT = 1 / 60
 local ONLY = os.getenv("BALANCE_LEVEL") -- run one level by id
 if ONLY == "" then ONLY = nil end
 
--- Road cells within `range` of a cell center, counting each road once
--- per path that uses it (a merge point is worth more)
-local function coverage(g, gx, gy, range)
-    local cx, cy = g:cellCenter(gx, gy)
+-- How much road lies within `range` of a point: samples every 20 px along
+-- each road, counting a stretch once per road that uses it (a merge point
+-- is worth more)
+local function coverage(g, cx, cy, range)
     local n = 0
-    for _, path in ipairs(g.paths) do
-        for _, c in ipairs(path) do
-            local x, y = g:cellCenter(c.x, c.y)
+    for _, road in ipairs(g.roads) do
+        for d = 0, road:length(), 20 do
+            local x, y = road:pointAt(d)
             if (x - cx) ^ 2 + (y - cy) ^ 2 <= range * range then n = n + 1 end
         end
     end
     return n
 end
 
+-- The free spot (on a 20 px grid inside the build zones) covering the most road
 local function bestSpot(g, range)
     local best, bestN
-    for y = 1, #g.grid do
-        for x = 1, #g.grid[1] do
-            if g:canPlaceTower(x, y) then
-                local n = coverage(g, x, y, range)
-                if not bestN or n > bestN then best, bestN = { x, y }, n end
+    for _, z in ipairs(g.built.zones) do
+        for x = z[1], z[3], 20 do
+            for y = z[2], z[4], 20 do
+                if g:canPlaceTower(x, y) then
+                    local n = coverage(g, x, y, range)
+                    if not bestN or n > bestN then best, bestN = { x, y }, n end
+                end
             end
         end
     end

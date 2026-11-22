@@ -1,9 +1,6 @@
 local GameState = {}
 GameState.__index = GameState
 
--- The map is drawn this many pixels below the top of the window
-GameState.MAP_OFFSET_Y = 40
-
 local Gamestate = require 'libs.hump.gamestate'
 local Timer = require 'libs.hump.timer'
 local Error = require 'utils.error'
@@ -52,8 +49,6 @@ end
 function GameState:setup(selectedFaction, selectedHero, levelId)
     self.isSetUp = true
     self.map = nil
-    self.grid = nil
-    self.tileSize = 32
     -- Canonical faction and hero records (data/factions.lua), whatever
     -- shape the caller passed (table, saved id or nothing)
     local Selection = require('utils.selection')
@@ -142,11 +137,11 @@ end
 -- (or, for the optional ones, until enough time has passed).
 ------------------------------------------------------------------------
 GameState.HINTS = {
-    { text = "Pick a tower on the right (or press 1), then click open ground near the road.",
+    { text = "Pick a tower at the bottom right (or press 1), then click inside a marked zone.",
       done = function(g) return #g.towers > 0 end },
     { text = "Press Start Wave (or Space) when you are ready.",
       done = function(g) return g.wave > 0 end },
-    { text = "Click your hero, then a road cell, to send them where the fight is.",
+    { text = "Click your hero, then a spot on the road, to send them where the fight is.",
       done = function(g, t) return g.heroMoved or t > 25 end },
     { text = "Abilities fire on their own. Press Q, W or E to cast one early.",
       done = function(g, t) return g.manualCasts or t > 20 end },
@@ -178,12 +173,12 @@ end
 function GameState:drawHint()
     local h = self.hintIndex and GameState.HINTS[self.hintIndex]
     if not h or self.isGameOver then return end
-    local mapW = #self.grid[1] * self.tileSize
+    local W = love.graphics.getWidth()
     local font = self.fonts.small
-    local w = math.min(mapW - 40, font:getWidth(h.text) + 40)
-    -- Under the map, so it never covers the road (the tower strip shows there
-    -- only once a tower is clicked, which ends the last hint)
-    local x, y = mapW / 2 - w / 2, GameState.MAP_OFFSET_Y + #self.grid * self.tileSize + 10
+    local w = math.min(W - 40, font:getWidth(h.text) + 40)
+    -- Under the status pill at the top
+    local s = self.ui.status
+    local x, y = W / 2 - w / 2, s.y + s.height + 8
     love.graphics.setColor(0.08, 0.08, 0.12, 0.85)
     love.graphics.rectangle("fill", x, y, w, font:getHeight() + 14, 6, 6)
     love.graphics.setColor(1, 0.85, 0.4, 0.9)
@@ -229,33 +224,23 @@ function GameState:computeMods()
 end
 
 ------------------------------------------------------------------------
--- Map helpers used by units and towers (map coordinates, not screen)
+-- Map helpers used by units and towers (screen pixels; the map fills the
+-- screen)
 ------------------------------------------------------------------------
-function GameState:isRoad(gx, gy)
-    return self.grid and self.grid[gy] and self.grid[gy][gx] == 0 or false
+function GameState:onRoad(x, y)
+    return self.built ~= nil and require('systems.level').onRoad(self.built, x, y)
 end
 
-function GameState:cellCenter(gx, gy)
-    return (gx - 0.5) * self.tileSize, (gy - 0.5) * self.tileSize
+-- Road center point nearest to (x, y); with r, only if within r
+function GameState:nearestRoadPoint(x, y, r)
+    local d, _, _, cx, cy = require('systems.level').nearestRoad(self.built, x, y)
+    if not d or (r and d > r) then return nil end
+    return cx, cy
 end
 
--- Road cell nearest to a point
-function GameState:nearestRoadCell(x, y)
-    local best, bestD
-    for _, c in ipairs(self.roadPath or {}) do
-        local cx, cy = self:cellCenter(c[1], c[2])
-        local d = (cx - x) ^ 2 + (cy - y) ^ 2
-        if not bestD or d < bestD then best, bestD = c, d end
-    end
-    if best then return best[1], best[2] end
-end
-
--- Road cell nearest to a point, but only within radius r
-function GameState:nearestRoadCellWithin(x, y, r)
-    local gx, gy = self:nearestRoadCell(x, y)
-    if not gx then return nil end
-    local cx, cy = self:cellCenter(gx, gy)
-    if (cx - x) ^ 2 + (cy - y) ^ 2 <= r * r then return gx, gy end
+-- A way along the road from one point to another (list of {x, y}), or nil
+function GameState:route(x1, y1, x2, y2)
+    return require('systems.level').nav(self.built):route(x1, y1, x2, y2)
 end
 
 ------------------------------------------------------------------------
@@ -267,9 +252,8 @@ function GameState:spawnHero()
     local ok, progress = pcall(Save.getHeroProgress, self.heroData.id)
     if not ok then progress = { level = 1, xp = 0 } end
     -- Start a little past the middle of the road
-    local road = self.paths[1]
-    local cell = road[math.max(1, math.floor(#road * 0.6))]
-    local x, y = self:cellCenter(cell.x, cell.y)
+    local road = self.roads[1]
+    local x, y = road:pointAt(road:length() * 0.6)
     self.hero = Unit.newHero(self.heroData, self.factionData, x, y, {
         level = progress.level, xp = progress.xp, statMods = self.heroStatMods,
     })
@@ -314,10 +298,8 @@ function GameState:onEnemyDeath(enemy)
                 local def = {}
                 for k, v in pairs(t.convertMinion) do def[k] = v end
                 def.sheet = enemy.type
-                local gx, gy = self:nearestRoadCell(enemy.x, enemy.y)
-                local mx, my = enemy.x, enemy.y
-                if gx then mx, my = self:cellCenter(gx, gy) end
-                self:spawnMinion(def, mx, my, 1)
+                local mx, my = self:nearestRoadPoint(enemy.x, enemy.y)
+                self:spawnMinion(def, mx or enemy.x, my or enemy.y, 1)
                 t.converted = (t.converted or 0) + 1
                 break
             end
@@ -326,233 +308,141 @@ function GameState:onEnemyDeath(enemy)
 end
 
 function GameState:initUI()
-    -- Create UI layout
-    self.ui = {}
-    
-    -- HUD lives in a column to the right of the map so it never covers
-    -- map cells (the map is #grid[1] tiles wide).
-    local panelX = #self.grid[1] * self.tileSize + 8
-    local panelW = 190
-    
-    -- Resources display
-    self.ui.resources = {
-        x = panelX,
-        y = 10,
-        width = panelW,
-        height = 30,
-        draw = function()
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", self.ui.resources.x, self.ui.resources.y, self.ui.resources.width, self.ui.resources.height)
-            
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(self.fonts.medium)
-            love.graphics.print("Gold: " .. math.floor(self.resources), self.ui.resources.x + 10, self.ui.resources.y + 5)
-            -- Wave clear bonus, shown for a moment
-            if self.waveBonusFlash and self.waveBonusFlash > 0 then
-                love.graphics.setColor(1, 0.85, 0.3, math.min(1, self.waveBonusFlash))
-                love.graphics.setFont(self.fonts.small)
-                -- Short, right after the amount, so it never covers it
-                local t = "+" .. self.lastWaveBonus .. (self.bonusLabel == "early call" and " early" or " bonus")
-                local after = self.ui.resources.x + 10 + self.fonts.medium:getWidth("Gold: " .. math.floor(self.resources)) + 8
-                love.graphics.print(t, after, self.ui.resources.y + 9)
-            end
-        end
+    -- The map fills the screen; the HUD floats over it in the boxes listed
+    -- in data/levels.lua (Levels.hud), which level roads keep clear of.
+    local Levels = require('data.levels')
+    local hud = Levels.hud
+    local function box(b) return { x = b[1], y = b[2], width = b[3], height = b[4] } end
+    self.ui = {
+        status = box(hud.status),
+        controls = box(hud.controls),
+        heroPanel = box(hud.hero),
+        towerPanel = box(hud.towers),
     }
-    
-    -- Lives display
-    self.ui.lives = {
-        x = panelX,
-        y = 45,
-        width = panelW,
-        height = 30,
-        draw = function()
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", self.ui.lives.x, self.ui.lives.y, self.ui.lives.width, self.ui.lives.height)
-            
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(self.fonts.medium)
-            love.graphics.print("Lives: " .. self.lives, self.ui.lives.x + 10, self.ui.lives.y + 5)
-        end
-    }
-    
-    -- Wave display
-    self.ui.wave = {
-        x = panelX,
-        y = 80,
-        width = panelW,
-        height = 30,
-        draw = function()
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", self.ui.wave.x, self.ui.wave.y, self.ui.wave.width, self.ui.wave.height)
-            
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(self.fonts.medium)
-            
-            local text
-            if self.waveInProgress then
-                text = "Wave " .. self.wave .. " in progress"
-            else
-                text = "Wave " .. self.wave .. "/" .. self.maxWaves
-            end
-            
-            love.graphics.print(text, self.ui.wave.x + 10, self.ui.wave.y + 5)
-        end
-    }
-    
-    -- Start wave button
-    -- Game speed (1x / 2x / 3x), right of Start Wave; Tab cycles it too
-    self.ui.speed = { x = panelX + panelW - 44, y = 115, width = 44, height = 30 }
-    self.ui.startWave = {
-        x = panelX,
-        y = 115,
-        width = panelW - 50,
-        height = 30,
-        enabled = true,
-        draw = function()
-            local early = self:canCallEarly()
-            if (not self.waveInProgress and self.wave < self.maxWaves) or early then
-                local hover = self:isMouseOver(self.ui.startWave)
-
-                if early then
-                    love.graphics.setColor(hover and { 0.75, 0.55, 0.15, 0.95 } or { 0.6, 0.42, 0.1, 0.9 })
-                elseif hover then
-                    love.graphics.setColor(0.4, 0.7, 0.4, 0.9)
-                else
-                    love.graphics.setColor(0.2, 0.5, 0.2, 0.8)
-                end
-                
-                love.graphics.rectangle("fill", self.ui.startWave.x, self.ui.startWave.y, self.ui.startWave.width, self.ui.startWave.height)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.rectangle("line", self.ui.startWave.x, self.ui.startWave.y, self.ui.startWave.width, self.ui.startWave.height)
-                
-                love.graphics.setFont(self.fonts.medium)
-                local text = early and ("Early +" .. self:earlyBonus()) or "Start Wave"
-                local textW = self.fonts.medium:getWidth(text)
-                love.graphics.print(text, self.ui.startWave.x + self.ui.startWave.width/2 - textW/2, self.ui.startWave.y + 5)
-            else
-                love.graphics.setColor(0.2, 0.2, 0.2, 0.5)
-                love.graphics.rectangle("fill", self.ui.startWave.x, self.ui.startWave.y, self.ui.startWave.width, self.ui.startWave.height)
-                love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
-                love.graphics.rectangle("line", self.ui.startWave.x, self.ui.startWave.y, self.ui.startWave.width, self.ui.startWave.height)
-                
-                love.graphics.setFont(self.fonts.medium)
-                local text = "In Progress"
-                local textW = self.fonts.medium:getWidth(text)
-                love.graphics.print(text, self.ui.startWave.x + self.ui.startWave.width/2 - textW/2, self.ui.startWave.y + 5)
-            end
-        end,
-        onClick = function()
-            self:startNextWave()
-        end
-    }
-    
-    -- Tower panel
-    self.ui.towerPanel = {
-        x = panelX,
-        y = 155,
-        width = panelW,
-        height = 260,
-        draw = function()
-            -- Draw panel background
-            love.graphics.setColor(0, 0, 0, 0.7)
-            love.graphics.rectangle("fill", self.ui.towerPanel.x, self.ui.towerPanel.y, self.ui.towerPanel.width, self.ui.towerPanel.height)
-            love.graphics.setColor(0.3, 0.3, 0.3, 1)
-            love.graphics.rectangle("line", self.ui.towerPanel.x, self.ui.towerPanel.y, self.ui.towerPanel.width, self.ui.towerPanel.height)
-            
-            -- Draw header
-            love.graphics.setColor(0.4, 0.4, 0.6, 1)
-            love.graphics.rectangle("fill", self.ui.towerPanel.x, self.ui.towerPanel.y, self.ui.towerPanel.width, 30)
-            
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.setFont(self.fonts.medium)
-            local title = "Towers"
-            local titleW = self.fonts.medium:getWidth(title)
-            love.graphics.print(title, self.ui.towerPanel.x + self.ui.towerPanel.width/2 - titleW/2, self.ui.towerPanel.y + 5)
-            
-            -- Draw tower buttons (clicks are handled in GameState:mousepressed)
-            for hotkey, button in ipairs(self:getTowerButtons()) do
-                local id, tower, y = button.id, button.tower, button.y
-                local hover = self:isMouseOver(button)
-
-                local selected = self.selectedTower == id
-                
-                -- Draw button background
-                if selected then
-                    love.graphics.setColor(0.4, 0.6, 0.4, 1)
-                elseif hover then
-                    love.graphics.setColor(0.3, 0.5, 0.3, 0.9)
-                else
-                    love.graphics.setColor(0.2, 0.3, 0.4, 0.8)
-                end
-                
-                love.graphics.rectangle("fill", self.ui.towerPanel.x + 10, y, self.ui.towerPanel.width - 20, 60)
-                love.graphics.setColor(0.8, 0.8, 0.8, 1)
-                love.graphics.rectangle("line", self.ui.towerPanel.x + 10, y, self.ui.towerPanel.width - 20, 60)
-                
-                -- Draw tower icon (painted sprite if there is one)
-                love.graphics.setColor(1, 1, 1)
-                if not require("systems.tower").drawIcon(id, self.ui.towerPanel.x + 14, y + 6, 40, 48) then
-                    -- Fallback to a colored rectangle
-                    love.graphics.setColor(0.5, 0.5, 0.7)
-                    love.graphics.rectangle("fill", self.ui.towerPanel.x + 20, y + 10, 32, 32)
-                    love.graphics.setColor(0, 0, 0)
-                    love.graphics.rectangle("line", self.ui.towerPanel.x + 20, y + 10, 32, 32)
-                    love.graphics.setColor(1, 1, 1)
-                end
-                
-                -- Draw tower info
-                love.graphics.setFont(self.fonts.small)
-                love.graphics.print(tower.name, self.ui.towerPanel.x + 60, y + 12)
-                -- Hotkey (1, 2, 3)
-                love.graphics.setColor(1, 0.85, 0.4, 0.9)
-                love.graphics.print(tostring(hotkey), self.ui.towerPanel.x + self.ui.towerPanel.width - 24, y + 4)
-                love.graphics.setColor(1, 1, 1)
-                love.graphics.print("Cost: " .. tower.cost, self.ui.towerPanel.x + 60, y + 30)
-                
-                -- Check if affordable
-                if tower.cost > self.resources then
-                    love.graphics.setColor(1, 0, 0, 0.7)
-                    love.graphics.rectangle("fill", self.ui.towerPanel.x + 10, y, self.ui.towerPanel.width - 20, 60)
-                end
-                
-                -- Set tooltip on hover
-                if hover then
-                    self.tooltip = {
-                        x = love.mouse.getX() + 15,
-                        y = love.mouse.getY(),
-                        width = 250,
-                        title = tower.name,
-                        description = tower.description,
-                        stats = {
-                            { name = "Damage", value = tower.damage },
-                            { name = "Range", value = tower.range },
-                            { name = "Speed", value = string.format("%.1f shots / s", tower.fireRate or 0) }
-                        }
-                    }
-                end
-            end
-        end
-    }
-    
-    -- Update function for UI
-    self.ui.update = function(_, dt)
-        -- Nothing to update in the UI currently
-    end
-    
-    -- Draw function for UI
+    local c = self.ui.controls
+    self.ui.pauseButton = { x = c.x, y = c.y, width = 44, height = c.height }
+    self.ui.speed = { x = c.x + 52, y = c.y, width = 44, height = c.height }
+    self.ui.startWave = { x = c.x + 104, y = c.y, width = c.width - 104, height = c.height,
+        onClick = function() self:startNextWave() end }
+    self.ui.update = function() end
     self.ui.draw = function()
-        -- Draw all UI elements
-        self.ui.resources.draw()
-        self.ui.lives.draw()
-        self.ui.wave.draw()
-        self.ui.startWave.draw()
-        self:drawSpeedButton()
-        self.ui.towerPanel.draw()
+        self:drawStatus()
+        self:drawControls()
+        self:drawTowerButtons()
         self:drawHeroPanel()
     end
+end
 
-    -- Hero panel under the tower panel
-    self.ui.heroPanel = { x = panelX, y = 425, width = panelW, height = 150 }
+-- Rounded dark panel used by every HUD box
+local function panel(x, y, w, h, alpha)
+    love.graphics.setColor(0.06, 0.07, 0.1, alpha or 0.82)
+    love.graphics.rectangle("fill", x, y, w, h, 8, 8)
+    love.graphics.setColor(0.85, 0.75, 0.45, 0.55)
+    love.graphics.setLineWidth(1.5)
+    love.graphics.rectangle("line", x, y, w, h, 8, 8)
+    love.graphics.setLineWidth(1)
+end
+
+-- Lives, gold and wave in the pill at the top
+function GameState:drawStatus()
+    local s = self.ui.status
+    panel(s.x, s.y, s.width, s.height)
+    local font = self.fonts.medium
+    love.graphics.setFont(font)
+    local cy = s.y + s.height / 2
+    local ty = cy - font:getHeight() / 2
+    -- Lives: a red heart (two circles and a triangle)
+    local x = s.x + 22
+    love.graphics.setColor(0.9, 0.25, 0.3, 1)
+    love.graphics.circle("fill", x - 4, cy - 3, 5)
+    love.graphics.circle("fill", x + 4, cy - 3, 5)
+    love.graphics.polygon("fill", x - 9, cy - 1, x + 9, cy - 1, x, cy + 9)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.print(tostring(self.lives), x + 16, ty)
+    -- Gold: a coin
+    x = s.x + 118
+    love.graphics.setColor(0.95, 0.75, 0.2, 1)
+    love.graphics.circle("fill", x, cy, 8)
+    love.graphics.setColor(0.7, 0.5, 0.1, 1)
+    love.graphics.circle("line", x, cy, 5)
+    love.graphics.setColor(1, 1, 1, 1)
+    local gold = tostring(math.floor(self.resources))
+    love.graphics.print(gold, x + 14, ty)
+    -- Wave clear bonus, shown for a moment right after the amount
+    if self.waveBonusFlash and self.waveBonusFlash > 0 then
+        love.graphics.setColor(1, 0.85, 0.3, math.min(1, self.waveBonusFlash))
+        love.graphics.setFont(self.fonts.small)
+        local t = "+" .. self.lastWaveBonus .. (self.bonusLabel == "early call" and " early" or "")
+        love.graphics.print(t, x + 20 + font:getWidth(gold), cy - self.fonts.small:getHeight() / 2)
+        love.graphics.setFont(font)
+    end
+    -- Wave
+    love.graphics.setColor(0.95, 0.9, 0.75, 1)
+    local wave = "Wave " .. self.wave .. "/" .. self.maxWaves
+    love.graphics.print(wave, s.x + s.width - 16 - font:getWidth(wave), ty)
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
+local function button(b, fill, hover, label, font)
+    local c = hover and { fill[1] * 1.25, fill[2] * 1.25, fill[3] * 1.25, fill[4] or 0.95 } or fill
+    love.graphics.setColor(c)
+    love.graphics.rectangle("fill", b.x, b.y, b.width, b.height, 6, 6)
+    love.graphics.setColor(0.85, 0.75, 0.45, 0.7)
+    love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 6, 6)
+    if label then
+        love.graphics.setFont(font)
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.printf(label, b.x, b.y + b.height / 2 - font:getHeight() / 2, b.width, "center")
+    end
+end
+
+-- Pause, speed and Start Wave at the top right; the next wave's make-up
+-- shows while the mouse is over them
+function GameState:drawControls()
+    local p, sp, sw = self.ui.pauseButton, self.ui.speed, self.ui.startWave
+    local font = self.fonts.medium
+    -- Pause: two bars
+    button(p, { 0.12, 0.14, 0.2, 0.9 }, self:isMouseOver(p))
+    love.graphics.setColor(1, 1, 1, 0.95)
+    love.graphics.rectangle("fill", p.x + 15, p.y + 13, 5, p.height - 26, 1)
+    love.graphics.rectangle("fill", p.x + 24, p.y + 13, 5, p.height - 26, 1)
+    -- Speed
+    local fast = (self.speed or 1) > 1
+    button(sp, fast and { 0.55, 0.4, 0.15, 0.95 } or { 0.12, 0.14, 0.2, 0.9 }, self:isMouseOver(sp),
+        (self.speed or 1) .. "x", font)
+    -- Start Wave / call early / in progress
+    local early = self:canCallEarly()
+    if (not self.waveInProgress and self.wave < self.maxWaves) or early then
+        local fill = early and { 0.6, 0.42, 0.1, 0.95 } or { 0.2, 0.45, 0.22, 0.95 }
+        button(sw, fill, self:isMouseOver(sw), early and ("Early +" .. self:earlyBonus()) or "Start Wave", font)
+    else
+        button(sw, { 0.15, 0.15, 0.18, 0.8 }, false, self.wave >= self.maxWaves and "Final wave" or "In Progress", font)
+    end
+    if self:isMouseOver(self.ui.controls) or self:isMouseOver(self.ui.status) then self:drawWaveInfo() end
+end
+
+-- Level name and what the next wave brings, under the controls
+function GameState:drawWaveInfo()
+    local c = self.ui.controls
+    local font = self.fonts.small
+    local w = 300
+    local x, y = c.x + c.width - w, c.y + c.height + 6
+    local lines = { self.level.name }
+    local nextWave = self.waves[self.wave + 1]
+    if nextWave and not self.isGameOver then
+        local label = self.waveInProgress and "After this: " or "Next: "
+        lines[#lines + 1] = label .. require('systems.wave').summary(nextWave)
+    elseif self.wave >= self.maxWaves then
+        lines[#lines + 1] = "Final wave"
+    end
+    local text = table.concat(lines, "\n")
+    local _, wrapped = font:getWrap(text, w - 16)
+    local h = #wrapped * font:getHeight() + 12
+    panel(x, y, w, h, 0.9)
+    love.graphics.setFont(font)
+    love.graphics.setColor(0.95, 0.9, 0.75, 1)
+    love.graphics.printf(text, x + 8, y + 6, w - 16)
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- The selected faction's towers, keyed by id (data/factions.lua)
@@ -564,16 +454,80 @@ function GameState:loadTowerData()
     self.towerData = Tower.getSet(self.selectedFaction)
 end
 
+-- Tower buttons in a fixed order (pairs() order is unspecified), shared by
+-- draw and mousepressed so both agree on what is where. Bottom right.
+function GameState:getTowerButtons()
+    local ids = {}
+    for id in pairs(self.towerData) do
+        table.insert(ids, id)
+    end
+    table.sort(ids, function(a, b)
+        local ca, cb = self.towerData[a].cost, self.towerData[b].cost
+        if ca ~= cb then return ca < cb end
+        return a < b
+    end)
+    local p = self.ui.towerPanel
+    local gap = 9
+    local w = (p.width - gap * (#ids - 1)) / math.max(1, #ids)
+    local buttons = {}
+    for i, id in ipairs(ids) do
+        buttons[#buttons + 1] = { id = id, tower = self.towerData[id],
+            x = p.x + (i - 1) * (w + gap), y = p.y, width = w, height = p.height }
+    end
+    return buttons
+end
+
+function GameState:drawTowerButtons()
+    local font = self.fonts.small
+    for hotkey, b in ipairs(self:getTowerButtons()) do
+        local tower = b.tower
+        local hover = self:isMouseOver(b)
+        local selected = self.selectedTower == b.id
+        local afford = tower.cost <= self.resources
+        local fill = selected and { 0.3, 0.45, 0.28, 0.95 } or { 0.06, 0.07, 0.1, 0.85 }
+        button(b, fill, hover)
+        if selected then
+            love.graphics.setColor(1, 0.9, 0.4, 1)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 6, 6)
+            love.graphics.setLineWidth(1)
+        end
+        love.graphics.setColor(1, 1, 1, afford and 1 or 0.45)
+        if not require("systems.tower").drawIcon(b.id, b.x + b.width / 2 - 22, b.y + 4, 44, 52) then
+            love.graphics.setColor(0.5, 0.5, 0.7, afford and 1 or 0.45)
+            love.graphics.rectangle("fill", b.x + b.width / 2 - 16, b.y + 14, 32, 32)
+        end
+        love.graphics.setFont(font)
+        love.graphics.setColor(1, 0.85, 0.4, 0.95)
+        love.graphics.print(tostring(hotkey), b.x + 6, b.y + 4)
+        love.graphics.setColor(afford and { 1, 0.85, 0.3, 1 } or { 1, 0.4, 0.35, 1 })
+        love.graphics.printf(tostring(tower.cost), b.x, b.y + b.height - font:getHeight() - 5, b.width, "center")
+        if hover then
+            self.tooltip = {
+                x = love.mouse.getX() - 260, y = b.y - 200, width = 250,
+                title = tower.name, description = tower.description,
+                stats = {
+                    { name = "Cost", value = tower.cost },
+                    { name = "Damage", value = tower.damage },
+                    { name = "Range", value = tower.range },
+                    { name = "Speed", value = string.format("%.1f shots / s", tower.fireRate or 0) },
+                },
+            }
+        end
+    end
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 ------------------------------------------------------------------------
--- Hero panel (right column) and tower panel (strip under the map)
+-- Hero card (bottom left) and the card of a placed tower
 ------------------------------------------------------------------------
 function GameState:getAbilityButtons()
     local p = self.ui.heroPanel
     local buttons = {}
-    local w, gap = 56, 6
+    local x0, w, gap = p.x + 76, 64, 6
     for i = 1, 3 do
         buttons[i] = { index = i, key = ({ "Q", "W", "E" })[i],
-            x = p.x + 4 + (i - 1) * (w + gap), y = p.y + 98, width = w, height = 46 }
+            x = x0 + (i - 1) * (w + gap), y = p.y + 44, width = w, height = p.height - 50 }
     end
     return buttons
 end
@@ -591,13 +545,11 @@ function GameState:drawHeroPanel()
     local h = self.hero
     local p = self.ui.heroPanel
     if not h or not p then return end
-    love.graphics.setColor(0, 0, 0, 0.7)
-    love.graphics.rectangle("fill", p.x, p.y, p.width, p.height)
-    love.graphics.setColor(0.3, 0.3, 0.3, 1)
-    love.graphics.rectangle("line", p.x, p.y, p.width, p.height)
+    panel(p.x, p.y, p.width, p.height)
+    local mx, my = love.mouse.getPosition()
 
     -- Portrait
-    local px, py, r = p.x + 26, p.y + 28, 20
+    local px, py, r = p.x + 38, p.y + p.height / 2, 30
     love.graphics.setColor(0.1, 0.1, 0.12, 1)
     love.graphics.circle("fill", px, py, r + 2)
     if h.portraitImage then
@@ -606,33 +558,37 @@ function GameState:drawHeroPanel()
         love.graphics.draw(h.portraitImage, px, py, 0, s, s,
             h.portraitImage:getWidth() / 2, h.portraitImage:getHeight() / 2)
     end
-    if h.selected then
-        love.graphics.setColor(1, 0.9, 0.3, 1)
-        love.graphics.setLineWidth(2)
-        love.graphics.circle("line", px, py, r + 2)
-        love.graphics.setLineWidth(1)
+    love.graphics.setColor(h.selected and { 1, 0.9, 0.3, 1 } or { 0.85, 0.75, 0.45, 0.7 })
+    love.graphics.setLineWidth(h.selected and 3 or 1.5)
+    love.graphics.circle("line", px, py, r + 2)
+    love.graphics.setLineWidth(1)
+    -- Level badge
+    love.graphics.setFont(self.fonts.small)
+    love.graphics.setColor(0.06, 0.07, 0.1, 0.95)
+    love.graphics.circle("fill", px + 22, py + 22, 10)
+    love.graphics.setColor(1, 0.85, 0.3, 1)
+    love.graphics.printf(tostring(h.level), px + 12, py + 22 - self.fonts.small:getHeight() / 2, 20, "center")
+    if (mx - px) ^ 2 + (my - py) ^ 2 <= r * r then
+        self.tooltip = { x = mx + 12, y = my - 170, width = 260, title = h.name,
+            description = "Level " .. h.level .. " " .. h.role .. "\nPassive: " .. (h.passive and h.passive.name or "-")
+                .. "\nClick the hero, then a spot on the road, to move them.",
+            stats = {} }
     end
 
-    love.graphics.setFont(self.fonts.small)
+    -- Name, then health (or respawn) and XP bars
+    local x0, w = p.x + 76, p.width - 84
     love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.print(h.name, p.x + 52, p.y + 6)
-    love.graphics.setColor(1, 0.85, 0.3, 1)
-    love.graphics.print("Level " .. h.level .. "  " .. h.role, p.x + 52, p.y + 22)
+    love.graphics.print(h.name, x0, p.y + 6)
     if h.dead then
         love.graphics.setColor(1, 0.5, 0.5, 1)
-        love.graphics.print("Respawn in " .. math.ceil(h.respawnTimer or 0) .. " s", p.x + 52, p.y + 38)
+        love.graphics.print("Respawn in " .. math.ceil(h.respawnTimer or 0) .. " s", x0, p.y + 24)
     else
-        bar(p.x + 52, p.y + 40, p.width - 60, 7, h.health / h.maxHealth, { 0.3, 0.9, 0.4 })
+        bar(x0, p.y + 26, w, 7, h.health / h.maxHealth, { 0.3, 0.9, 0.4 })
     end
     local xpFrac = h.level >= 10 and 1 or h.xp / 200
-    bar(p.x + 52, p.y + 52, p.width - 60, 4, xpFrac, { 1, 0.8, 0.3 })
-    love.graphics.setColor(0.8, 0.8, 0.8, 1)
-    love.graphics.print("Passive: " .. (h.passive and h.passive.name or "-"), p.x + 6, p.y + 62)
-    love.graphics.setColor(0.6, 0.6, 0.6, 1)
-    love.graphics.print("Click hero, then the road to move", p.x + 6, p.y + 78)
+    bar(x0, p.y + 36, w, 4, xpFrac, { 1, 0.8, 0.3 })
 
     -- Ability buttons
-    local mx, my = love.mouse.getPosition()
     for _, b in ipairs(self:getAbilityButtons()) do
         local slot = h.abilities[b.index]
         if slot then
@@ -651,52 +607,64 @@ function GameState:drawHeroPanel()
             love.graphics.setColor(0.8, 0.8, 0.8, 1)
             love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 4, 4)
             love.graphics.setColor(1, 0.85, 0.3, 1)
-            love.graphics.print(b.key, b.x + 4, b.y + 2)
+            love.graphics.print(b.key, b.x + 4, b.y + 1)
             love.graphics.setColor(1, 1, 1, 1)
             -- First word of the name, trimmed to fit on one line
             local short = slot.data.name:match("^(%S+)") or slot.data.name
             local font = love.graphics.getFont()
             while #short > 1 and font:getWidth(short) > b.width - 6 do short = short:sub(1, -2) end
-            love.graphics.printf(short, b.x, b.y + 18, b.width, "center")
             if slot.cooldown > 0 then
-                love.graphics.printf(tostring(math.ceil(slot.cooldown)), b.x, b.y + 31, b.width, "center")
+                love.graphics.printf(tostring(math.ceil(slot.cooldown)), b.x, b.y + 15, b.width, "center")
+            else
+                love.graphics.printf(short, b.x, b.y + 15, b.width, "center")
             end
             if self:pointInRect(mx, my, b) then
-                self.tooltip = { x = mx - 260, y = my - 90, width = 250,
+                self.tooltip = { x = mx + 12, y = my - 140, width = 250,
                     title = slot.data.name .. " (" .. b.key .. ")",
                     description = slot.data.description .. "\nCooldown " .. slot.data.cooldown .. " s",
                     stats = {} }
             end
         end
     end
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
--- Buttons for the placed tower that is selected (strip under the map)
-function GameState:getFocusButtons()
+-- Card for the placed tower that is selected: next to the tower, kept on
+-- screen. Two upgrades side by side, Sell under them.
+GameState.CARD_W, GameState.CARD_H = 300, 150
+
+function GameState:focusCardRect()
     local t = self.focusTower
-    if not t then return {} end
-    local y = GameState.MAP_OFFSET_Y + #self.grid * self.tileSize + 8
+    if not t then return nil end
+    local W, H = love.graphics.getWidth(), love.graphics.getHeight()
+    local w, h = GameState.CARD_W, GameState.CARD_H
+    local x = t.x + 40
+    if x + w > W - 6 then x = t.x - 40 - w end
+    local y = math.max(6, math.min(H - h - 6, t.y - 20 - h / 2))
+    return { x = x, y = y, width = w, height = h }
+end
+
+function GameState:getFocusButtons()
+    local c = self:focusCardRect()
+    if not c then return {} end
     local buttons = {}
-    for i, up in ipairs(t.data.upgrades) do
+    for i, up in ipairs(self.focusTower.data.upgrades) do
         buttons[#buttons + 1] = { kind = "upgrade", index = i, upgrade = up,
-            x = 250 + (i - 1) * 215, y = y, width = 205, height = 64 }
+            x = c.x + 6 + (i - 1) * 147, y = c.y + 30, width = 141, height = 74 }
     end
-    buttons[#buttons + 1] = { kind = "sell", x = 680, y = y, width = 80, height = 64 }
+    buttons[#buttons + 1] = { kind = "sell", x = c.x + 6, y = c.y + 110, width = c.width - 12, height = 34 }
     return buttons
 end
 
 function GameState:drawFocusPanel()
     local t = self.focusTower
-    if not t then return end
-    local y = GameState.MAP_OFFSET_Y + #self.grid * self.tileSize + 4
-    love.graphics.setColor(0, 0, 0, 0.75)
-    love.graphics.rectangle("fill", 0, y, #self.grid[1] * self.tileSize, 76)
+    local c = self:focusCardRect()
+    if not c then return end
+    panel(c.x, c.y, c.width, c.height, 0.92)
     love.graphics.setFont(self.fonts.medium)
     love.graphics.setColor(1, 0.9, 0.5, 1)
-    love.graphics.print(t.name, 10, y + 6)
+    love.graphics.print(t.name, c.x + 8, c.y + 5)
     love.graphics.setFont(self.fonts.small)
-    love.graphics.setColor(0.85, 0.85, 0.85, 1)
-    love.graphics.printf(t.description, 10, y + 30, 230)
     for _, b in ipairs(self:getFocusButtons()) do
         if b.kind == "upgrade" then
             local bought = t.bought[b.index]
@@ -708,29 +676,34 @@ function GameState:drawFocusPanel()
             love.graphics.setColor(0.8, 0.8, 0.8, 1)
             love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 4, 4)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print(b.upgrade.name, b.x + 6, b.y + 4)
+            love.graphics.print(b.upgrade.name, b.x + 5, b.y + 3)
             love.graphics.setColor(0.8, 0.8, 0.8, 1)
-            love.graphics.printf(b.upgrade.description, b.x + 6, b.y + 20, b.width - 12)
+            love.graphics.printf(b.upgrade.description, b.x + 5, b.y + 19, b.width - 10)
             love.graphics.setColor(1, 0.85, 0.3, 1)
-            love.graphics.print(bought and "Bought" or ("Cost: " .. b.upgrade.cost), b.x + 6, b.y + 48)
+            love.graphics.print(bought and "Bought" or ("Cost: " .. b.upgrade.cost), b.x + 5, b.y + b.height - 17)
         else
             love.graphics.setColor(0.35, 0.25, 0.1, 0.95)
             love.graphics.rectangle("fill", b.x, b.y, b.width, b.height, 4, 4)
             love.graphics.setColor(0.8, 0.8, 0.8, 1)
             love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 4, 4)
             love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.printf("Sell", b.x, b.y + 12, b.width, "center")
-            love.graphics.setColor(1, 0.85, 0.3, 1)
-            love.graphics.printf("+" .. t:sellValue(), b.x, b.y + 34, b.width, "center")
+            love.graphics.printf("Sell  +" .. t:sellValue(), b.x, b.y + b.height / 2 - self.fonts.small:getHeight() / 2,
+                b.width, "center")
         end
     end
     love.graphics.setColor(1, 1, 1, 1)
 end
 
-function GameState:towerAt(gx, gy)
+-- The placed tower at a screen point: its base or the body above it
+function GameState:towerAt(x, y)
+    local best, bestD
     for _, t in ipairs(self.towers) do
-        if t.gridX == gx and t.gridY == gy then return t end
+        if math.abs(x - t.x) <= 24 and y >= t.y - 60 and y <= t.y + 16 then
+            local d = math.abs(x - t.x) + math.abs(y - (t.y - 20))
+            if not bestD or d < bestD then best, bestD = t, d end
+        end
     end
+    return best
 end
 
 function GameState:setFocusTower(t)
@@ -745,7 +718,6 @@ function GameState:sellTower(t)
     for i, other in ipairs(self.towers) do
         if other == t then table.remove(self.towers, i) break end
     end
-    self.grid[t.gridY][t.gridX] = 1
     if self.focusTower == t then self:setFocusTower(nil) end
 end
 
@@ -754,34 +726,6 @@ function GameState:clearSelection()
     self.towerPreview = nil
     if self.hero then self.hero.selected = false end
     self:setFocusTower(nil)
-end
-
--- Tower panel buttons in a fixed order (pairs() order is unspecified),
--- shared by draw and mousepressed so both agree on what is where.
-function GameState:getTowerButtons()
-    local ids = {}
-    for id in pairs(self.towerData) do
-        table.insert(ids, id)
-    end
-    table.sort(ids, function(a, b)
-        local ca, cb = self.towerData[a].cost, self.towerData[b].cost
-        if ca ~= cb then return ca < cb end
-        return a < b
-    end)
-
-    local panel = self.ui.towerPanel
-    local buttons = {}
-    for i, id in ipairs(ids) do
-        table.insert(buttons, {
-            id = id,
-            tower = self.towerData[id],
-            x = panel.x + 10,
-            y = panel.y + 40 + (i - 1) * 70,
-            width = panel.width - 20,
-            height = 60
-        })
-    end
-    return buttons
 end
 
 function GameState:pointInRect(px, py, r)
@@ -800,17 +744,17 @@ function GameState:selectTowerType(id)
         self:showError("Not enough resources!")
     else
         self.selectedTower = id
-        self.towerPreview = {
-            type = id,
-            gridX = 0,
-            gridY = 0,
-            x = 0,
-            y = 0,
-            range = tower.range,
-            canPlace = false
-        }
+        self.towerPreview = { type = id, x = 0, y = 0, range = tower.range, canPlace = false }
     end
 end
+
+-- Why a spot can't take a tower, for the message
+GameState.BUILD_ERRORS = {
+    zone = "Build inside a marked zone",
+    road = "Too close to the road",
+    tower = "Too close to another tower",
+    hud = "Can't build there",
+}
 
 function GameState:mousepressed(x, y, button)
     if self.isGameOver then
@@ -830,7 +774,31 @@ function GameState:mousepressed(x, y, button)
 
     if button ~= 1 then return end
 
-    -- Start wave button
+    -- The selected tower's card (it floats over the map)
+    local card = self:focusCardRect()
+    if card and self:pointInRect(x, y, card) then
+        for _, b in ipairs(self:getFocusButtons()) do
+            if self:pointInRect(x, y, b) then
+                local t = self.focusTower
+                if b.kind == "sell" then
+                    self:sellTower(t)
+                elseif t.bought[b.index] then
+                    self:showError("Already bought")
+                elseif self.resources < b.upgrade.cost then
+                    self:showError("Not enough resources!")
+                else
+                    local cost = t:buyUpgrade(b.index)
+                    self.resources = self.resources - cost
+                    self.stats.spent = self.stats.spent + cost
+                    require('systems.audio').play("upgrade")
+                end
+                return
+            end
+        end
+        return
+    end
+
+    -- HUD
     if self:pointInRect(x, y, self.ui.startWave) then
         self.ui.startWave.onClick()
         return
@@ -839,16 +807,16 @@ function GameState:mousepressed(x, y, button)
         self:cycleSpeed()
         return
     end
-
-    -- Hero ability buttons
+    if self:pointInRect(x, y, self.ui.pauseButton) then
+        self:pause()
+        return
+    end
     for _, b in ipairs(self:getAbilityButtons()) do
         if self:pointInRect(x, y, b) then
             if self.hero and self.hero:castAbility(b.index, self, true) then self.manualCasts = true end
             return
         end
     end
-
-    -- Tower panel buttons
     for _, b in ipairs(self:getTowerButtons()) do
         if self:pointInRect(x, y, b) then
             if self.hero then self.hero.selected = false end
@@ -857,36 +825,22 @@ function GameState:mousepressed(x, y, button)
             return
         end
     end
-
-    -- Upgrade / sell strip for the selected tower
-    for _, b in ipairs(self:getFocusButtons()) do
-        if self:pointInRect(x, y, b) then
-            local t = self.focusTower
-            if b.kind == "sell" then
-                self:sellTower(t)
-            elseif t.bought[b.index] then
-                self:showError("Already bought")
-            elseif self.resources < b.upgrade.cost then
-                self:showError("Not enough resources!")
-            else
-                local cost = t:buyUpgrade(b.index)
-                self.resources = self.resources - cost
-                self.stats.spent = self.stats.spent + cost
-                require('systems.audio').play("upgrade")
-            end
-            return
-        end
+    -- The hero's portrait selects the hero too
+    local hp = self.ui.heroPanel
+    if self.hero and (x - (hp.x + 38)) ^ 2 + (y - (hp.y + hp.height / 2)) ^ 2 <= 32 * 32 then
+        self:setFocusTower(nil)
+        self.selectedTower, self.towerPreview = nil, nil
+        self.hero.selected = not self.hero.selected
+        return
     end
-
-    -- Ignore other clicks on the side panel or below the map
-    if x >= self.ui.towerPanel.x then return end
-    local mapY = y - GameState.MAP_OFFSET_Y
-    if mapY < 0 or mapY >= #self.grid * self.tileSize then return end
-    local gridX, gridY = self:pixelToGrid(x, y)
+    for _, key in ipairs({ "status", "controls", "heroPanel", "towerPanel" }) do
+        if self:pointInRect(x, y, self.ui[key]) then return end
+    end
 
     -- Place the selected tower type on the map
     if self.selectedTower then
-        if self:placeTower(gridX, gridY, self.selectedTower) then
+        local ok, reason = self:placeTower(x, y, self.selectedTower)
+        if ok then
             -- Keep the tower selected for repeat placement while affordable
             local data = self.towerData[self.selectedTower]
             if data.cost > self.resources then
@@ -894,14 +848,14 @@ function GameState:mousepressed(x, y, button)
                 self.towerPreview = nil
             end
         else
-            self:showError("Can't build there")
+            self:showError(GameState.BUILD_ERRORS[reason] or "Can't build there")
         end
         return
     end
 
     local hero = self.hero
     -- Click the hero to select it
-    if hero and hero:isUnder(x, mapY) then
+    if hero and hero:isUnder(x, y) then
         self:setFocusTower(nil)
         hero.selected = not hero.selected
         return
@@ -909,8 +863,8 @@ function GameState:mousepressed(x, y, button)
 
     -- Hero selected: click the road to send it there
     if hero and hero.selected then
-        if self:isRoad(gridX, gridY) then
-            if hero:commandMove(gridX, gridY, self) then
+        if self:onRoad(x, y) then
+            if hero:commandMove(x, y, self) then
                 self.heroMoved = true
                 hero.selected = false
             else
@@ -922,8 +876,8 @@ function GameState:mousepressed(x, y, button)
         return
     end
 
-    -- Click a tower to open its upgrades
-    local t = self:towerAt(gridX, gridY)
+    -- Click a tower to open its card
+    local t = self:towerAt(x, y)
     if t then
         self:setFocusTower(t ~= self.focusTower and t or nil)
         return
@@ -978,18 +932,6 @@ function GameState:cycleSpeed()
         if v == cur then nextSpeed = GameState.SPEEDS[i % #GameState.SPEEDS + 1] end
     end
     self.speed = nextSpeed
-end
-
-function GameState:drawSpeedButton()
-    local b = self.ui.speed
-    local hover = self:isMouseOver(b)
-    local fast = (self.speed or 1) > 1
-    love.graphics.setColor(fast and { 0.55, 0.4, 0.15, 0.95 } or (hover and { 0.3, 0.3, 0.45, 0.95 } or { 0.2, 0.2, 0.3, 0.85 }))
-    love.graphics.rectangle("fill", b.x, b.y, b.width, b.height)
-    love.graphics.setColor(1, 1, 1, 0.9)
-    love.graphics.rectangle("line", b.x, b.y, b.width, b.height)
-    love.graphics.setFont(self.fonts.medium)
-    love.graphics.printf((self.speed or 1) .. "x", b.x, b.y + 5, b.width, "center")
 end
 
 function GameState:enter(previous, faction, hero)
@@ -1055,8 +997,7 @@ function GameState:step(dt)
             self.lives = self.lives - enemy.damage
             require('systems.audio').play("life_lost")
             self.stats.leaks[self.wave] = (self.stats.leaks[self.wave] or 0) + enemy.damage
-            local gx, gy = self:cellCenter(self.endX, self.endY)
-            require('systems.fx').lifeLost(gx, gy, enemy.damage)
+            require('systems.fx').lifeLost(self.endX, self.endY, enemy.damage)
             table.remove(self.enemies, i)
             
             -- Check game over condition
@@ -1123,38 +1064,9 @@ function GameState:step(dt)
     -- Update tower preview
     if self.towerPreview then
         local mouseX, mouseY = love.mouse.getPosition()
-        local gridX, gridY = self:pixelToGrid(mouseX, mouseY)
-        
-        self.towerPreview.gridX = gridX
-        self.towerPreview.gridY = gridY
-        self.towerPreview.x = (gridX - 1) * self.tileSize
-        self.towerPreview.y = (gridY - 1) * self.tileSize
-        self.towerPreview.canPlace = self:canPlaceTower(gridX, gridY)
+        self.towerPreview.x, self.towerPreview.y = mouseX, mouseY
+        self.towerPreview.canPlace = self:canPlaceTower(mouseX, mouseY)
     end
-end
-
--- Level name and what the next wave brings, under the hero panel
-function GameState:drawWaveInfo()
-    local hp = self.ui.heroPanel
-    local x, y, w = hp.x, hp.y + hp.height + 24, hp.width
-    local font = self.fonts.small
-    love.graphics.setFont(font)
-    local lines = { self.level.name }
-    local nextWave = self.waves[self.wave + 1]
-    if nextWave and not self.isGameOver then
-        local label = self.waveInProgress and "After this: " or "Next: "
-        lines[#lines + 1] = label .. require('systems.wave').summary(nextWave)
-    elseif self.wave >= self.maxWaves then
-        lines[#lines + 1] = "Final wave"
-    end
-    local text = table.concat(lines, "\n")
-    local _, wrapped = font:getWrap(text, w - 12)
-    local h = #wrapped * font:getHeight() + 10
-    love.graphics.setColor(0, 0, 0, 0.6)
-    love.graphics.rectangle("fill", x, y, w, h, 4, 4)
-    love.graphics.setColor(0.95, 0.9, 0.75, 1)
-    love.graphics.printf(text, x + 6, y + 5, w - 12)
-    love.graphics.setColor(1, 1, 1, 1)
 end
 
 -- The next wave can be called early once the current one has finished
@@ -1203,8 +1115,8 @@ end
 -- Create one enemy on road `pathIndex` and add it to the game
 function GameState:addEnemy(enemyType, pathIndex, healthMult)
     local Enemy = require("systems.enemy")
-    local path = self.paths[pathIndex] or self.paths[1]
-    local enemy = Enemy.create(enemyType, path, self.tileSize)
+    local road = self.roads[pathIndex] or self.roads[1]
+    local enemy = Enemy.create(enemyType, road)
     if not enemy then return nil end
     local mult = healthMult or 1
     enemy.health = enemy.health * mult
@@ -1225,82 +1137,33 @@ function GameState:raiseMinion(caster)
     local s = caster.summon
     local e = self:addEnemy(s.type, 1, (self.waveHealthMult or 1) * s.healthMult)
     if not e then return end
-    e.path = caster.path
-    e.currentPathIndex = caster.currentPathIndex
-    e.x, e.y = caster.x, caster.y
-    e.gridX, e.gridY = caster.gridX, caster.gridY
+    -- Same road and spot, a little to one side
+    local Enemy = require("systems.enemy")
+    local size = Enemy.SIZES[e.size]
+    local maxOffset = math.max(0, caster.road.width / 2 - size.radius - Enemy.LANE_MARGIN)
+    e.road, e.piece = caster.road, caster.piece
+    e.offset = math.max(-maxOffset, math.min(maxOffset, caster.offset + (love.math.random() - 0.5) * 24))
+    e:placeAt(caster.distance)
     e.value = s.value
     e.raised = true
     self.raisedCount = (self.raisedCount or 0) + 1
 end
 
 function GameState:draw()
-    -- Everything on the map is drawn in map coordinates, shifted down so
-    -- figures on the top row of the road (and flyers above it) stay on screen.
-    -- The HUD, tooltip and overlays below are drawn in screen coordinates.
-    love.graphics.push()
-    love.graphics.translate(0, GameState.MAP_OFFSET_Y)
-
-    -- Draw map
-    local mapW, mapH = 0, 0
-    if self.grid then
-        mapW, mapH = #self.grid[1] * self.tileSize, #self.grid * self.tileSize
-    end
-    if self.grid and self.mapImage then
-        -- Painted plate, scaled to the grid
+    -- The map fills the screen; the HUD, tooltip and overlays float over it
+    local Level = require('systems.level')
+    if self.mapImage then
         love.graphics.setColor(1, 1, 1, 1)
-        love.graphics.draw(self.mapImage, 0, 0, 0,
-            mapW / self.mapImage:getWidth(), mapH / self.mapImage:getHeight())
-        if self.built and #self.built.portals > 0 then
-            require('systems.level').drawPortals(self.built, self.tileSize, self.mapTime or 0)
-        end
-
-        -- Build grid only while placing a tower, so it never sits over the art
-        if self.towerPreview then
-            love.graphics.setColor(1, 1, 1, 0.12)
-            for y = 1, #self.grid do
-                for x = 1, #self.grid[1] do
-                    if self.grid[y][x] == 1 then
-                        love.graphics.rectangle("line", (x-1) * self.tileSize, (y-1) * self.tileSize, self.tileSize, self.tileSize)
-                    end
-                end
-            end
-        end
-    elseif self.grid then
-        love.graphics.setColor(1, 1, 1)
-        -- Draw the background
-        love.graphics.setColor(0.3, 0.7, 0.3)
-        love.graphics.rectangle("fill", 0, 0, mapW, mapH)
-
-        -- Draw the path
-        love.graphics.setColor(0.8, 0.7, 0.5)
-        for y = 1, #self.grid do
-            for x = 1, #self.grid[1] do
-                if self.grid[y][x] == 0 then
-                    love.graphics.rectangle("fill", (x-1) * self.tileSize, (y-1) * self.tileSize, self.tileSize, self.tileSize)
-                end
-            end
-        end
-
-        -- Draw tower placement tiles
-        love.graphics.setColor(0.5, 0.5, 0.5, 0.3)
-        for y = 1, #self.grid do
-            for x = 1, #self.grid[1] do
-                if self.grid[y][x] == 1 then
-                    love.graphics.rectangle("fill", (x-1) * self.tileSize, (y-1) * self.tileSize, self.tileSize, self.tileSize)
-                end
-            end
-        end
-        
-        -- Draw tower placement grid
-        love.graphics.setColor(0.5, 0.5, 0.5, 0.2)
-        for y = 1, #self.grid do
-            for x = 1, #self.grid[1] do
-                love.graphics.rectangle("line", (x-1) * self.tileSize, (y-1) * self.tileSize, self.tileSize, self.tileSize)
-            end
-        end
+        love.graphics.draw(self.mapImage, 0, 0)
     end
-    
+    if self.built and #self.built.portals > 0 then
+        Level.drawPortals(self.built, self.mapTime or 0)
+    end
+    -- Build zones only while placing a tower, so they never sit over the art
+    if self.towerPreview then
+        Level.drawZones(self.built, self.mapTime or 0)
+    end
+
     -- Draw towers and enemies together, back to front by where they touch
     -- the ground, so a tall tower covers whatever stands behind it and
     -- anything in front of it covers the tower.
@@ -1310,7 +1173,7 @@ function GameState:draw()
         drawables[#drawables + 1] = { y = baseY, obj = tower }
     end
     for _, enemy in ipairs(self.enemies) do
-        drawables[#drawables + 1] = { y = enemy.y + (enemy.height or 32) / 4, obj = enemy }
+        drawables[#drawables + 1] = { y = enemy.y + 8, obj = enemy }
     end
     for _, u in ipairs(self.units) do
         drawables[#drawables + 1] = { y = u.y + 8, obj = u }
@@ -1320,23 +1183,21 @@ function GameState:draw()
         d.obj:draw()
     end
 
+    local mx, my = love.mouse.getPosition()
     -- Range of the selected tower, or the tower under the mouse
     if self.focusTower then
         self.focusTower:drawRange()
     elseif not self.towerPreview then
-        local gx, gy = self:pixelToGrid(love.mouse.getPosition())
-        local t = self:towerAt(gx, gy)
+        local t = self:towerAt(mx, my)
         if t then t:drawRange() end
     end
 
-    -- Hero selected: outline the road cell under the mouse as the move target
+    -- Hero selected: a ring where it would go when the mouse is on the road
     if self.hero and self.hero.selected then
-        local gx, gy = self:pixelToGrid(love.mouse.getPosition())
-        if self:isRoad(gx, gy) then
-            love.graphics.setColor(1, 0.9, 0.3, 0.8)
+        if self:onRoad(mx, my) then
+            love.graphics.setColor(1, 0.9, 0.3, 0.85)
             love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", (gx - 1) * self.tileSize + 2, (gy - 1) * self.tileSize + 2,
-                self.tileSize - 4, self.tileSize - 4, 4, 4)
+            love.graphics.ellipse("line", mx, my + 6, 16, 7)
             love.graphics.setLineWidth(1)
         end
         love.graphics.setColor(1, 0.9, 0.3, 0.35)
@@ -1347,52 +1208,45 @@ function GameState:draw()
     for _, projectile in ipairs(self.projectiles) do
         projectile:draw()
     end
-    
+
     -- Draw effects
     for _, effect in ipairs(self.effects) do
         effect:draw()
     end
     love.graphics.setFont(self.fonts.small)
     require('systems.fx').draw()
-    
-    -- Draw tower preview
-    if self.towerPreview then
-        if self.towerPreview.canPlace then
-            love.graphics.setColor(0, 1, 0, 0.5)
+
+    -- Tower being placed: its footprint (green where it can stand), a ghost
+    -- of the tower and its range
+    local pv = self.towerPreview
+    if pv then
+        if pv.canPlace then
+            love.graphics.setColor(0.3, 1, 0.4, 0.45)
         else
-            love.graphics.setColor(1, 0, 0, 0.5)
+            love.graphics.setColor(1, 0.25, 0.2, 0.45)
         end
-        
-        love.graphics.rectangle("fill", self.towerPreview.x, self.towerPreview.y, self.tileSize, self.tileSize)
-
-        -- Ghost of the painted tower where it would stand
+        love.graphics.ellipse("fill", pv.x, pv.y, 22, 10)
         local Tower = require("systems.tower")
-        local img = Tower.images and Tower.images[self.towerPreview.type]
+        local img = Tower.images and Tower.images[pv.type]
         if img then
-            Tower.drawPainted(img, self.towerPreview.x + self.tileSize / 2,
-                self.towerPreview.y + self.tileSize / 2, Tower.DRAW_WIDTH, 0.6, false)
+            Tower.drawPainted(img, pv.x, pv.y, Tower.DRAW_WIDTH, pv.canPlace and 0.65 or 0.35, false)
         end
-
         love.graphics.setColor(1, 1, 1, 0.8)
-        love.graphics.circle("line", self.towerPreview.x + self.tileSize/2, self.towerPreview.y + self.tileSize/2, self.towerPreview.range)
+        love.graphics.circle("line", pv.x, pv.y, pv.range)
     end
 
-    love.graphics.pop()
-
-    -- Red edge flash over the map when a life is lost
-    if self.grid then
-        require('systems.fx').drawScreen(0, GameState.MAP_OFFSET_Y, #self.grid[1] * self.tileSize, #self.grid * self.tileSize)
-    end
+    -- Red edge flash when a life is lost
+    require('systems.fx').drawScreen(0, 0, love.graphics.getWidth(), love.graphics.getHeight())
 
     -- Draw UI
     self.ui:draw()
     self:drawFocusPanel()
-    self:drawWaveInfo()
     self:drawHint()
     if self.freezeCharge then
         love.graphics.setFont(self.fonts.small)
         love.graphics.setColor(0.6, 0.85, 1, 1)
-        love.graphics.print("F: Freeze Potion ready", self.ui.heroPanel.x, self.ui.heroPanel.y + self.ui.heroPanel.height + 6)
+        love.graphics.print("F: Freeze Potion ready", self.ui.heroPanel.x + 4,
+            self.ui.heroPanel.y - self.fonts.small:getHeight() - 4)
         love.graphics.setColor(1, 1, 1, 1)
     end
 
@@ -1400,10 +1254,10 @@ function GameState:draw()
     if self.tooltip then
         self:drawTooltip()
     end
-    
+
     -- Draw error messages
     self:drawErrorMessages()
-    
+
     if self.isGameOver then self:drawEndScreen() end
 end
 
@@ -1518,92 +1372,52 @@ function GameState:drawEndScreen()
     end
 end
 
-function GameState:placeTower(gridX, gridY, type)
-    -- Check if tower can be placed
-    if not self:canPlaceTower(gridX, gridY) then
-        return false
-    end
-    
-    -- Get tower data
+-- Build a tower of `type` standing at (x, y). Returns true, or false and
+-- why not ("zone", "road", "tower", "hud", "gold", "type")
+function GameState:placeTower(x, y, type)
+    local ok, reason = self:canPlaceTower(x, y)
+    if not ok then return false, reason end
+
     local towerData = self.towerData[type]
     if not towerData then
         self:showError("Invalid tower type: " .. tostring(type))
-        return false
+        return false, "type"
     end
-    
-    -- Check if we have enough resources
     if self.resources < towerData.cost then
         self:showError("Not enough resources!")
-        return false
+        return false, "gold"
     end
-    
+
     require('systems.audio').play("place")
     self.stats.built = self.stats.built + 1
     self.stats.spent = self.stats.spent + towerData.cost
-
-    -- Deduct resources
     self.resources = self.resources - towerData.cost
-    
-    -- Create tower
+
     local Tower = require("systems.tower")
-    local tower = Tower.create(type, gridX, gridY, self.tileSize, self.towerMods)
-    
-    -- Add tower to the game
+    local tower = Tower.create(type, x, y, self.towerMods)
     table.insert(self.towers, tower)
-    
-    -- Update grid to mark as occupied
-    self.grid[gridY][gridX] = 2
-    
     return true
 end
 
-function GameState:canPlaceTower(gridX, gridY)
-    -- Check if coordinates are within grid bounds
-    if gridX < 1 or gridY < 1 or gridX > #self.grid[1] or gridY > #self.grid then
-        return false
-    end
-    
-    -- Check if the grid cell is a tower placement cell and not occupied
-    return self.grid[gridY][gridX] == 1
-end
-
--- Screen pixel to grid cell; the map is drawn MAP_OFFSET_Y pixels down
-function GameState:pixelToGrid(pixelX, pixelY)
-    local gridX = math.floor(pixelX / self.tileSize) + 1
-    local gridY = math.floor((pixelY - GameState.MAP_OFFSET_Y) / self.tileSize) + 1
-    return gridX, gridY
+-- Whether a tower can stand at (x, y): inside a build zone, clear of the
+-- road, the HUD and other towers. Returns true, or false and the reason.
+function GameState:canPlaceTower(x, y)
+    return require('systems.level').canBuild(self.built, x, y, self.towers)
 end
 
 function GameState:loadMap(level)
     local Level = require('systems.level')
     local built = Level.build(level)
     self.built = built
-    self.grid = built.grid
-    self.paths = built.paths          -- one cell list per road, start to end
-    self.roadPath = built.roadCells   -- every road cell as {gx, gy}; road 1 first, in order
-    self.startX, self.startY = built.paths[1][1].x, built.paths[1][1].y
-    local last = built.paths[1][#built.paths[1]]
-    self.endX, self.endY = last.x, last.y
+    self.roads = built.roads          -- one systems/path.lua Path per road
+    -- Where lives are lost: the end of the first road, kept on screen
+    local r1 = built.roads[1]
+    self.endX = math.max(20, math.min(built.width - 20, r1.xs[#r1.xs]))
+    self.endY = math.max(20, math.min(built.height - 20, r1.ys[#r1.ys]))
 
-    -- The hero walks road cells (BFS in systems/enemy.lua)
-    require("systems.enemy").setPathfinder(self.grid, Level.ROAD)
-
-    -- Painted ground plate if the level has one (art/README.md), else a
-    -- ground generated from the level data. The road cells stay the source
-    -- of truth; a plate is cut and warped to match them (tools/artcut mapfix).
-    self.mapImage = nil
-    local plate = Level.platePath(level)
-    if plate then
-        local ok, img = pcall(require('utils.image').smooth, plate)
-        if ok then
-            self.mapImage = img
-        else
-            print("WARNING: could not load map plate " .. plate)
-        end
-    end
-    if not self.mapImage then
-        self.mapImage = Level.renderGround(level, built, self.tileSize)
-    end
+    -- Ground (painted plate or generated) with the roads drawn on top from
+    -- the level data, so the roads always match where enemies walk
+    self.mapImage = Level.renderMap(level, built, 1)
 end
 
 function GameState:gameOver(victory)
@@ -1737,7 +1551,7 @@ function GameState:updateErrorMessages(dt)
 end
 
 function GameState:drawErrorMessages()
-    local y = 50
+    local y = self.ui and (self.ui.status.y + self.ui.status.height + 44) or 100
     
     love.graphics.setFont(self.fonts.small)
     

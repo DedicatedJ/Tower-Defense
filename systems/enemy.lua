@@ -5,68 +5,11 @@ local Error = require("utils.error")
 local Animations = require("systems.animations")
 local Effects = require("systems.effects")
 
--- Use local pathfinding instead of Jumper library which may be missing
-local Pathfinder = {}
-
-function Pathfinder.new(grid, walkable)
-    local pf = {}
-    pf.grid = grid
-    pf.walkable = walkable or 0
-    
-    -- Breadth-first search pathfinding
-    function pf:getPath(startX, startY, endX, endY)
-        -- Create a queue for BFS
-        local queue = {{x = startX, y = startY}}
-        local visited = {}
-        local parent = {}
-        local key = startX .. "," .. startY
-        visited[key] = true
-        
-        while #queue > 0 do
-            local current = table.remove(queue, 1)
-            local currKey = current.x .. "," .. current.y
-            
-            -- If we reached the end, reconstruct the path
-            if current.x == endX and current.y == endY then
-                local path = {}
-                local curr = currKey
-                while curr do
-                    local x, y = curr:match("(%d+),(%d+)")
-                    table.insert(path, 1, {x = tonumber(x), y = tonumber(y)})
-                    curr = parent[curr]
-                end
-                return path
-            end
-            
-            -- Check neighbors (up, right, down, left)
-            local directions = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}}
-            for _, dir in ipairs(directions) do
-                local nx, ny = current.x + dir[1], current.y + dir[2]
-                local nkey = nx .. "," .. ny
-                
-                -- Check if neighbor is valid and walkable
-                if nx >= 1 and ny >= 1 and nx <= #self.grid[1] and ny <= #self.grid and 
-                   self.grid[ny][nx] == self.walkable and not visited[nkey] then
-                    table.insert(queue, {x = nx, y = ny})
-                    visited[nkey] = true
-                    parent[nkey] = currKey
-                end
-            end
-        end
-        
-        -- No path found
-        return {}
-    end
-    
-    return pf
-end
-
 -- Enemy system
 local Enemy = {
     initialized = false,
     types = {},
     sprites = {},
-    pathfinder = nil
 }
 
 -- Walk sheet playback (sheet layout: art/README.md and tools/artcut)
@@ -74,10 +17,29 @@ Enemy.FACING_ROW = { down = 1, right = 2, left = 3, up = 4 }
 Enemy.WALK_CYCLE = { 1, 2, 3, 2 }      -- left foot, standing, right foot, standing
 Enemy.FRAME_TIME = 0.16                 -- seconds per frame at ANIM_BASE_SPEED
 Enemy.ANIM_BASE_SPEED = 40              -- px/s the frame time was tuned for
-Enemy.FOOT_OFFSET = 10                  -- feet sit this far below the cell center
+Enemy.FOOT_OFFSET = 10                  -- feet sit this far below the enemy's road point
 Enemy.HOVER_HEIGHT = 22                 -- flyers' body center above their ground point
--- On-map figure height in pixels, per enemy type (scale is data, per asset)
-Enemy.DRAW_HEIGHT = { default = 40, zombie = 40, skeleton = 40, orc = 46, necromancer = 44, dragon = 56 }
+
+-- Size classes: how much road an enemy takes (radius, also its hit radius)
+-- and how tall it is drawn. A road fits one large and one small abreast.
+Enemy.SIZES = {
+    small = { radius = 10, height = 36 },
+    medium = { radius = 14, height = 44 },
+    large = { radius = 20, height = 58 },
+}
+Enemy.SIZE_OF = { skeleton = "small", zombie = "medium", necromancer = "medium", orc = "large", dragon = "large" }
+Enemy.LANE_MARGIN = 4                   -- kept clear between an enemy and the road edge
+-- Movement speeds below are multiplied by this (roads are measured in
+-- screen pixels; tuned with tests/run.sh balance)
+Enemy.SPEED_SCALE = 1
+
+local function sizeOf(type)
+    return Enemy.SIZES[Enemy.SIZE_OF[type] or "medium"]
+end
+
+-- On-map figure height in pixels, per enemy type (from its size class)
+Enemy.DRAW_HEIGHT = { default = Enemy.SIZES.medium.height }
+for id, size in pairs(Enemy.SIZE_OF) do Enemy.DRAW_HEIGHT[id] = Enemy.SIZES[size].height end
 
 -- Color of the motes when an enemy dies (systems/fx.lua)
 Enemy.PUFF_COLORS = {
@@ -289,8 +251,11 @@ function Enemy.createDefaultSprite(enemy)
     return canvas
 end
 
--- Create enemy instance
-function Enemy.create(type, path, gridSize)
+-- Create enemy instance on `road` (a systems/path.lua Path). opts.offset
+-- sets its sideways place on the road; by default a random one that keeps
+-- it on the surface.
+function Enemy.create(type, road, opts)
+    opts = opts or {}
     -- Initialize enemy system if not done already
     if not Enemy.initialized then
         Enemy.init()
@@ -303,40 +268,37 @@ function Enemy.create(type, path, gridSize)
         return nil
     end
 
-    if not path or #path == 0 then
-        Error.show("No path found for enemy '" .. type .. "'")
+    if not road or not road.pointAt then
+        Error.show("No road for enemy '" .. type .. "'")
         return nil
     end
 
-    -- Positions are pixel centers. Grid cell (gx, gy) is 1-based and spans
-    -- (gx-1)*gridSize .. gx*gridSize, so its center is (gx-0.5)*gridSize.
-    local function cellCenter(cell)
-        return (cell.x - 0.5) * gridSize, (cell.y - 0.5) * gridSize
-    end
-    local startX, startY = cellCenter(path[1])
+    local size = sizeOf(type)
+    local maxOffset = math.max(0, road.width / 2 - size.radius - Enemy.LANE_MARGIN)
+    local offset = opts.offset or (love.math.random() * 2 - 1) * maxOffset
+    offset = math.max(-maxOffset, math.min(maxOffset, offset))
+    local x, y, nx, ny = road:pointAt(0)
 
     -- Create enemy instance
     local enemy = {
         id = Utils.generateID("enemy"),
         type = type,
         name = template.name,
-        x = startX,
-        y = startY,
-        width = 32,
-        height = 32,
-        radius = 12, -- hit radius used by projectiles
+        x = x + nx * offset,
+        y = y + ny * offset,
+        width = size.radius * 2,
+        height = size.height,
+        radius = size.radius, -- hit radius used by projectiles
+        size = Enemy.SIZE_OF[type] or "medium",
         health = template.health,
         maxHealth = template.health,
-        speed = template.speed,
+        speed = template.speed * Enemy.SPEED_SCALE,
         damage = template.damage,
         value = template.value,
-        path = path,
-        currentPathIndex = 1,
-        targetX = startX,
-        targetY = startY,
-        gridX = path[1].x,
-        gridY = path[1].y,
-        gridSize = gridSize,
+        road = road,
+        distance = 0,     -- pixels travelled along the road
+        offset = offset,  -- sideways place on the road
+        piece = 1,        -- which stretch between portals
         state = "walking", -- walking, attacking, dead
         dead = false,       -- read by towers/projectiles
         reachedEnd = false, -- read by towers/projectiles
@@ -435,63 +397,43 @@ function Enemy.create(type, path, gridSize)
         end
     end
     
-    -- Move enemy along path
+    -- Put the enemy at distance d along its road, in its lane
+    enemy.placeAt = function(self, d)
+        self.distance = d
+        local x, y, nx, ny, dx, dy = self.road:pointAt(d)
+        self.x, self.y = x + nx * self.offset, y + ny * self.offset
+        if math.abs(dx) > math.abs(dy) then
+            self.direction = dx > 0 and "right" or "left"
+        else
+            self.direction = dy > 0 and "down" or "up"
+        end
+        -- Through a portal: flash where it comes out
+        local piece = self.road:pieceAt(d)
+        if piece ~= self.piece then
+            self.piece = piece
+            self.portalFlash = 0.4
+        end
+    end
+
+    -- Move enemy along its road
     enemy.move = function(self, dt)
         local speed = self.currentSpeed or self.speed
-        local targetX = (self.path[self.currentPathIndex].x - 0.5) * self.gridSize
-        local targetY = (self.path[self.currentPathIndex].y - 0.5) * self.gridSize
-        
-        -- Calculate direction to target
-        local dx = targetX - self.x
-        local dy = targetY - self.y
-        local distance = math.sqrt(dx*dx + dy*dy)
-
-        -- A gap of more than a cell is a portal: step straight through
-        if distance > self.gridSize * 1.5 then
-            self.x, self.y = targetX, targetY
-            self.portalFlash = 0.4
-            distance = 0
+        local d = self.distance + speed * dt
+        local total = self.road:length()
+        if d >= total then
+            self:placeAt(total)
+            -- Reached end of path
+            self.state = "attacking"
+            self.reachedEnd = true
+            self.currentAnimation = "attack"
+            return
         end
-        
-        -- Update direction for animation
-        if math.abs(dx) > math.abs(dy) then
-            if dx > 0 then self.direction = "right" else self.direction = "left" end
-        else
-            if dy > 0 then self.direction = "down" else self.direction = "up" end
-        end
-        
-        -- Move if not at target
-        if distance > 2 then
-            local moveX = dx / distance * speed * dt
-            local moveY = dy / distance * speed * dt
-            
-            -- Check if we would overshoot
-            if math.abs(moveX) > math.abs(dx) then moveX = dx end
-            if math.abs(moveY) > math.abs(dy) then moveY = dy end
-            
-            self.x = self.x + moveX
-            self.y = self.y + moveY
-        else
-            -- Reached waypoint, go to next one
-            self.x = targetX
-            self.y = targetY
-            self.gridX = self.path[self.currentPathIndex].x
-            self.gridY = self.path[self.currentPathIndex].y
-            
-            if self.currentPathIndex < #self.path then
-                self.currentPathIndex = self.currentPathIndex + 1
-            else
-                -- Reached end of path
-                self.state = "attacking"
-                self.reachedEnd = true
-                self.currentAnimation = "attack"
-            end
-        end
+        self:placeAt(d)
     end
 
     -- How far along the road this enemy is (for "furthest enemy" targeting)
     enemy.progress = function(self)
-        return self.currentPathIndex
+        return self.distance
     end
     
     -- Update animation
@@ -736,21 +678,6 @@ function Enemy.loadSheet(key, png)
     end
     Enemy.sheets[key] = { image = img, quads = quads, meta = meta }
     return Enemy.sheets[key]
-end
-
--- Set up pathfinder for the grid map
-function Enemy.setPathfinder(grid, walkable)
-    Enemy.pathfinder = Pathfinder.new(grid, walkable)
-end
-
--- Find path from start to end
-function Enemy.findPath(startX, startY, endX, endY)
-    if not Enemy.pathfinder then
-        Error.show("Pathfinder not initialized")
-        return {}
-    end
-    
-    return Enemy.pathfinder:getPath(startX, startY, endX, endY)
 end
 
 return Enemy 

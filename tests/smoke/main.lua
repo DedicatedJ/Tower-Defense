@@ -59,13 +59,32 @@ local function simulate(seconds, stopWhen)
     return false, seconds
 end
 
-local function offY() return require('states.game').MAP_OFFSET_Y end
-local function cellScreen(gx, gy) return (gx - 0.5) * 32, (gy - 0.5) * 32 + offY() end
+-- A point on road ri (default 1), frac of the way along it (screen pixels;
+-- the map fills the screen)
+local function roadPoint(g, frac, ri)
+    local r = g.roads[ri or 1]
+    local x, y = r:pointAt(r:length() * frac)
+    return x, y
+end
+
+-- The free build spot nearest to (x, y), searched on a 10 px grid
+local function spotNear(g, x, y)
+    local best, bd
+    for dx = -300, 300, 10 do
+        for dy = -300, 300, 10 do
+            if g:canPlaceTower(x + dx, y + dy) then
+                local d = dx * dx + dy * dy
+                if not bd or d < bd then best, bd = { x + dx, y + dy }, d end
+            end
+        end
+    end
+    if best then return best[1], best[2] end
+end
 
 local Factions = require('data.factions')
 local FACTION_IDS = { "radiant", "shadow", "twilight" }
 
--- Gameplay checks use the level 1 map (cell coordinates below are on it)
+-- Gameplay checks use the level 1 map (pixel spots below are on it)
 local function newGame(factionId, heroId, levelId)
     love.math.setRandomSeed(1)
     local GameState = require('states.game')
@@ -76,17 +95,23 @@ local function newGame(factionId, heroId, levelId)
     return g
 end
 
-local function placeTower(g, id, gx, gy)
+local function placeTower(g, id, x, y)
+    if not x then return false end
     for _, b in ipairs(g:getTowerButtons()) do
         if b.id == id then
             if g.selectedTower ~= id then click(b.x + 5, b.y + 5) end
             local before = #g.towers
-            click(cellScreen(gx, gy))
+            click(x, y)
             click(0, 0, 2)
             return #g.towers == before + 1
         end
     end
     return false
+end
+
+-- Build a tower at the free spot nearest to the road, frac of the way along
+local function placeNear(g, id, frac)
+    return placeTower(g, id, spotNear(g, roadPoint(g, frac)))
 end
 
 local function enemyNear(g, x, y, r)
@@ -145,8 +170,7 @@ local function run()
     shot("tower_upgrade")
 
     ------------------------------------------------------------------
-    local spots = { { 9, 7 }, { 13, 9 }, { 17, 11 } }
-    local spare = { 15, 4 }
+    local spots = { { 560, 200 }, { 260, 520 }, { 640, 560 } }
     for _, fid in ipairs(FACTION_IDS) do
         local faction = Factions[fid]
         local heroId = faction.heroes[1].id
@@ -174,6 +198,17 @@ local function run()
             click(0, 0, 2)
         end
 
+        -- Pictures: the build zones while placing, and a tower's card
+        if fid == "radiant" then
+            g:selectTowerType(faction.towers[1].id)
+            love.mouse.setPosition(470, 170)
+            shot("placing")
+            click(0, 0, 2)
+            g:setFocusTower(towersById[faction.towers[1].id])
+            shot("tower_card")
+            click(0, 0, 2)
+        end
+
         -- Sell the third tower and build it again (same spot, upgrades again)
         local t3 = g.towers[3]
         g:setFocusTower(t3)
@@ -182,27 +217,27 @@ local function run()
         for _, b in ipairs(g:getFocusButtons()) do
             if b.kind == "sell" then click(b.x + 5, b.y + 5) end
         end
-        check(#g.towers == 2 and g.resources == before + refund and g.grid[t3.gridY][t3.gridX] == 1,
-            "sold " .. t3.id .. " for " .. refund .. " (70%)")
-        check(placeTower(g, t3.id, t3.gridX, t3.gridY), "rebuilt " .. t3.id)
+        check(#g.towers == 2 and g.resources == before + refund and g:canPlaceTower(t3.x, t3.y),
+            "sold " .. t3.id .. " for " .. refund .. " (70%), its spot is free again")
+        check(placeTower(g, t3.id, t3.x, t3.y), "rebuilt " .. t3.id)
         local rebuilt = g.towers[#g.towers]
         rebuilt:buyUpgrade(1); rebuilt:buyUpgrade(2)
         towersById[t3.id] = rebuilt
 
         -- Move the hero along the road, then try a grass cell
         local hero = g.hero
-        click(hero.x, hero.y - 10 + offY())
+        click(hero.x, hero.y - 10)
         check(hero.selected, "clicking the hero selects it")
-        local target = g.roadPath[20]
-        click(cellScreen(target[1], target[2]))
+        local tx, ty = roadPoint(g, 0.42)
+        tx, ty = math.floor(tx + 12), math.floor(ty + 12) -- off the middle line, still on the road
+        click(tx, ty)
         check(hero.path ~= nil, "clicking the road gives a path")
         local arrived = simulate(20, function() return hero.path == nil end)
-        local tx, ty = g:cellCenter(target[1], target[2])
         check(arrived and math.abs(hero.x - tx) < 2 and math.abs(hero.y - ty) < 2,
-            "hero walked the road to cell " .. target[1] .. "," .. target[2])
-        click(hero.x, hero.y - 10 + offY())
+            string.format("hero walked the road to (%d, %d)", tx, ty))
+        click(hero.x, hero.y - 10)
         local hx, hy = hero.holdX, hero.holdY
-        click(cellScreen(11, 4)) -- grass
+        click(160, 220) -- grass
         check(hero.holdX == hx and hero.holdY == hy, "clicking grass does not move the hero")
         click(0, 0, 2)
 
@@ -284,8 +319,8 @@ local function run()
             local g = newGame(fid, hd.id)
             local hero = g.hero
             -- Meet the enemies near the start of the road
-            local c = g.roadPath[6]
-            hero:commandMove(c[1], c[2], g)
+            local mx, my = roadPoint(g, 0.08)
+            hero:commandMove(mx, my, g)
             simulate(20, function() return hero.path == nil end)
             click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
             simulate(40, function() return enemyNear(g, hero.x, hero.y, 100) ~= nil end)
@@ -336,12 +371,10 @@ local function run()
         -- Holy Bastion heals a hurt hero in range
         local g = newGame("radiant", "sir_galahad")
         g.resources = 5000
-        local c = g.roadPath[30]
-        g.hero:commandMove(c[1], c[2], g)
+        local mx, my = roadPoint(g, 0.4)
+        g.hero:commandMove(mx, my, g)
         simulate(20, function() return g.hero.path == nil end)
-        local gx, gy = c[1] + 1, c[2] + 1
-        if g.grid[gy][gx] ~= 1 then gx, gy = c[1] - 1, c[2] - 1 end
-        check(placeTower(g, "holy_bastion", gx, gy), "Holy Bastion placed next to the hero")
+        check(placeTower(g, "holy_bastion", spotNear(g, g.hero.x, g.hero.y)), "Holy Bastion placed next to the hero")
         local bastion = g.towers[#g.towers]
         g.hero.health = g.hero.maxHealth * 0.5
         local before = g.hero.health
@@ -352,7 +385,7 @@ local function run()
         -- Seraph's Watch with Divine Mark marks what it hits
         g = newGame("radiant", "sir_galahad")
         g.resources = 5000
-        check(placeTower(g, "seraphs_watch", 9, 7), "Seraph's Watch placed")
+        check(placeNear(g, "seraphs_watch", 0.2), "Seraph's Watch placed")
         local watch = g.towers[#g.towers]
         watch:buyUpgrade(1)
         click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
@@ -364,7 +397,7 @@ local function run()
         -- Soul Forge raises enemies that die in range
         g = newGame("shadow", "malachi")
         g.resources = 5000
-        check(placeTower(g, "soul_forge", 7, 3), "Soul Forge placed")
+        check(placeNear(g, "soul_forge", 0.1), "Soul Forge placed")
         local forge = g.towers[#g.towers]
         click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
         local fx, fy = forge:getCenter()
@@ -381,7 +414,7 @@ local function run()
         -- Eclipse Monolith drains a target with no shots fired
         g = newGame("twilight", "zephyr")
         g.resources = 5000
-        check(placeTower(g, "eclipse_monolith", 9, 7), "Eclipse Monolith placed")
+        check(placeNear(g, "eclipse_monolith", 0.2), "Eclipse Monolith placed")
         local mono = g.towers[#g.towers]
         mono.fireRate = 0.0001 -- isolate the drain
         mono.fireCooldown = 1e9
@@ -423,23 +456,16 @@ local function run()
         local f = Factions[lv.faction]
         local g = newGame(lv.faction, f.heroes[1].id, lv.id)
         local built = LevelSys.build(lv)
-        local heroOnRoad = g.hero and g:isRoad(g:pixelToGrid(g.hero.x, g.hero.y + offY()))
-        check(g.levelId == lv.id and #g.paths == #lv.paths and #g.roadPath == #built.roadCells
+        local heroOnRoad = g.hero and g:onRoad(g.hero.x, g.hero.y)
+        check(g.levelId == lv.id and #g.roads == #lv.paths and #built.roads == #lv.paths
             and g.resources >= lv.startGold and g.maxWaves == lv.waves.count and heroOnRoad,
             lv.id .. ": map, " .. #lv.paths .. " road(s), " .. lv.waves.count .. " waves, hero on the road")
         shot("level_" .. lv.id)
         -- Wave 1 runs to the end on every road and pays its bonus
         g.resources = 5000
         for i, t in ipairs(f.towers) do
-            local spot
-            for _, c in ipairs(g.roadPath) do
-                for _, d in ipairs({ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 } }) do
-                    if not spot and g:canPlaceTower(c[1] + d[1], c[2] + d[2]) and (_ * 7 + i) % 5 == 0 then
-                        spot = { c[1] + d[1], c[2] + d[2] }
-                    end
-                end
-            end
-            if spot then g:placeTower(spot[1], spot[2], t.id) end
+            local x, y = spotNear(g, roadPoint(g, 0.15 + 0.2 * i))
+            if x then g:placeTower(x, y, t.id) end
         end
         local goldBefore = g.resources
         g:startNextWave()
@@ -461,7 +487,7 @@ local function run()
         simulate(14, function() return (g.raisedCount or 0) >= 2 end)
         local raised = 0
         for _, e in ipairs(g.enemies) do if e.raised and e.type == "skeleton" then raised = raised + 1 end end
-        check(raised >= 2 and n.currentPathIndex > 1, "a necromancer raises a skeleton every 6 s (" .. raised .. " raised)")
+        check(raised >= 2 and n.distance > 0, "a necromancer raises a skeleton every 6 s (" .. raised .. " raised)")
     end
 
     -- End screen: stars saved, Next Level and Level Select work
@@ -570,7 +596,7 @@ local function run()
             love.mouse.setPosition(b.x + 10, b.y + 10)
             seen = nil
             wait(2) -- the window reports the new mouse position next frame; draw runs then
-            if seen and seen.title == b.tower.name and #seen.stats == 3 then shown = shown + 1
+            if seen and seen.title == b.tower.name and #seen.stats == 4 then shown = shown + 1 -- cost, damage, range, speed
             else log("  no tooltip over " .. b.id) end
         end
         check(shown == #Factions[fid].towers, fid .. ": hovering each tower button draws its tooltip (" .. shown .. ")")
@@ -760,8 +786,8 @@ local function run()
         check(g.selectedTower == nil, "the same key again puts it down")
 
         g.resources = 5000
-        placeTower(g, "holy_bastion", 7, 3)
-        placeTower(g, "seraphim_altar", 9, 6)
+        placeNear(g, "holy_bastion", 0.1)
+        placeNear(g, "seraphim_altar", 0.2)
         local hero = g.hero
         key("space")
         check(g.wave == 1 and g.waveInProgress, "Space starts wave 1")
@@ -792,8 +818,8 @@ local function run()
         local before = { damage = Fx.counts.damage, puff = Fx.counts.puff, gold = Fx.counts.gold }
         local g = newGame("radiant", "sir_galahad")
         g.resources = 2000
-        placeTower(g, "holy_bastion", 7, 3)
-        placeTower(g, "seraphim_altar", 9, 6)
+        placeNear(g, "holy_bastion", 0.1)
+        placeNear(g, "seraphim_altar", 0.2)
         g:startNextWave()
         simulate(25, function() return #Fx.items >= 6 end)
         shot("battle_feedback")
@@ -804,8 +830,7 @@ local function run()
         local lostBefore = Fx.counts.life
         g.lives = 20
         local e = g:addEnemy("zombie", 1, 1)
-        e.currentPathIndex = #e.path
-        e.x, e.y = g:cellCenter(g.endX, g.endY)
+        e:placeAt(e.road:length() - 1)
         simulate(1)
         check(Fx.counts.life > lostBefore and g.lives < 20, "an enemy reaching the gate flashes the edge and shows the lives lost")
 
@@ -827,7 +852,7 @@ local function run()
         local g = newGame("radiant", "sir_galahad")
         check(g.hintIndex == 1, "a new player on level 1 sees the first hint")
         shot("hint")
-        placeTower(g, "holy_bastion", 7, 3)
+        placeNear(g, "holy_bastion", 0.1)
         simulate(0.1)
         check(g.hintIndex == 2, "building a tower moves on to Start Wave")
         key("space")

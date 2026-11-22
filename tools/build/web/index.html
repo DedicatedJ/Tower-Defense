@@ -11,7 +11,7 @@
   love.js's in-memory filesystem under /game and starts LOVE on that folder.
 -->
 <style>
-  /* Layout: one centered column; a 4:3 stage for the 1024 x 768 game, controls under it.
+  /* Layout: one centered column; a 16:9 stage for the 1280 x 720 game, controls under it.
      Single dark look on purpose: the game itself is dark, so the page frames it. */
   :root {
     --ground: #12151c;      /* page */
@@ -35,7 +35,7 @@
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
-  .wrap { max-width: 1024px; margin: 0 auto; display: grid; gap: 18px; }
+  .wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; }
   header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
   h1 { font-family: var(--display); font-weight: 700; font-size: clamp(1.6rem, 4vw, 2.2rem); letter-spacing: 0.04em; margin: 0; text-wrap: balance; }
   .tag { color: var(--muted); margin: 0; }
@@ -44,7 +44,7 @@
     position: relative;
     width: 100%;
     max-width: 100%;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 16 / 9;
     background: #000;
     border: 1px solid var(--edge);
     border-radius: 6px;
@@ -95,7 +95,7 @@
   </header>
 
   <div class="stage" id="stage">
-    <canvas id="canvas" width="1024" height="768" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+    <canvas id="canvas" width="1280" height="720" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
     <div class="overlay" id="overlay">
       <h2 id="ov-title">Ready to play</h2>
       <p id="ov-text">The game is a <span class="num" id="size">__SIZE__</span> MB download, then it runs right here in the browser.</p>
@@ -108,11 +108,11 @@
     <section class="panel">
       <h3>Controls</h3>
       <table>
-        <tr><td>Pick a tower</td><td>Click it on the right, or <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td></tr>
-        <tr><td>Place it</td><td>Click open ground near the road</td></tr>
-        <tr><td>Upgrade or sell</td><td>Click the tower, then the strip under the map</td></tr>
+        <tr><td>Pick a tower</td><td>Click it at the bottom right, or <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td></tr>
+        <tr><td>Place it</td><td>Click inside a marked build zone</td></tr>
+        <tr><td>Upgrade or sell</td><td>Click the tower, then its card</td></tr>
         <tr><td>Start or call the next wave</td><td>Start Wave button, or <kbd>Space</kbd></td></tr>
-        <tr><td>Move the hero</td><td>Click the hero, then a road cell</td></tr>
+        <tr><td>Move the hero</td><td>Click the hero, then a spot on the road</td></tr>
         <tr><td>Hero abilities</td><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> or the ability buttons</td></tr>
         <tr><td>Game speed</td><td><kbd>Tab</kbd> or the speed button</td></tr>
         <tr><td>Drop the selection</td><td>Right click</td></tr>

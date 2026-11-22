@@ -6,7 +6,7 @@ A Tower Defense game built with Lua and the LÖVE framework: three factions, her
 
 - **Three factions** (Radiant Order, Shadow Covenant, Twilight Balance), each with a faction bonus, 3 towers and 3 heroes. All content is data in `data/factions.lua`.
 - **Towers** with their own behavior (healing, burn, poison, crits and marks, summoning, converting the dead, life drain, light/dark hybrid damage, burn/freeze) and 2 upgrades each, bought in game. Sell for 70%.
-- **Heroes** that hold the road and block enemies, walk to any road cell you click, auto-cast 3 abilities (Q/W/E to cast early), and level up to 10. Levels save to your profile.
+- **Heroes** that hold the road and block enemies, walk to any spot on the road you click, auto-cast 3 abilities (Q/W/E to cast early), and level up to 10. Levels save to your profile.
 - **Levels**: 3 per faction, unlocked in order, with up to 3 stars each. Maps have one or two roads, rock areas you cannot build on, and portals (`data/levels.lua`).
 - **Waves** built from a difficulty curve per level: more and tougher enemies each wave, necromancers that raise skeletons, dragons that fly over your blockers as bosses, bonus gold for each wave cleared, and extra gold for calling the next wave early (`systems/wave.lua`).
 - **Profiles**: 5 save slots, each keeping its faction, hero levels, shop gold and items, level stars and achievements. Continue opens the one you used last.
@@ -20,16 +20,16 @@ A Tower Defense game built with Lua and the LÖVE framework: three factions, her
 
 | Action | Mouse | Keys |
 |---|---|---|
-| Pick a tower to build | Click it on the right | 1, 2, 3 |
-| Place it | Click open ground near the road | |
-| Upgrade or sell a tower | Click the tower, then the strip under the map | |
+| Pick a tower to build | Click it at the bottom right | 1, 2, 3 |
+| Place it | Click anywhere inside a marked build zone (they light up while you place) | |
+| Upgrade or sell a tower | Click the tower, then its card | |
 | Start the next wave, or call it early | Start Wave button | Space |
-| Move the hero | Click the hero, then a road cell | |
+| Move the hero | Click the hero (or its portrait), then a spot on the road | |
 | Cast an ability early | Ability buttons | Q, W, E |
 | Freeze Potion (from the shop) | | F |
 | Game speed 1x / 2x / 3x | Speed button | Tab |
 | Drop the current selection | Right click | Esc |
-| Pause | | Esc (with nothing selected), P |
+| Pause | Pause button | Esc (with nothing selected), P |
 | Fullscreen | | F11 |
 
 ## Requirements
@@ -60,7 +60,7 @@ On Windows, if `love` is not on your PATH:
 & "C:\Program Files\LOVE\love.exe" .
 ```
 
-The game is laid out for 1024 x 768 and scales to any window size or to fullscreen (F11), with bars where the screen shape differs.
+The game is laid out for 1280 x 720 (16:9) and scales to any window size or to fullscreen (F11), with bars where the screen shape differs.
 
 Saves (profiles and settings) go to LÖVE's save folder for the `tower-defense` identity, for example `%APPDATA%\LOVE\tower-defense` on Windows.
 
@@ -71,7 +71,7 @@ Tower-Defense/
 ├── main.lua, conf.lua     LÖVE entry point and window settings
 ├── data/                  game content as plain data
 │   ├── factions.lua       factions, towers, heroes, abilities
-│   ├── levels.lua         the 9 levels: roads, rocks, waves, gold, lives
+│   ├── levels.lua         the 9 levels: roads, build zones, waves, gold, lives
 │   ├── achievements.lua
 │   └── shop_items.lua
 ├── systems/               game logic
@@ -96,7 +96,7 @@ Tower-Defense/
 ### Adding content
 
 - **A tower or hero:** add it to its faction in `data/factions.lua`. Its art is picked up by name from `sprites/towers/<id>.png` or `sprites/heroes/<id>.png`.
-- **A level:** add it to `data/levels.lua` (waypoints, rocks, waves). A painted map at `sprites/maps/<level id>.png` replaces the generated ground. Check the difficulty with `tests/run.sh balance`.
+- **A level:** add it to `data/levels.lua` (waypoints, build zones, waves). A painted map at `sprites/maps/<level id>.png` replaces the generated ground; the road is drawn over it from the waypoints. Check the difficulty with `tests/run.sh balance`.
 - **Art:** see `art/README.md`. `tools/artkit` writes the prompt pack and layout guides; `tools/artcut` cuts and aligns what comes back.
 
 ### Code Standards

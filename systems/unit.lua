@@ -7,9 +7,9 @@
 --   effects                                    list of visual effects
 --   mods                                       multipliers (see states/game.lua)
 --   spawnMinion(def, x, y, count)              add minions
---   nearestRoadCell(x, y) -> gx, gy            road cell closest to a point
---   cellCenter(gx, gy) -> x, y
---   isRoad(gx, gy) -> bool
+--   nearestRoadPoint(x, y) -> x, y             road center point closest to a point
+--   onRoad(x, y) -> bool                       whether a point is on the road
+--   route(x1, y1, x2, y2) -> {{x, y}, ...}     a way along the road, or nil
 
 local Effects = require("systems.effects")
 local Audio = require("systems.audio")
@@ -213,22 +213,17 @@ end
 ------------------------------------------------------------------------
 -- Movement along the road
 ------------------------------------------------------------------------
--- Walk along road cells to (gx, gy) and hold there. Returns false if the
--- target is not a road cell or cannot be reached.
-function Unit:commandMove(gx, gy, game)
-    if self.dead or not game:isRoad(gx, gy) then return false end
-    local sx, sy = game:nearestRoadCell(self.x, self.y)
-    if not sx then return false end
-    local cells = Enemy.findPath(sx, sy, gx, gy)
-    if not cells or #cells == 0 then return false end
+-- Walk along the road to (x, y) and hold there. Returns false if the
+-- target is not on the road or cannot be reached.
+function Unit:commandMove(x, y, game)
+    if self.dead or not game:onRoad(x, y) then return false end
+    local pts = game:route(self.x, self.y, x, y)
+    if not pts or #pts == 0 then return false end
     self.path = {}
-    for _, c in ipairs(cells) do
-        local px, py = game:cellCenter(c.x, c.y)
-        self.path[#self.path + 1] = { x = px, y = py }
-    end
+    for _, p in ipairs(pts) do self.path[#self.path + 1] = { x = p[1], y = p[2] } end
     self.pathIndex = 1
     self:release()
-    self.holdX, self.holdY = game:cellCenter(gx, gy)
+    self.holdX, self.holdY = x, y
     return true
 end
 
@@ -507,10 +502,8 @@ local BOOST_TYPES = { damageBoost = true, haste = true }
 function Unit:applyEffect(e, set, ab, ctx, game)
     local t = e.type
     if t == "summon" then
-        local gx, gy = game:nearestRoadCell(self.x, self.y)
-        local x, y = self.x, self.y
-        if gx then x, y = game:cellCenter(gx, gy) end
-        game:spawnMinion(e.minion, x, y, e.count or 1)
+        local x, y = game:nearestRoadPoint(self.x, self.y)
+        game:spawnMinion(e.minion, x or self.x, y or self.y, e.count or 1)
     elseif t == "teleport" then
         local best
         for _, en in ipairs(set.enemies) do
@@ -520,8 +513,8 @@ function Unit:applyEffect(e, set, ab, ctx, game)
             self:release()
             self.path = nil
             self.x, self.y = best.x, best.y
-            local gx, gy = game:nearestRoadCell(best.x, best.y)
-            if gx then self.holdX, self.holdY = game:cellCenter(gx, gy) end
+            local hx, hy = game:nearestRoadPoint(best.x, best.y)
+            if hx then self.holdX, self.holdY = hx, hy end
         end
     elseif t == "toggle" then
         local modes = e.modes

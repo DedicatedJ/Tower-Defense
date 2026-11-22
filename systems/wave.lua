@@ -7,8 +7,9 @@
 --   healthMult  enemy health:       (1 + (HEALTH_BASE + HEALTH_PER_D * d) * (n - 1)
 --                                        + HEALTH_CURVE * d * (n - 1)^2) * length
 --               the squared term keeps late waves ahead of a maxed defense;
---               where length = sqrt(average road cells / ROAD_NORM): a longer
---               road gives towers more time to shoot, so enemies get tougher
+--               where length = sqrt(average road length / ROAD_NORM), the
+--               length in map units of 40 px: a longer road gives towers
+--               more time to shoot, so enemies get tougher
 --   types       zombie from wave 1, skeleton from 3, orc from 4,
 --               necromancer from 40% of the way through
 --   boss        a dragon ends the last wave; difficulty 2+ also has one
@@ -27,7 +28,7 @@ Wave.ORDER = { "zombie", "skeleton", "orc", "necromancer" }
 
 Wave.DEFAULTS = {
     BASE = 6, GROWTH = 0.35,
-    HEALTH_BASE = 0.10, HEALTH_PER_D = 0.08, HEALTH_CURVE = 0.008, ROAD_NORM = 60,
+    HEALTH_BASE = 0.10, HEALTH_PER_D = 0.08, HEALTH_CURVE = 0.008, ROAD_NORM = 66,
     GROUP = 6, GAP_START = 1.3, GAP_MIN = 0.45, GAP_STEP = 0.05, GROUP_PAUSE = 2.5,
     BONUS = 20, BONUS_PER_WAVE = 4,
 }
@@ -65,8 +66,9 @@ function Wave.lengthFactor(level)
         for _, wp in ipairs(wps) do
             if wp == "portal" then jump = true
             else
-                if prev and not jump then total = total + math.abs(wp[1] - prev[1]) + math.abs(wp[2] - prev[2]) end
-                total = total + ((not prev or jump) and 1 or 0)
+                if prev and not jump then
+                    total = total + math.sqrt((wp[1] - prev[1]) ^ 2 + (wp[2] - prev[2]) ^ 2)
+                end
                 prev, jump = wp, false
             end
         end

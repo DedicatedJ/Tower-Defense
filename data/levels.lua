@@ -3,23 +3,40 @@
 -- can load it too. systems/level.lua builds the map from it and
 -- systems/wave.lua builds the waves.
 --
--- Map: 24 x 18 cells of 32 px. Cells are {column, row}, 1-based, with
--- {1, 1} at the top left.
+-- Map: the whole 1280 x 720 screen. Positions are in units of 40 px (a
+-- 32 x 18 grid, fractions allowed), {0, 0} at the top left; a point just
+-- outside (x -1 or 33, y -1 or 19) makes a road enter or leave at the edge.
 --
--- paths: one or more roads. Each is a list of waypoints; consecutive
---   waypoints share a row or a column and the road runs straight between
---   them. The string "portal" between two waypoints means enemies vanish at
---   the first and reappear at the second. Enemies take turns between paths.
---   Paths may share cells (they merge).
--- rocks: {x1, y1, x2, y2} rectangles where nothing can be built.
+-- paths: one or more roads, each a list of waypoints; the road runs
+--   straight between them and its corners are rounded (systems/path.lua).
+--   The string "portal" between two waypoints means enemies vanish at the
+--   first and reappear at the second. Enemies take turns between paths.
+--   Paths may share their last stretch (they merge); each runs to the end.
+-- roadWidth: optional, pixels (default Levels.roadWidth).
+-- zones: {x1, y1, x2, y2} rectangles where towers can be built, anywhere
+--   inside (not on the road, not too close to another tower).
 -- palette: ground colors for the generated map (systems/level.lua). A level
---   with a painted `plate` uses that image instead.
+--   with a painted `plate` uses that image instead; the road is always drawn
+--   over it from the path data.
 -- waves: count, plus optional overrides of the curve in systems/wave.lua;
 --   toughness scales enemy health on that level (tuned with
 --   tests/run.sh balance).
 -- startGold, lives: what the player starts with.
+--
+-- Levels.hud: screen boxes the in-game HUD covers ({x, y, w, h}, pixels).
+-- Roads stay out of them (Level.validate) and towers cannot be built under
+-- them. states/game.lua lays the HUD out in these boxes.
 
-local Levels = { cols = 24, rows = 18 }
+local Levels = {
+    width = 1280, height = 720, unit = 40, roadWidth = 80,
+    cols = 32, rows = 18,
+    hud = {
+        status = { 460, 6, 360, 40 },    -- lives, gold, wave
+        controls = { 1004, 6, 270, 44 }, -- pause, speed, start wave
+        hero = { 6, 630, 284, 84 },      -- hero card and abilities
+        towers = { 1004, 630, 270, 84 }, -- tower buttons
+    },
+}
 
 Levels.list = {
     --------------------------------------------------------------------
@@ -32,7 +49,10 @@ Levels.list = {
         difficulty = 1, palette = "meadow", plate = "sprites/maps/level1.png",
         startGold = 220, lives = 20,
         paths = {
-            { {1, 1}, {8, 1}, {8, 8}, {14, 8}, {14, 3}, {18, 3}, {18, 12}, {4, 12}, {4, 17}, {18, 17} },
+            { {-1, 1}, {10, 1}, {10, 7.5}, {18, 7.5}, {18, 2.5}, {23.5, 2.5}, {23.5, 11.5}, {8.5, 11.5}, {8.5, 16.5}, {23.5, 16.5} },
+        },
+        zones = {
+            { 0, 3, 8, 8 }, { 11.5, 2, 16.5, 6 }, { 19.5, 4, 22, 10 }, { 25, 1, 31, 9 }, { 10, 13, 22, 15 }, { 2, 10, 7, 15 },
         },
         waves = { count = 10 },
     },
@@ -43,10 +63,12 @@ Levels.list = {
         difficulty = 2, palette = "crystal",
         startGold = 260, lives = 20,
         paths = {
-            { {1, 3}, {9, 3}, {9, 9}, {13, 9}, {13, 16}, {20, 16}, {20, 10}, {24, 10} },
-            { {1, 15}, {5, 15}, {5, 9}, {9, 9}, {13, 9}, {13, 16}, {20, 16}, {20, 10}, {24, 10} },
+            { {-1, 2.5}, {11.5, 2.5}, {11.5, 8.5}, {16.5, 8.5}, {16.5, 14.5}, {26, 14.5}, {26, 9.5}, {33, 9.5} },
+            { {-1, 14.5}, {6, 14.5}, {6, 8.5}, {11.5, 8.5}, {16.5, 8.5}, {16.5, 14.5}, {26, 14.5}, {26, 9.5}, {33, 9.5} },
         },
-        rocks = { { 19, 2, 23, 6 }, { 15, 12, 18, 14 } },
+        zones = {
+            { 1, 4, 10, 7 }, { 7.5, 10, 15, 16 }, { 13, 4, 20, 7 }, { 18, 10, 24.5, 13 }, { 27.5, 11, 32, 15.5 }, { 0, 9, 4.5, 13 },
+        },
         waves = { count = 12, toughness = 1.6 },
     },
     {
@@ -56,7 +78,10 @@ Levels.list = {
         difficulty = 3, palette = "citadel",
         startGold = 300, lives = 15,
         paths = {
-            { {1, 2}, {22, 2}, {22, 16}, {3, 16}, {3, 6}, {18, 6}, {18, 12}, {8, 12}, {8, 9}, {13, 9} },
+            { {-1, 2.5}, {28.5, 2.5}, {28.5, 14.5}, {3.5, 14.5}, {3.5, 6.5}, {23.5, 6.5}, {23.5, 10.5}, {9, 10.5} },
+        },
+        zones = {
+            { 5, 4, 27, 5 }, { 25, 4, 27, 13 }, { 5, 8, 22, 9 }, { 5, 12, 27, 13 }, { 30, 4, 32, 16 }, { 0, 4, 2, 13 },
         },
         waves = { count = 15, toughness = 0.85 },
     },
@@ -71,7 +96,10 @@ Levels.list = {
         difficulty = 1, palette = "forest",
         startGold = 220, lives = 20,
         paths = {
-            { {1, 3}, {20, 3}, {20, 7}, {4, 7}, {4, 11}, {20, 11}, {20, 15}, {1, 15} },
+            { {-1, 2.5}, {26, 2.5}, {26, 6.5}, {4.5, 6.5}, {4.5, 10.5}, {26, 10.5}, {26, 14.5}, {-1, 14.5} },
+        },
+        zones = {
+            { 2, 4, 24.5, 5 }, { 6, 8, 24.5, 9 }, { 2, 12, 24.5, 13 }, { 27.5, 4, 31, 13 }, { 0, 7, 3, 10 },
         },
         waves = { count = 10 },
     },
@@ -82,11 +110,10 @@ Levels.list = {
         difficulty = 2, palette = "cave",
         startGold = 280, lives = 20,
         paths = {
-            { {1, 9}, {6, 9}, {6, 3}, {12, 3}, {12, 15}, {18, 15}, {18, 9}, {24, 9} },
+            { {-1, 8.5}, {7.5, 8.5}, {7.5, 2.5}, {15.5, 2.5}, {15.5, 14.5}, {23.5, 14.5}, {23.5, 8.5}, {33, 8.5} },
         },
-        rocks = {
-            { 1, 1, 4, 6 }, { 1, 12, 9, 18 }, { 14, 1, 24, 6 }, { 20, 12, 24, 18 },
-            { 8, 6, 10, 12 }, { 14, 9, 16, 12 },
+        zones = {
+            { 9, 4, 14, 8 }, { 9, 10, 14, 15 }, { 17, 4, 22, 7 }, { 17, 9.5, 22, 13 }, { 1, 10, 6, 13 }, { 25, 10, 31, 13 },
         },
         waves = { count = 12, toughness = 1.35 },
     },
@@ -97,10 +124,11 @@ Levels.list = {
         difficulty = 3, palette = "necro",
         startGold = 300, lives = 15,
         paths = {
-            { {1, 2}, {10, 2}, {10, 7}, {3, 7}, {3, 13}, "portal",
-              {15, 4}, {21, 4}, {21, 10}, {15, 10}, {15, 16}, {24, 16} },
+            { {-1, 2.5}, {12.5, 2.5}, {12.5, 6.5}, {3.5, 6.5}, {3.5, 12.5}, "portal", {19.5, 3.5}, {27.5, 3.5}, {27.5, 9.5}, {19.5, 9.5}, {19.5, 14.5}, {33, 14.5} },
         },
-        rocks = { { 6, 10, 9, 17 } },
+        zones = {
+            { 0, 4, 11, 5 }, { 5, 8, 11, 13 }, { 14, 1, 18, 8 }, { 21, 5, 26, 8 }, { 21, 11, 30, 13 }, { 29, 5, 32, 11 },
+        },
         waves = { count = 15, toughness = 0.8 },
     },
 
@@ -114,7 +142,10 @@ Levels.list = {
         difficulty = 1, palette = "mist",
         startGold = 220, lives = 20,
         paths = {
-            { {1, 9}, {5, 9}, {5, 3}, {12, 3}, {12, 15}, {19, 15}, {19, 6}, {24, 6} },
+            { {-1, 8.5}, {6, 8.5}, {6, 2.5}, {15.5, 2.5}, {15.5, 14.5}, {24.5, 14.5}, {24.5, 5.5}, {33, 5.5} },
+        },
+        zones = {
+            { 0, 3, 4.5, 7 }, { 7.5, 4, 14, 13 }, { 17, 4, 23, 13 }, { 26, 7, 31, 12 }, { 1, 10, 6, 14 },
         },
         waves = { count = 10 },
     },
@@ -125,10 +156,12 @@ Levels.list = {
         difficulty = 2, palette = "ruins",
         startGold = 260, lives = 20,
         paths = {
-            { {1, 3}, {8, 3}, {8, 9}, {14, 9}, {14, 14}, {20, 14}, {20, 5}, {24, 5} },
-            { {1, 15}, {5, 15}, {5, 9}, {8, 9}, {14, 9}, {14, 14}, {20, 14}, {20, 5}, {24, 5} },
+            { {-1, 2.5}, {10, 2.5}, {10, 8.5}, {18, 8.5}, {18, 13.5}, {26, 13.5}, {26, 4.5}, {33, 4.5} },
+            { {-1, 14.5}, {6, 14.5}, {6, 8.5}, {10, 8.5}, {18, 8.5}, {18, 13.5}, {26, 13.5}, {26, 4.5}, {33, 4.5} },
         },
-        rocks = { { 16, 2, 18, 8 } },
+        zones = {
+            { 1, 4, 8.5, 7 }, { 7.5, 10, 16.5, 15 }, { 11.5, 4, 24.5, 7 }, { 19.5, 9, 24.5, 12 }, { 27.5, 6, 32, 12 }, { 0, 9, 4.5, 13 },
+        },
         waves = { count = 12, toughness = 1.7 },
     },
     {
@@ -138,10 +171,12 @@ Levels.list = {
         difficulty = 3, palette = "nexus",
         startGold = 300, lives = 15,
         paths = {
-            { {1, 3}, {7, 3}, {7, 9}, {3, 9}, {3, 15}, {13, 15}, {13, 11}, {18, 11}, {18, 16}, {24, 16} },
-            { {16, 1}, {16, 4}, {22, 4}, {22, 8}, {13, 8}, {13, 11}, {18, 11}, {18, 16}, {24, 16} },
+            { {-1, 2.5}, {8.5, 2.5}, {8.5, 8.5}, {3.5, 8.5}, {3.5, 14.5}, {16.5, 14.5}, {16.5, 10.5}, {23.5, 10.5}, {23.5, 14.5}, {33, 14.5} },
+            { {22, -1}, {22, 3.5}, {28.5, 3.5}, {28.5, 7.5}, {16.5, 7.5}, {16.5, 10.5}, {23.5, 10.5}, {23.5, 14.5}, {33, 14.5} },
         },
-        rocks = { { 8, 11, 11, 13 }, { 19, 12, 22, 14 } },
+        zones = {
+            { 0, 4, 7, 7 }, { 5, 10, 15, 13 }, { 10, 1, 20.5, 6 }, { 18, 11.5, 22, 13.5 }, { 25, 9, 32, 13 }, { 29.5, 4, 32, 8 },
+        },
         waves = { count = 15 },
     },
 }

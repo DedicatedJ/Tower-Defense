@@ -7,8 +7,8 @@
 --   enemies, units, effects, projectiles      lists
 --   towerMods                                  multipliers (states/game.lua)
 --   spawnMinion(def, x, y, count) -> units    add minions
---   nearestRoadCellWithin(x, y, r) -> gx, gy  road cell within r of a point
---   cellCenter(gx, gy) -> x, y
+--   nearestRoadPoint(x, y, r) -> x, y         road center point within r of a
+--                                              point (nil if none)
 
 local Factions = require 'data.factions'
 local Effects = require 'systems.effects'
@@ -201,8 +201,9 @@ local function applyMod(inst, mod)
     end
 end
 
+-- A tower standing at (x, y), the middle of its base in screen pixels.
 -- ctx: towerMods from the game (faction bonus, hero passive, shop items)
-function Tower.create(towerId, gridX, gridY, tileSize, ctx)
+function Tower.create(towerId, x, y, ctx)
     if not Tower.initialized then Tower.init() end
     local d = Tower.byId[towerId]
     if not d then
@@ -220,8 +221,7 @@ function Tower.create(towerId, gridX, gridY, tileSize, ctx)
     inst.projectileType = d.projectileType
     inst.cost = d.cost
     inst.spent = d.cost
-    inst.gridX, inst.gridY = gridX, gridY
-    inst.tileSize = tileSize or 32
+    inst.x, inst.y = x, y
     inst.statuses = {}
     inst.fireCooldown = 0
     inst.target = nil
@@ -243,8 +243,7 @@ function Tower.create(towerId, gridX, gridY, tileSize, ctx)
 end
 
 function TowerInstance:getCenter()
-    local ts = self.tileSize or 32
-    return (self.gridX - 0.5) * ts, (self.gridY - 0.5) * ts
+    return self.x, self.y
 end
 
 ------------------------------------------------------------------------
@@ -400,9 +399,8 @@ function TowerInstance:update(dt, game)
         if self.summonTimer <= 0 then
             self.summonTimer = self.summonInterval
             if #self.minions < self.summonMax then
-                local gx, gy = game:nearestRoadCellWithin(x, y, self.range)
-                if gx then
-                    local mx, my = game:cellCenter(gx, gy)
+                local mx, my = game:nearestRoadPoint(x, y, self.range)
+                if mx then
                     for _, m in ipairs(game:spawnMinion(self.summonMinion, mx, my, 1)) do
                         table.insert(self.minions, m)
                     end

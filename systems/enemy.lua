@@ -90,12 +90,14 @@ Enemy.STATUS_MARKERS = {
 -- Combat stats used when allied units block an enemy. armor is the
 -- fraction of damage blocked. nature decides light/dark weakness (light
 -- hurts undead more, dark hurts the living more). Flying enemies cannot
--- be blocked.
+-- be blocked. summon: raises a weaker copy of `type` every `interval`
+-- seconds (the game spawns it; see states/game.lua).
 Enemy.COMBAT = {
     zombie      = { armor = 0.0, attackDamage = 8,  attackRate = 1.0, nature = "undead" },
     skeleton    = { armor = 0.2, attackDamage = 10, attackRate = 1.0, nature = "undead" },
     orc         = { armor = 0.1, attackDamage = 18, attackRate = 0.8, nature = "living" },
-    necromancer = { armor = 0.0, attackDamage = 12, attackRate = 1.0, nature = "undead" },
+    necromancer = { armor = 0.0, attackDamage = 12, attackRate = 1.0, nature = "undead",
+                    summon = { type = "skeleton", interval = 6, healthMult = 0.5, value = 3 } },
     dragon      = { armor = 0.2, attackDamage = 0,  attackRate = 1.0, nature = "living", flying = true, boss = true },
 }
 
@@ -371,6 +373,8 @@ function Enemy.create(type, path, gridSize)
     enemy.flying = combat.flying or false
     enemy.nature = combat.nature or "living"
     enemy.boss = combat.boss or false
+    enemy.summon = combat.summon
+    enemy.summonTimer = combat.summon and combat.summon.interval or nil
     enemy.blocker = nil
     enemy.attackCooldown = 0
     enemy.lunge = 0
@@ -394,6 +398,15 @@ function Enemy.create(type, path, gridSize)
         if self.dead then return end
         self.currentSpeed = self.speed * Effects.speedMult(self)
         self.lunge = math.max(0, self.lunge - dt * 4)
+
+        -- Necromancer: ask the game to raise a minion (not while stunned)
+        if self.summon and Effects.canAttack(self) then
+            self.summonTimer = self.summonTimer - dt
+            if self.summonTimer <= 0 then
+                self.summonTimer = self.summon.interval
+                self.summonRequest = true
+            end
+        end
 
         -- Held by an allied unit: stand and fight it
         local b = self.blocker
@@ -446,6 +459,13 @@ function Enemy.create(type, path, gridSize)
         local dx = targetX - self.x
         local dy = targetY - self.y
         local distance = math.sqrt(dx*dx + dy*dy)
+
+        -- A gap of more than a cell is a portal: step straight through
+        if distance > self.gridSize * 1.5 then
+            self.x, self.y = targetX, targetY
+            self.portalFlash = 0.4
+            distance = 0
+        end
         
         -- Update direction for animation
         if math.abs(dx) > math.abs(dy) then

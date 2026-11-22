@@ -159,35 +159,104 @@ local function walkSheet()
 end
 
 ------------------------------------------------------------------------
--- Map blockout for level 1, from the path in states/game.lua loadMap().
--- 24 x 18 cells at 80 px = 1920 x 1440 (4:3). Mid gray is the road.
+-- Map blockouts, one per level, built from data/levels.lua by the game's
+-- own systems/level.lua. 24 x 18 cells at 80 px = 1920 x 1440 (4:3).
+-- Mid gray is the road, near black is rock, light gray is open ground.
 ------------------------------------------------------------------------
-local LEVEL1_PATH = {
-    {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1},
-    {8, 2}, {8, 3}, {8, 4}, {8, 5}, {8, 6}, {8, 7}, {8, 8},
-    {9, 8}, {10, 8}, {11, 8}, {12, 8}, {13, 8}, {14, 8},
-    {14, 7}, {14, 6}, {14, 5}, {14, 4}, {14, 3},
-    {15, 3}, {16, 3}, {17, 3}, {18, 3},
-    {18, 4}, {18, 5}, {18, 6}, {18, 7}, {18, 8}, {18, 9}, {18, 10}, {18, 11}, {18, 12},
-    {17, 12}, {16, 12}, {15, 12}, {14, 12}, {13, 12}, {12, 12}, {11, 12}, {10, 12}, {9, 12},
-    {8, 12}, {7, 12}, {6, 12}, {5, 12}, {4, 12},
-    {4, 13}, {4, 14}, {4, 15}, {4, 16}, {4, 17},
-    {5, 17}, {6, 17}, {7, 17}, {8, 17}, {9, 17}, {10, 17}, {11, 17}, {12, 17}, {13, 17},
-    {14, 17}, {15, 17}, {16, 17}, {17, 17}, {18, 17}
-}
+local function blockoutName(level)
+    return level.id == "sunlit_meadows" and "map_level1_blockout.png" or ("map_" .. level.id .. "_blockout.png")
+end
 
-local function mapBlockout()
-    local cell = 80
-    local canvas = love.graphics.newCanvas(24 * cell, 18 * cell)
-    love.graphics.setCanvas(canvas)
-    love.graphics.clear(GRAY.ground)
-    love.graphics.setColor(GRAY.road)
-    for _, p in ipairs(LEVEL1_PATH) do
-        love.graphics.rectangle("fill", (p[1] - 1) * cell, (p[2] - 1) * cell, cell, cell)
+-- Plain words for how a level's roads run, so a painting can be checked by
+-- eye: where each road enters and leaves, how many right-angle turns it has,
+-- where roads join, and where a portal breaks the road.
+local NUM = { "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen" }
+
+local function describeRoads(level, Level, cols, rows)
+    local function third(v, n, lo, hi)
+        if v <= n / 3 then return "near the " .. lo elseif v > n * 2 / 3 then return "near the " .. hi end
+        return "in the middle"
     end
-    -- Run the road off the left edge so it clearly enters the map there
-    love.graphics.rectangle("fill", 0, 0, cell, cell)
-    save(canvas, "map_level1_blockout.png")
+    local function where(c)
+        if c.x == 1 then return "the left edge " .. third(c.y, rows, "top", "bottom") end
+        if c.x == cols then return "the right edge " .. third(c.y, rows, "top", "bottom") end
+        if c.y == 1 then return "the top edge " .. third(c.x, cols, "left", "right") end
+        if c.y == rows then return "the bottom edge " .. third(c.x, cols, "left", "right") end
+        local v, h = third(c.y, rows, "top", "bottom"), third(c.x, cols, "left", "right")
+        if v == "in the middle" and h == "in the middle" then return "the center of the map" end
+        return "a point inside the map, " .. v .. " and " .. h:gsub("^near the ", "toward the ")
+    end
+    local function onEdge(c) return c.x == 1 or c.y == 1 or c.x == cols or c.y == rows end
+    local function turns(cells)
+        local n = 0
+        for i = 2, #cells - 1 do
+            local a, b, c = cells[i - 1], cells[i], cells[i + 1]
+            local adj1 = math.abs(a.x - b.x) + math.abs(a.y - b.y) == 1
+            local adj2 = math.abs(b.x - c.x) + math.abs(b.y - c.y) == 1
+            if adj1 and adj2 and (b.x - a.x ~= c.x - b.x or b.y - a.y ~= c.y - b.y) then n = n + 1 end
+        end
+        return n
+    end
+
+    local parts = {}
+    local first = Level.expandPath(level.paths[1])
+    local _, portals = Level.expandPath(level.paths[1])
+    local last = first[#first]
+    local ending = onEdge(last) and ("leaves at " .. where(last)) or ("ends at " .. where(last))
+    parts[1] = string.format("%s road enters at %s, has exactly %s right-angle turns in all and %s.",
+        #level.paths > 1 and "The first" or "There is one road. It", where(first[1]),
+        NUM[turns(first)] or tostring(turns(first)), ending)
+    parts[1] = parts[1]:gsub("^There is one road%. It road", "There is one road. It")
+    for _, p in ipairs(portals) do
+        parts[#parts + 1] = string.format("Part way along, the road stops at %s, and starts again at %s; there " ..
+            "is no road between those two points. Leave both of those ends as plain road ends; the game " ..
+            "draws a portal on them.", where(p.from), where(p.to))
+    end
+    if #level.paths > 1 then
+        local onFirst = {}
+        for _, c in ipairs(first) do onFirst[c.x .. "," .. c.y] = true end
+        for i = 2, #level.paths do
+            local cells = Level.expandPath(level.paths[i])
+            local joinAt
+            for _, c in ipairs(cells) do
+                if onFirst[c.x .. "," .. c.y] then joinAt = c; break end
+            end
+            local lead = {}
+            for _, c in ipairs(cells) do
+                lead[#lead + 1] = c
+                if c == joinAt then break end
+            end
+            parts[#parts + 1] = string.format("A second road enters at %s, makes %s right-angle turns and " ..
+                "joins the first road at %s; from there they are one road.", where(cells[1]),
+                NUM[turns(lead)] or tostring(turns(lead)), where(joinAt))
+        end
+        parts[1] = "There are " .. NUM[#level.paths] .. " roads. " .. parts[1]
+    end
+    return table.concat(parts, " ")
+end
+
+local function mapBlockouts(root)
+    package.path = root .. "/?.lua;" .. package.path
+    local Levels = require('data.levels')
+    local Level = require('systems.level')
+    local cell = 80
+    for _, level in ipairs(Levels.list) do
+        local built = Level.build(level)
+        local canvas = love.graphics.newCanvas(built.cols * cell, built.rows * cell)
+        love.graphics.setCanvas(canvas)
+        love.graphics.clear(GRAY.ground)
+        for y = 1, built.rows do
+            for x = 1, built.cols do
+                local v = built.grid[y][x]
+                if v == Level.ROAD or v == Level.ROCK then
+                    love.graphics.setColor(v == Level.ROAD and GRAY.road or { 0.18, 0.18, 0.18 })
+                    love.graphics.rectangle("fill", (x - 1) * cell, (y - 1) * cell, cell, cell)
+                end
+            end
+        end
+        save(canvas, blockoutName(level))
+    end
 end
 
 ------------------------------------------------------------------------
@@ -324,7 +393,11 @@ local function buildPrompts(root)
         w("that tower's `sprite` in `data/factions.lua` at the new file.")
         w("")
         for _, t in ipairs(A.cTowers) do
-            local p = A.towerRedo .. string.format(A.towerTemplate, t.name, t.desc)
+            -- Faction towers have their own colors; say so, or the style line's
+            -- "grey stone and warm wood with gold trim" pulls them back to it
+            local p = A.towerRedo .. string.format(A.towerTemplate, t.name, t.desc) ..
+                " Use the colors and materials described here for the tower above the base, even where they " ..
+                "differ from the rest of the set; only the base stays grey stone."
             entry(t.id, "tower", "image 1 = the approved `tower_archer` final", styled(p))
         end
 
@@ -340,11 +413,42 @@ local function buildPrompts(root)
         w("## 10. Missing hero portraits")
         w("")
         w("Attach an existing portrait (for example `assets/hero images/radiant order/Galahad/Sir Galahad.jpg`)")
-        w("as image 1. Opaque, 4:3. The game path for each is given at the end of its prompt.")
+        w("as image 1. Opaque, 4:3. Each goes to its `file` in `art/assets.lua` (A.portraits).")
         w("")
         for _, p in ipairs(A.portraits) do
-            entry(p.id, "backdrop", "image 1 = an existing hero portrait",
-                string.format(A.portraitTemplate, p.desc) .. "\n\nGame path: " .. p.file)
+            entry(p.id, "backdrop", "image 1 = an existing hero portrait", string.format(A.portraitTemplate, p.desc, p.bg))
+        end
+    end
+
+    -- Maps for every level that has no painted plate yet
+    local Levels = require('data.levels')
+    local todo = {}
+    for _, level in ipairs(Levels.list) do
+        local file = level.plate or ("sprites/maps/" .. level.id .. ".png")
+        local f = io.open(root .. "/" .. file, "rb")
+        if f then f:close() else todo[#todo + 1] = level end
+    end
+    if #todo > 0 then
+        w("## 11. Level maps")
+        w("")
+        w("Attach the level's gray layout from `art/guides/` as image 1. Cut each with `tools/artcut mapfix`")
+        w("(24 x 18 cells) and save it as `sprites/maps/<level id>.png`; the game picks it up from there.")
+        w("Until then the game draws a generated ground for the level.")
+        w("")
+        local Level = require('systems.level')
+        for _, level in ipairs(todo) do
+            local m = A.levelMaps[level.id]
+            assert(m, "art/assets.lua A.levelMaps has no entry for " .. level.id)
+            local rocks = A.noRocks
+            if level.rocks then
+                assert(m.rock, "art/assets.lua A.levelMaps." .. level.id .. " needs a rock material")
+                rocks = "The near-black areas are " .. m.rock .. ", where nothing can be built: fill each " ..
+                    "one edge to edge and keep it inside its black area."
+            end
+            local prompt = string.format(A.levelMapTemplate, describeRoads(level, Level, Levels.cols, Levels.rows),
+                m.ground, m.road, rocks)
+            entry("map_" .. level.id, "map", "image 1 = `art/guides/" .. blockoutName(level) .. "`",
+                prompt .. "\n\nStyle: " .. A.mapStyle)
         end
     end
 
@@ -360,7 +464,7 @@ function love.load(args)
     local root = args[1] or "."
     OUT = root .. "/art/guides"
     walkSheet()
-    mapBlockout()
+    mapBlockouts(root)
     boxSheet(4, 2, "icon_sheet_8_guide.png")
     buildPrompts(root)
     love.event.quit(0)

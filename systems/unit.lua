@@ -12,6 +12,7 @@
 --   isRoad(gx, gy) -> bool
 
 local Effects = require("systems.effects")
+local Audio = require("systems.audio")
 local Enemy = require("systems.enemy")
 
 local Unit = {}
@@ -201,6 +202,7 @@ function Unit:gainXp(n)
         self.level = self.level + 1
         self:recomputeStats()
         self.levelFlash = 1.5
+        Audio.play("level_up")
     end
     if self.level >= Unit.MAX_LEVEL then self.xp = 0 end
 end
@@ -564,6 +566,7 @@ function Unit:castAbility(i, game, manual)
     for _, e in ipairs(ab.effects) do self:applyEffect(e, set, ab, ctx, game) end
     slot.cooldown = ab.cooldown
     slot.flash = 0.3
+    Audio.play("ability")
     slot.casts = (slot.casts or 0) + 1
 
     if game.effects then

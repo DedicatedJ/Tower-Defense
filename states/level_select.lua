@@ -68,189 +68,35 @@ function LevelSelectState:setup(faction, hero)
 end
 
 function LevelSelectState:loadLevels()
-    -- Load levels based on faction
-    local Map = require('systems.map')
-    
-    -- First verify we have faction data
-    if not self.selectedFaction then
-        -- Create a default faction if none exists
-        self.selectedFaction = {
-            id = "default",
-            name = "Default Faction",
-            description = "Default faction for players"
+    -- The faction's levels from data/levels.lua. The first is always open;
+    -- each later one opens when the one before it has been won.
+    local Level = require('systems.level')
+    local Save = require('systems.save')
+    local list = Level.forFaction(self.selectedFaction.id)
+    self.levels = {}
+    local prevWon = true
+    for _, data in ipairs(list) do
+        local ok, result = pcall(Save.getLevelResult, data.id)
+        local stars = ok and result and result.stars or 0
+        local okThumb, thumb = pcall(Level.thumbnail, data)
+        self.levels[#self.levels + 1] = {
+            id = data.id,
+            name = data.name,
+            description = data.description,
+            difficulty = data.difficulty,
+            waves = data.waves.count,
+            unlocked = prevWon,
+            stars = stars,
+            thumbnail = okThumb and thumb or nil,
         }
-        Error.handle(Error.TYPES.GAME, "DEFAULT_FACTION", "Using default faction")
+        prevWon = stars > 0
     end
-    
-    -- Check if faction has an id
-    if not self.selectedFaction.id then
-        -- Create a default id based on the name if available
-        if self.selectedFaction.name then
-            self.selectedFaction.id = string.lower(self.selectedFaction.name)
-        else
-            self.selectedFaction.id = "default"
-        end
-        print("Faction ID created: " .. self.selectedFaction.id)
-    end
-    
-    -- Get map presets from the Map module
-    local mapPresets = {}
-    local factionId = string.lower(self.selectedFaction.id)
-    
-    -- Match faction ID (allow for more flexible matching)
-    if factionId == "radiant" or factionId:find("radiant") or factionId:find("light") then
-        mapPresets = {
-            {
-                id = "sunlit_meadows",
-                name = "Sunlit Meadows",
-                description = "Open fields with multiple paths",
-                difficulty = 1,
-                unlocked = true,
-                image = "assets/levels/sunlit_meadows_thumb.png"
-            },
-            {
-                id = "crystal_spires",
-                name = "Crystal Spires",
-                description = "Elevated platforms with bridges",
-                difficulty = 2,
-                unlocked = true,
-                image = "assets/levels/crystal_spires_thumb.png"
-            },
-            {
-                id = "celestial_citadel",
-                name = "Celestial Citadel",
-                description = "Circular, central defensive point",
-                difficulty = 3,
-                unlocked = false,
-                image = "assets/levels/celestial_citadel_thumb.png"
-            }
-        }
-    elseif factionId == "shadow" or factionId:find("shadow") or factionId:find("dark") then
-        mapPresets = {
-            {
-                id = "haunted_forest",
-                name = "Haunted Forest",
-                description = "Winding paths with dense trees",
-                difficulty = 1,
-                unlocked = true,
-                image = "assets/levels/haunted_forest_thumb.png"
-            },
-            {
-                id = "obsidian_caves",
-                name = "Obsidian Caves",
-                description = "Narrow tunnels with limited tower spots",
-                difficulty = 2,
-                unlocked = true,
-                image = "assets/levels/obsidian_caves_thumb.png"
-            },
-            {
-                id = "necropolis",
-                name = "Necropolis",
-                description = "Maze-like with teleportation portals",
-                difficulty = 3,
-                unlocked = false,
-                image = "assets/levels/necropolis_thumb.png"
-            }
-        }
-    elseif factionId == "twilight" or factionId:find("twilight") or factionId:find("balance") then
-        mapPresets = {
-            {
-                id = "misty_borderlands",
-                name = "Misty Borderlands",
-                description = "Shifting fog reveals/hides paths",
-                difficulty = 1,
-                unlocked = true,
-                image = "assets/levels/misty_borderlands_thumb.png"
-            },
-            {
-                id = "ethereal_ruins",
-                name = "Ethereal Ruins",
-                description = "Destructible environments change pathing",
-                difficulty = 2,
-                unlocked = true,
-                image = "assets/levels/ethereal_ruins_thumb.png"
-            },
-            {
-                id = "nexus_of_balance",
-                name = "Nexus of Balance",
-                description = "Dynamic, alternates light/dark zones",
-                difficulty = 3,
-                unlocked = false,
-                image = "assets/levels/nexus_of_balance_thumb.png"
-            }
-        }
-    else
-        -- Default maps for any other faction or fallback
-        mapPresets = {
-            {
-                id = "training_grounds",
-                name = "Training Grounds",
-                description = "Basic level for learning the game",
-                difficulty = 1,
-                unlocked = true,
-                image = "assets/levels/training_grounds_thumb.png"
-            },
-            {
-                id = "wilderness",
-                name = "Wilderness",
-                description = "Standard map with varied terrain",
-                difficulty = 2,
-                unlocked = true,
-                image = "assets/levels/wilderness_thumb.png"
-            },
-            {
-                id = "ancient_ruins",
-                name = "Ancient Ruins",
-                description = "Advanced map with complex paths",
-                difficulty = 3,
-                unlocked = false,
-                image = "assets/levels/ancient_ruins_thumb.png"
-            }
-        }
-    end
-    
-    -- Create fallback thumbnails directory if it doesn't exist
-    if not love.filesystem.getInfo("assets/levels") then
-        love.filesystem.createDirectory("assets/levels")
-    end
-    
-    -- Load level thumbnails
-    for _, level in ipairs(mapPresets) do
-        -- Check if image path exists
-        if level.image and love.filesystem.getInfo(level.image) then
-            local success, result = Error.pcall(function()
-                level.thumbnail = love.graphics.newImage(level.image)
-            end)
-            
-            if not success then
-                level.thumbnail = nil
-            end
-        else
-            -- Try alternative paths
-            local alternativePaths = {
-                "sprites/levels/" .. level.id .. ".jpg",
-                "sprites/levels/" .. level.id .. ".png",
-                "sprites/ui/level_placeholder.png"
-            }
-            
-            for _, path in ipairs(alternativePaths) do
-                if love.filesystem.getInfo(path) then
-                    local success, result = Error.pcall(function()
-                        level.thumbnail = love.graphics.newImage(path)
-                    end)
-                    
-                    if success then
-                        break
-                    end
-                end
-            end
-        end
-        
-        table.insert(self.levels, level)
-    end
-    
     if #self.levels == 0 then
         Error.handle(Error.TYPES.GAME, "NO_LEVELS", "No levels found for faction: " .. tostring(self.selectedFaction.id))
+    end
+    -- Start on the furthest open level
+    for i = #self.levels, 1, -1 do
+        if self.levels[i].unlocked then self.selectedLevel = self.levels[i]; break end
     end
 end
 
@@ -277,7 +123,7 @@ function LevelSelectState:createUI()
         width = 160,
         height = 40,
         hovered = false,
-        enabled = false,
+        enabled = self.selectedLevel ~= nil and self.selectedLevel.unlocked,
         action = function()
             if self.selectedLevel and self.selectedLevel.unlocked then
                 self:startLevel()
@@ -296,6 +142,7 @@ function LevelSelectState:createUI()
     for i, level in ipairs(self.levels) do
         table.insert(self.levelCards, {
             level = level,
+            index = i,
             x = startX + (i-1) * (cardWidth + spacing),
             y = screenHeight / 2 - cardHeight / 2,
             width = cardWidth,
@@ -332,6 +179,7 @@ function LevelSelectState:selectLevel(level)
 end
 
 function LevelSelectState:enter()
+    require('systems.audio').playMusic("menu")
     -- Animation or transition effect when entering this state
     self.timer:clear()
     
@@ -467,10 +315,12 @@ function LevelSelectState:drawLevelCard(card)
     
     -- Level thumbnail
     if level.thumbnail then
+        -- Fit inside the picture box above the name
+        local boxW, boxH = card.width - 16, card.width * 0.6 - 8
+        local scale = math.min(boxW / level.thumbnail:getWidth(), boxH / level.thumbnail:getHeight())
+        local tw, th = level.thumbnail:getWidth() * scale, level.thumbnail:getHeight() * scale
         love.graphics.setColor(1, 1, 1, 1)
-        local scale = card.width / level.thumbnail:getWidth()
-        local thumbHeight = level.thumbnail:getHeight() * scale
-        love.graphics.draw(level.thumbnail, x, y, 0, scale, scale)
+        love.graphics.draw(level.thumbnail, x + (card.width - tw) / 2, y + 8 + (boxH - th) / 2, 0, scale, scale)
     else
         -- Placeholder for missing thumbnail
         love.graphics.setColor(0.2, 0.2, 0.3, 0.8)
@@ -488,31 +338,47 @@ function LevelSelectState:drawLevelCard(card)
     local descY = nameY + fonts.subTitle:getHeight() + 5
     love.graphics.printf(level.description, x + 10, descY, card.width - 20, "center")
     
-    -- Difficulty stars
-    local starSize = 15
-    local totalStarWidth = level.difficulty * starSize + (level.difficulty - 1) * 5
-    local starX = x + card.width / 2 - totalStarWidth / 2
-    local starY = y + card.height - 30
-    
-    love.graphics.setColor(1, 0.8, 0, 1)
-    for i = 1, level.difficulty do
-        love.graphics.rectangle("fill", starX + (i-1) * (starSize + 5), starY, starSize, starSize)
+    -- Difficulty and length
+    love.graphics.setFont(fonts.small)
+    love.graphics.setColor(0.8, 0.8, 0.9, 1)
+    local diffNames = { "Easy", "Medium", "Hard" }
+    love.graphics.printf((diffNames[level.difficulty] or "") .. "  |  " .. (level.waves or "?") .. " waves",
+        x, y + card.height - 58, card.width, "center")
+
+    -- Stars earned (best result)
+    local starY = y + card.height - 26
+    for i = 1, 3 do
+        local cx = x + card.width / 2 + (i - 2) * 28
+        local pts = {}
+        for k = 0, 9 do
+            local r = (k % 2 == 0) and 11 or 5
+            local a = -math.pi / 2 + k * math.pi / 5
+            pts[#pts + 1] = cx + math.cos(a) * r
+            pts[#pts + 1] = starY + math.sin(a) * r
+        end
+        if i <= (level.stars or 0) then
+            love.graphics.setColor(1, 0.82, 0.2, 1)
+        else
+            love.graphics.setColor(0.35, 0.35, 0.4, 0.9)
+        end
+        for _, tri in ipairs(love.math.triangulate(pts)) do love.graphics.polygon("fill", tri) end
     end
-    
-    -- Locked indicator
+
+    -- Locked indicator: the map stays visible, the text is covered
     if not level.unlocked then
-        -- Semi-transparent overlay
-        love.graphics.setColor(0, 0, 0, 0.7)
-        love.graphics.rectangle("fill", x, y, card.width, card.height, 10, 10)
-        
-        -- Lock icon
-        love.graphics.setColor(1, 1, 1, 0.8)
-        love.graphics.setFont(fonts.title)
-        love.graphics.printf("🔒", x, y + card.height / 2 - fonts.title:getHeight() / 2, card.width, "center")
-        
-        -- Locked text
-        love.graphics.setFont(fonts.main)
-        love.graphics.printf("Complete previous level to unlock", x + 20, y + card.height / 2 + 40, card.width - 40, "center")
+        local picH = card.width * 0.6
+        love.graphics.setColor(0, 0, 0, 0.55)
+        love.graphics.rectangle("fill", x, y, card.width, picH, 10, 10)
+        love.graphics.setColor(0.07, 0.07, 0.14, 1)
+        love.graphics.rectangle("fill", x, y + picH, card.width, card.height - picH, 10, 10)
+
+        love.graphics.setColor(1, 1, 1, 0.9)
+        love.graphics.setFont(fonts.subTitle)
+        love.graphics.printf("Locked", x, y + picH + 18, card.width, "center")
+        love.graphics.setColor(0.75, 0.75, 0.85, 0.9)
+        love.graphics.setFont(fonts.small)
+        love.graphics.printf("Win " .. (self.levels[(card.index or 2) - 1] and self.levels[(card.index or 2) - 1].name or "the previous level")
+            .. " to unlock", x + 16, y + picH + 18 + fonts.subTitle:getHeight() + 10, card.width - 32, "center")
     end
 end
 

@@ -241,6 +241,7 @@ function ShopState:purchaseItem()
 
     self.resources = Save.getGold()
     item.count = item.count + 1
+    require('systems.audio').play("purchase")
     item.owned = (not item.consumable) and item.count > 0
 
     -- Update purchase button

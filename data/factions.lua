@@ -197,7 +197,7 @@ Factions.shadow = {
             id = "soul_forge",
             name = "Soul Forge",
             description = "Enemies that die in range may rise as your minions for 20 s.",
-            cost = 350, damage = 60, fireRate = 0.8, range = 140,
+            cost = 300, damage = 60, fireRate = 0.8, range = 140,
             projectileType = "soul",
             sprite = "sprites/towers/bombard.png",
             convert = { chance = 0.2,

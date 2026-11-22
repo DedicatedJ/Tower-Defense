@@ -185,51 +185,32 @@ function Save.autoSave()
     -- end
 end
 
-function Save:saveSettings()
-    local success, error = Error.pcall(function()
-        local file = io.open("save/settings.json", "w")
-        if file then
-            file:write(json.encode(self.settings))
-            file:close()
-            return true
-        end
-        return false
-    end, Error.TYPES.SAVE, "SETTINGS_SAVE_FAILED")
-    
-    if not success then
-        Error.handle(Error.TYPES.SAVE, "SETTINGS_SAVE_FAILED", error)
-        return false
-    end
-    
-    return true
+-- Settings live in <save folder>/settings.json. Both take the settings
+-- table (gameState.settings): load fills in the saved values it already
+-- has keys for, save writes all of it. Return true on success.
+local SETTINGS_FILE = "settings.json"
+
+function Save.saveSettings(settings)
+    if type(settings) ~= "table" or settings == Save then settings = gameState and gameState.settings end
+    if not settings then return false end
+    local ok, err = pcall(function()
+        assert(love.filesystem.write(SETTINGS_FILE, json.encode(settings)))
+    end)
+    if not ok then print("WARNING: could not save settings: " .. tostring(err)) end
+    return ok
 end
 
-function Save:loadSettings()
-    local success, error = Error.pcall(function()
-        local file = io.open("save/settings.json", "r")
-        if file then
-            local data = json.decode(file:read("*all"))
-            file:close()
-            
-            -- Merge with default settings
-            if data then
-                for k, v in pairs(data) do
-                    if self.settings[k] ~= nil then
-                        self.settings[k] = v
-                    end
-                end
-            end
-            
-            return true
-        end
-        return false
-    end, Error.TYPES.LOAD, "SETTINGS_LOAD_FAILED")
-    
-    if not success then
-        Error.handle(Error.TYPES.LOAD, "SETTINGS_LOAD_FAILED", error)
+function Save.loadSettings(settings)
+    if type(settings) ~= "table" or settings == Save then settings = gameState and gameState.settings end
+    if not settings or not love.filesystem.getInfo(SETTINGS_FILE) then return false end
+    local ok, data = pcall(function() return json.decode(love.filesystem.read(SETTINGS_FILE)) end)
+    if not ok or type(data) ~= "table" then
+        print("WARNING: settings file unreadable, using defaults")
         return false
     end
-    
+    for k, v in pairs(data) do
+        if settings[k] ~= nil and type(v) == type(settings[k]) then settings[k] = v end
+    end
     return true
 end
 
@@ -313,13 +294,14 @@ function Save:getSaveSlots()
 end
 
 function Save:getSettings()
-    return self.settings
+    return gameState and gameState.settings
 end
 
 function Save:setSetting(key, value)
-    if self.settings[key] ~= nil then
-        self.settings[key] = value
-        self:saveSettings()
+    local settings = gameState and gameState.settings
+    if settings and settings[key] ~= nil then
+        settings[key] = value
+        Save.saveSettings(settings)
         return true
     end
     return false
@@ -550,6 +532,7 @@ local function currentProfile()
         }
     end
     gameState.heroes = gameState.heroes or {}
+    gameState.levels = gameState.levels or {}
     gameState.purchases = gameState.purchases or {}
     gameState.gold = gameState.gold or 0
     return gameState
@@ -592,6 +575,22 @@ function Save.buyItem(itemId, cost, consumable)
     p.purchases[itemId] = owned + 1
     Save.saveProfile(p, currentSlot)
     return true
+end
+
+-- Best result on a level: { stars = 1..3 } or nil if never won
+function Save.getLevelResult(levelId)
+    return currentProfile().levels[levelId]
+end
+
+-- Record a win; keeps the best star count
+function Save.recordLevelResult(levelId, stars)
+    if not levelId then return false end
+    local p = currentProfile()
+    local old = p.levels[levelId]
+    if not old or (old.stars or 0) < stars then
+        p.levels[levelId] = { stars = stars }
+    end
+    return Save.saveProfile(p, currentSlot)
 end
 
 -- Use up one of each listed consumable

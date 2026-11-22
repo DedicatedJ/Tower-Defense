@@ -49,7 +49,7 @@ function GameState:init()
     end
 end
 
-function GameState:setup(selectedFaction, selectedHero)
+function GameState:setup(selectedFaction, selectedHero, levelId)
     self.isSetUp = true
     self.map = nil
     self.grid = nil
@@ -60,10 +60,17 @@ function GameState:setup(selectedFaction, selectedHero)
     self.factionData, self.heroData = Selection.canonical(selectedFaction, selectedHero)
     self.selectedFaction = self.factionData.id
     self.selectedHero = self.heroData.id
-    self.resources = 200
-    self.lives = 20
+    -- The level: its map, waves, starting gold and lives (data/levels.lua).
+    -- Without one, the faction's first level.
+    local Level = require('systems.level')
+    self.level = Level.get(levelId) or Level.first(self.factionData.id)
+    self.levelId = self.level.id
+    self.waves = require('systems.wave').plan(self.level)
+    self.resources = self.level.startGold
+    self.lives = self.level.lives
+    self.startLives = self.level.lives
     self.wave = 0
-    self.maxWaves = 10
+    self.maxWaves = #self.waves
     self.waveInProgress = false
     -- Not `gameOver`: an instance field with that name would shadow the
     -- GameState:gameOver() method and make every call to it crash.
@@ -99,12 +106,13 @@ function GameState:setup(selectedFaction, selectedHero)
     self.goldEarned = 0      -- gold from kills this game (for the profile)
 
     -- Load map
-    self:loadMap("level1")
+    self:loadMap(self.level)
 
     -- Faction bonus, hero passive and shop items
     self:computeMods()
     self.resources = self.resources + self.shop.startGold
     self.lives = self.lives + self.shop.startLives
+    self.startLives = self.lives
     self.freezeCharge = self.shop.freezeDuration
 
     -- Load tower data
@@ -197,8 +205,9 @@ function GameState:spawnHero()
     local ok, progress = pcall(Save.getHeroProgress, self.heroData.id)
     if not ok then progress = { level = 1, xp = 0 } end
     -- Start a little past the middle of the road
-    local cell = self.roadPath[math.max(1, math.floor(#self.roadPath * 0.6))]
-    local x, y = self:cellCenter(cell[1], cell[2])
+    local road = self.paths[1]
+    local cell = road[math.max(1, math.floor(#road * 0.6))]
+    local x, y = self:cellCenter(cell.x, cell.y)
     self.hero = Unit.newHero(self.heroData, self.factionData, x, y, {
         level = progress.level, xp = progress.xp, statMods = self.heroStatMods,
     })
@@ -225,6 +234,7 @@ end
 
 -- XP for the hero and Soul Forge conversion when an enemy dies
 function GameState:onEnemyDeath(enemy)
+    require('systems.audio').play("enemy_die")
     local Unit = require('systems.unit')
     local h = self.hero
     if h and not h.dead then
@@ -252,145 +262,6 @@ function GameState:onEnemyDeath(enemy)
     end
 end
 
-function GameState:initMap()
-    local success, result = Error.pcall(function()
-        local Map = require('systems.map')
-        self.map = Map.new('map1')
-        
-        -- Add fallback rendering if map fails to load properly
-        if not self.map or not self.map.map then
-            -- Create a default grid-based map
-            self:createDefaultMap()
-        end
-    end)
-    
-    if not success then
-        Error.handle(Error.TYPES.SYSTEM, "MAP_LOAD_FAILED", tostring(result))
-        -- Create a default map as fallback
-        self:createDefaultMap()
-    end
-end
-
-function GameState:createDefaultMap()
-    print("Creating default map as fallback")
-    self.useDefaultMap = true
-    self.defaultMapData = {
-        gridSize = 32,
-        width = 30,
-        height = 20,
-        towerSpots = {
-            {x = 160, y = 96, width = 32, height = 32},
-            {x = 160, y = 352, width = 32, height = 32},
-            {x = 768, y = 96, width = 32, height = 32},
-            {x = 768, y = 352, width = 32, height = 32}
-        },
-        waypoints = {
-            {x = 0, y = 224, order = 1},
-            {x = 464, y = 224, order = 2},
-            {x = 960, y = 224, order = 3}
-        },
-        spawnPoints = {
-            {x = 0, y = 224, type = "default"}
-        },
-        exitPoints = {
-            {x = 960, y = 224}
-        },
-        pathArea = {
-            x = 224, y = 192, width = 512, height = 64
-        }
-    }
-    
-    -- Add methods to default map
-    self.map = {
-        draw = function()
-            self:drawDefaultMap()
-        end,
-        update = function(_, dt)
-            -- Nothing to update in default map
-        end,
-        worldToGrid = function(_, x, y)
-            return math.floor(x / self.defaultMapData.gridSize) + 1, 
-                   math.floor(y / self.defaultMapData.gridSize) + 1
-        end,
-        gridToWorld = function(_, gridX, gridY)
-            return (gridX - 0.5) * self.defaultMapData.gridSize, 
-                   (gridY - 0.5) * self.defaultMapData.gridSize
-        end,
-        canPlaceTower = function(_, gridX, gridY)
-            local worldX = (gridX - 0.5) * self.defaultMapData.gridSize
-            local worldY = (gridY - 0.5) * self.defaultMapData.gridSize
-            
-            -- Check if position is on a tower spot
-            for _, spot in ipairs(self.defaultMapData.towerSpots) do
-                if worldX >= spot.x and worldX < spot.x + spot.width and
-                   worldY >= spot.y and worldY < spot.y + spot.height then
-                    return true
-                end
-            end
-            
-            -- Check if not on path
-            local path = self.defaultMapData.pathArea
-            if worldX >= path.x and worldX < path.x + path.width and
-               worldY >= path.y and worldY < path.y + path.height then
-                return false
-            end
-            
-            return false
-        end,
-        getSpawnPoint = function(_, type)
-            for _, point in ipairs(self.defaultMapData.spawnPoints) do
-                if point.type == type then
-                    return point.x, point.y
-                end
-            end
-            return self.defaultMapData.spawnPoints[1].x, self.defaultMapData.spawnPoints[1].y
-        end,
-        getExitPoint = function(_)
-            return self.defaultMapData.exitPoints[1].x, self.defaultMapData.exitPoints[1].y
-        end,
-        getWaypoints = function(_)
-            return self.defaultMapData.waypoints
-        end,
-        findPath = function(_, startX, startY, endX, endY)
-            -- Simple direct path through waypoints
-            local path = {}
-            for _, waypoint in ipairs(self.defaultMapData.waypoints) do
-                table.insert(path, {x = waypoint.x, y = waypoint.y})
-            end
-            return path
-        end
-    }
-end
-
-function GameState:drawDefaultMap()
-    -- Draw background
-    love.graphics.setColor(0.1, 0.1, 0.2, 1)
-    love.graphics.rectangle("fill", 0, 0, 
-        self.defaultMapData.width * self.defaultMapData.gridSize, 
-        self.defaultMapData.height * self.defaultMapData.gridSize)
-    
-    -- Draw grass border
-    love.graphics.setColor(0.2, 0.5, 0.2, 1)
-    love.graphics.rectangle("fill", 
-        32, 32, 
-        (self.defaultMapData.width - 2) * self.defaultMapData.gridSize, 
-        (self.defaultMapData.height - 2) * self.defaultMapData.gridSize)
-    
-    -- Draw path
-    love.graphics.setColor(0.6, 0.5, 0.3, 1)
-    local path = self.defaultMapData.pathArea
-    love.graphics.rectangle("fill", path.x, path.y, path.width, path.height)
-    
-    -- Draw tower spots
-    love.graphics.setColor(0.3, 0.3, 0.6, 1)
-    for _, spot in ipairs(self.defaultMapData.towerSpots) do
-        love.graphics.rectangle("fill", spot.x, spot.y, spot.width, spot.height)
-    end
-    
-    -- Reset color
-    love.graphics.setColor(1, 1, 1, 1)
-end
-
 function GameState:initUI()
     -- Create UI layout
     self.ui = {}
@@ -412,7 +283,15 @@ function GameState:initUI()
             
             love.graphics.setColor(1, 1, 1)
             love.graphics.setFont(self.fonts.medium)
-            love.graphics.print("Gold: " .. self.resources, self.ui.resources.x + 10, self.ui.resources.y + 5)
+            love.graphics.print("Gold: " .. math.floor(self.resources), self.ui.resources.x + 10, self.ui.resources.y + 5)
+            -- Wave clear bonus, shown for a moment
+            if self.waveBonusFlash and self.waveBonusFlash > 0 then
+                love.graphics.setColor(1, 0.85, 0.3, math.min(1, self.waveBonusFlash))
+                love.graphics.setFont(self.fonts.small)
+                local t = "+" .. self.lastWaveBonus .. " wave bonus"
+                love.graphics.print(t, self.ui.resources.x + self.ui.resources.width - self.fonts.small:getWidth(t) - 8,
+                    self.ui.resources.y + 9)
+            end
         end
     }
     
@@ -576,7 +455,7 @@ function GameState:initUI()
                         stats = {
                             { name = "Damage", value = tower.damage },
                             { name = "Range", value = tower.range },
-                            { name = "Speed", value = "1 shot / " .. tower.attackSpeed .. "s" }
+                            { name = "Speed", value = string.format("%.1f shots / s", tower.fireRate or 0) }
                         }
                     }
                 end
@@ -789,6 +668,7 @@ function GameState:setFocusTower(t)
 end
 
 function GameState:sellTower(t)
+    require('systems.audio').play("sell")
     self.resources = self.resources + t:sellValue()
     for i, other in ipairs(self.towers) do
         if other == t then table.remove(self.towers, i) break end
@@ -863,7 +743,9 @@ end
 function GameState:mousepressed(x, y, button)
     if self.isGameOver then
         if button == 1 then
-            Gamestate.switch(require('states.menu').new())
+            for _, b in ipairs(self:getEndButtons()) do
+                if self:pointInRect(x, y, b) then self:endAction(b); return end
+            end
         end
         return
     end
@@ -912,6 +794,7 @@ function GameState:mousepressed(x, y, button)
                 self:showError("Not enough resources!")
             else
                 self.resources = self.resources - t:buyUpgrade(b.index)
+                require('systems.audio').play("upgrade")
             end
             return
         end
@@ -990,6 +873,7 @@ function GameState:enter(previous, faction, hero)
     if faction and hero then
         self:setup(faction, hero)
     end
+    require('systems.audio').playMusic("game")
     
     -- Initialize auto-save
     local success, result = Error.pcall(function()
@@ -1012,6 +896,8 @@ function GameState:update(dt)
     
     -- Update UI
     self.ui:update(dt)
+    if self.waveBonusFlash then self.waveBonusFlash = self.waveBonusFlash - dt end
+    self.mapTime = (self.mapTime or 0) + dt
     
     -- Update towers
     -- Towers get the whole game state (towers, enemies, projectiles, effects)
@@ -1031,6 +917,11 @@ function GameState:update(dt)
         local enemy = self.enemies[i]
         enemy:update(dt)
 
+        if enemy.summonRequest then
+            enemy.summonRequest = false
+            if not enemy.dead then self:raiseMinion(enemy) end
+        end
+
         -- Killed this frame (by anything): XP and Soul Forge conversion
         if enemy.justDied then
             enemy.justDied = false
@@ -1040,6 +931,7 @@ function GameState:update(dt)
         -- Check if enemy reached the end
         if enemy.state == "attacking" then
             self.lives = self.lives - enemy.damage
+            require('systems.audio').play("life_lost")
             table.remove(self.enemies, i)
             
             -- Check game over condition
@@ -1077,21 +969,23 @@ function GameState:update(dt)
     
     -- Handle wave logic
     if self.waveInProgress then
-        -- Spawn enemies
+        -- Spawn enemies, each after its planned delay
         if #self.waveEnemies > 0 then
             self.enemySpawnTimer = self.enemySpawnTimer + dt
-            
-            if self.enemySpawnTimer >= self.enemySpawnDelay then
+            while #self.waveEnemies > 0 and self.enemySpawnTimer >= self.waveEnemies[1].delay do
+                self.enemySpawnTimer = self.enemySpawnTimer - self.waveEnemies[1].delay
                 self:spawnEnemy()
-                self.enemySpawnTimer = 0
             end
         end
-        
-        -- Check if wave is complete
+
+        -- Wave cleared: bonus gold, or victory after the last one
         if #self.waveEnemies == 0 and #self.enemies == 0 then
             self.waveInProgress = false
-            
-            -- Check if all waves complete
+            local bonus = self.waves[self.wave].bonus
+            self.resources = self.resources + bonus
+            self.lastWaveBonus = bonus
+            self.waveBonusFlash = 2.5
+
             if self.wave >= self.maxWaves then
                 self:gameOver(true)
             end
@@ -1111,64 +1005,77 @@ function GameState:update(dt)
     end
 end
 
+-- Level name and what the next wave brings, under the hero panel
+function GameState:drawWaveInfo()
+    local hp = self.ui.heroPanel
+    local x, y, w = hp.x, hp.y + hp.height + 24, hp.width
+    local font = self.fonts.small
+    love.graphics.setFont(font)
+    local lines = { self.level.name }
+    local nextWave = self.waves[self.wave + 1]
+    if nextWave and not self.isGameOver then
+        local label = self.waveInProgress and "After this: " or "Next: "
+        lines[#lines + 1] = label .. require('systems.wave').summary(nextWave)
+    elseif self.wave >= self.maxWaves then
+        lines[#lines + 1] = "Final wave"
+    end
+    local text = table.concat(lines, "\n")
+    local _, wrapped = font:getWrap(text, w - 12)
+    local h = #wrapped * font:getHeight() + 10
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle("fill", x, y, w, h, 4, 4)
+    love.graphics.setColor(0.95, 0.9, 0.75, 1)
+    love.graphics.printf(text, x + 6, y + 5, w - 12)
+    love.graphics.setColor(1, 1, 1, 1)
+end
+
 function GameState:startNextWave()
-    if self.waveInProgress then return end
-    
+    if self.waveInProgress or self.wave >= self.maxWaves then return end
+
     self.wave = self.wave + 1
+    require('systems.audio').play("wave_start")
     self.waveInProgress = true
-    
-    -- Generate wave enemies
-    self.waveEnemies = self:generateWaveEnemies(self.wave)
+
+    -- Copy the planned spawns; the plan stays intact for the HUD
+    local plan = self.waves[self.wave]
+    self.waveEnemies = {}
+    for i, e in ipairs(plan.entries) do self.waveEnemies[i] = e end
+    self.waveHealthMult = plan.healthMult
     self.enemySpawnTimer = 0
 end
 
-function GameState:generateWaveEnemies(waveNumber)
-    local waveEnemies = {}
-    local baseCount = 5 + math.floor(waveNumber * 1.5)
-    local types = {"zombie", "skeleton", "orc"}
-    
-    -- Add special enemies for later waves
-    if waveNumber >= 5 then
-        table.insert(types, "necromancer")
-    end
-    
-    if waveNumber >= 8 then
-        table.insert(types, "dragon")
-    end
-    
-    -- Add enemies to wave
-    for i = 1, baseCount do
-        -- Distribute enemy types based on wave number
-        local typeIndex
-        if i == baseCount and waveNumber >= 8 then
-            -- Boss enemy at the end
-            typeIndex = #types
-        else
-            typeIndex = math.min(math.ceil(i / 3), #types)
-        end
-        
-        table.insert(waveEnemies, types[typeIndex])
-    end
-    
-    return waveEnemies
+-- Create one enemy on road `pathIndex` and add it to the game
+function GameState:addEnemy(enemyType, pathIndex, healthMult)
+    local Enemy = require("systems.enemy")
+    local path = self.paths[pathIndex] or self.paths[1]
+    local enemy = Enemy.create(enemyType, path, self.tileSize)
+    if not enemy then return nil end
+    local mult = healthMult or 1
+    enemy.health = enemy.health * mult
+    enemy.maxHealth = enemy.maxHealth * mult
+    table.insert(self.enemies, enemy)
+    return enemy
 end
 
 function GameState:spawnEnemy()
-    if #self.waveEnemies == 0 then return end
-    
-    -- Get enemy type from queue
-    local enemyType = table.remove(self.waveEnemies, 1)
-    
-    -- Find path from start to end
-    local path = require("systems.enemy").findPath(self.startX, self.startY, self.endX, self.endY)
-    
-    -- Create enemy
-    local enemy = require("systems.enemy").create(enemyType, path, self.tileSize)
-    
-    -- Add enemy to game
-    if enemy then
-        table.insert(self.enemies, enemy)
+    local entry = table.remove(self.waveEnemies, 1)
+    if entry then
+        self:addEnemy(entry.type, entry.path, self.waveHealthMult)
     end
+end
+
+-- A necromancer raises a weaker skeleton where it stands
+function GameState:raiseMinion(caster)
+    local s = caster.summon
+    local e = self:addEnemy(s.type, 1, (self.waveHealthMult or 1) * s.healthMult)
+    if not e then return end
+    e.path = caster.path
+    e.currentPathIndex = caster.currentPathIndex
+    e.x, e.y = caster.x, caster.y
+    e.gridX, e.gridY = caster.gridX, caster.gridY
+    e.value = s.value
+    e.raised = true
+    self.raisedCount = (self.raisedCount or 0) + 1
 end
 
 function GameState:draw()
@@ -1188,6 +1095,9 @@ function GameState:draw()
         love.graphics.setColor(1, 1, 1, 1)
         love.graphics.draw(self.mapImage, 0, 0, 0,
             mapW / self.mapImage:getWidth(), mapH / self.mapImage:getHeight())
+        if self.built and #self.built.portals > 0 then
+            require('systems.level').drawPortals(self.built, self.tileSize, self.mapTime or 0)
+        end
 
         -- Build grid only while placing a tower, so it never sits over the art
         if self.towerPreview then
@@ -1314,6 +1224,7 @@ function GameState:draw()
     -- Draw UI
     self.ui:draw()
     self:drawFocusPanel()
+    self:drawWaveInfo()
     if self.freezeCharge then
         love.graphics.setFont(self.fonts.small)
         love.graphics.setColor(0.6, 0.85, 1, 1)
@@ -1329,21 +1240,98 @@ function GameState:draw()
     -- Draw error messages
     self:drawErrorMessages()
     
-    -- Draw game over overlay
-    if self.isGameOver then
-        love.graphics.setColor(0, 0, 0, 0.7)
-        love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
-        
+    if self.isGameOver then self:drawEndScreen() end
+end
+
+-- Stars for a win: 3 if at most 10% of lives were lost, 2 if at most half
+function GameState.starsFor(lives, startLives)
+    local f = lives / math.max(1, startLives)
+    if f >= 0.9 then return 3 elseif f >= 0.5 then return 2 else return 1 end
+end
+
+-- Buttons on the end screen: { label, action, x, y, width, height }
+function GameState:getEndButtons()
+    local Level = require('systems.level')
+    local list = {}
+    local nextLevel = Level.nextOf(self.levelId)
+    if self.victory and nextLevel then
+        list[#list + 1] = { label = "Next Level", action = "next", level = nextLevel.id }
+    end
+    list[#list + 1] = { label = self.victory and "Replay" or "Retry", action = "retry" }
+    list[#list + 1] = { label = "Level Select", action = "levels" }
+    local w, h, gap = 170, 44, 16
+    local total = #list * w + (#list - 1) * gap
+    local x0 = love.graphics.getWidth() / 2 - total / 2
+    local y = love.graphics.getHeight() / 2 + 90
+    for i, b in ipairs(list) do
+        b.x, b.y, b.width, b.height = x0 + (i - 1) * (w + gap), y, w, h
+    end
+    return list
+end
+
+function GameState:endAction(b)
+    if b.action == "levels" then
+        local ls = require('states.level_select').new()
+        ls:setup(self.factionData, self.heroData)
+        Gamestate.switch(ls)
+    else
+        local g = GameState.new()
+        g:setup(self.factionData, self.heroData, b.action == "next" and b.level or self.levelId)
+        Gamestate.switch(g)
+    end
+end
+
+function GameState:drawEndScreen()
+    local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+    love.graphics.setColor(0, 0, 0, 0.72)
+    love.graphics.rectangle("fill", 0, 0, sw, sh)
+
+    love.graphics.setColor(self.victory and { 1, 0.85, 0.35 } or { 0.9, 0.35, 0.3 })
+    love.graphics.setFont(self.fonts.title)
+    love.graphics.printf(self.victory and "VICTORY!" or "DEFEAT", 0, sh / 2 - 130, sw, "center")
+
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.setFont(self.fonts.medium)
+    love.graphics.printf(self.level.name, 0, sh / 2 - 80, sw, "center")
+
+    -- Stars
+    if self.victory then
+        local stars = self.stars or 1
+        for i = 1, 3 do
+            local cx, cy = sw / 2 + (i - 2) * 46, sh / 2 - 30
+            local pts = {}
+            for k = 0, 9 do
+                local r = (k % 2 == 0) and 18 or 8
+                local a = -math.pi / 2 + k * math.pi / 5
+                pts[#pts + 1] = cx + math.cos(a) * r
+                pts[#pts + 1] = cy + math.sin(a) * r
+            end
+            love.graphics.setColor(i <= stars and { 1, 0.82, 0.2 } or { 0.3, 0.3, 0.3 })
+            for _, tri in ipairs(love.math.triangulate(pts)) do love.graphics.polygon("fill", tri) end
+        end
+    end
+
+    love.graphics.setColor(0.85, 0.85, 0.85)
+    love.graphics.setFont(self.fonts.small)
+    local lines = {
+        string.format("Waves %d / %d     Lives %d / %d", self.wave, self.maxWaves, math.max(0, self.lives), self.startLives),
+        string.format("+%d shop gold", self.shopGoldAwarded or 0),
+    }
+    if self.hero then
+        lines[#lines + 1] = string.format("%s is level %d", self.hero.name, self.hero.level)
+    end
+    love.graphics.printf(table.concat(lines, "\n"), 0, sh / 2 + 5, sw, "center")
+
+    local mx, my = love.mouse.getPosition()
+    for _, b in ipairs(self:getEndButtons()) do
+        local hover = self:pointInRect(mx, my, b)
+        love.graphics.setColor(hover and { 0.35, 0.45, 0.7, 0.95 } or { 0.2, 0.25, 0.45, 0.9 })
+        love.graphics.rectangle("fill", b.x, b.y, b.width, b.height, 8, 8)
+        love.graphics.setColor(0.75, 0.8, 1, 0.9)
+        love.graphics.rectangle("line", b.x, b.y, b.width, b.height, 8, 8)
         love.graphics.setColor(1, 1, 1)
-        love.graphics.setFont(self.fonts.title)
-        local text = self.victory and "VICTORY!" or "GAME OVER"
-        local textW = self.fonts.title:getWidth(text)
-        love.graphics.print(text, love.graphics.getWidth()/2 - textW/2, love.graphics.getHeight()/2 - 50)
-        
         love.graphics.setFont(self.fonts.medium)
-        local hint = "Click to return to the menu"
-        local hintW = self.fonts.medium:getWidth(hint)
-        love.graphics.print(hint, love.graphics.getWidth()/2 - hintW/2, love.graphics.getHeight()/2 + 10)
+        love.graphics.printf(b.label, b.x, b.y + b.height / 2 - self.fonts.medium:getHeight() / 2, b.width, "center")
     end
 end
 
@@ -1366,6 +1354,8 @@ function GameState:placeTower(gridX, gridY, type)
         return false
     end
     
+    require('systems.audio').play("place")
+
     -- Deduct resources
     self.resources = self.resources - towerData.cost
     
@@ -1399,65 +1389,46 @@ function GameState:pixelToGrid(pixelX, pixelY)
     return gridX, gridY
 end
 
-function GameState:loadMap(mapName)
-    -- For now, create a sample map
-    local gridWidth = 24
-    local gridHeight = 18
-    
-    -- Initialize grid with all cells set to 1 (tower placement)
-    self.grid = {}
-    for y = 1, gridHeight do
-        self.grid[y] = {}
-        for x = 1, gridWidth do
-            self.grid[y][x] = 1 -- Default to tower placement
-        end
-    end
-    
-    -- Define the path (0 = path, 1 = tower placement, 2 = occupied)
-    local path = {
-        {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1},
-        {8, 2}, {8, 3}, {8, 4}, {8, 5}, {8, 6}, {8, 7}, {8, 8},
-        {9, 8}, {10, 8}, {11, 8}, {12, 8}, {13, 8}, {14, 8},
-        {14, 7}, {14, 6}, {14, 5}, {14, 4}, {14, 3},
-        {15, 3}, {16, 3}, {17, 3}, {18, 3},
-        {18, 4}, {18, 5}, {18, 6}, {18, 7}, {18, 8}, {18, 9}, {18, 10}, {18, 11}, {18, 12},
-        {17, 12}, {16, 12}, {15, 12}, {14, 12}, {13, 12}, {12, 12}, {11, 12}, {10, 12}, {9, 12}, {8, 12}, {7, 12}, {6, 12}, {5, 12}, {4, 12},
-        {4, 13}, {4, 14}, {4, 15}, {4, 16}, {4, 17},
-        {5, 17}, {6, 17}, {7, 17}, {8, 17}, {9, 17}, {10, 17}, {11, 17}, {12, 17}, {13, 17}, {14, 17}, {15, 17}, {16, 17}, {17, 17}, {18, 17}
-    }
-    
-    -- Mark path cells in the grid
-    for _, point in ipairs(path) do
-        self.grid[point[2]][point[1]] = 0 -- Path
-    end
-    
-    -- Set start and end points
-    self.startX, self.startY = 1, 1
-    self.endX, self.endY = 18, 17
+function GameState:loadMap(level)
+    local Level = require('systems.level')
+    local built = Level.build(level)
+    self.built = built
+    self.grid = built.grid
+    self.paths = built.paths          -- one cell list per road, start to end
+    self.roadPath = built.roadCells   -- every road cell as {gx, gy}; road 1 first, in order
+    self.startX, self.startY = built.paths[1][1].x, built.paths[1][1].y
+    local last = built.paths[1][#built.paths[1]]
+    self.endX, self.endY = last.x, last.y
 
-    -- Set up enemy pathfinder
-    require("systems.enemy").setPathfinder(self.grid, 0)
-    self.roadPath = path -- ordered road cells, start to end
+    -- The hero walks road cells (BFS in systems/enemy.lua)
+    require("systems.enemy").setPathfinder(self.grid, Level.ROAD)
 
-    -- Painted ground plate (art/README.md). The path above stays the source
-    -- of truth; the plate is cut and warped to match it (tools/artcut mapfix).
+    -- Painted ground plate if the level has one (art/README.md), else a
+    -- ground generated from the level data. The road cells stay the source
+    -- of truth; a plate is cut and warped to match them (tools/artcut mapfix).
     self.mapImage = nil
-    local platePath = "sprites/maps/" .. tostring(mapName) .. ".png"
-    if love.filesystem.getInfo(platePath) then
-        local ok, img = pcall(love.graphics.newImage, platePath, { mipmaps = true })
+    local plate = Level.platePath(level)
+    if plate then
+        local ok, img = pcall(love.graphics.newImage, plate, { mipmaps = true })
         if ok then
             img:setFilter("linear", "linear")
             img:setMipmapFilter("linear")
             self.mapImage = img
         else
-            print("WARNING: could not load map plate " .. platePath)
+            print("WARNING: could not load map plate " .. plate)
         end
+    end
+    if not self.mapImage then
+        self.mapImage = Level.renderGround(level, built, self.tileSize)
     end
 end
 
 function GameState:gameOver(victory)
     self.isGameOver = true
     self.victory = victory
+    local Audio = require('systems.audio')
+    Audio.stopMusic()
+    Audio.play(victory and "victory" or "defeat")
     
     -- Play sound effect
     if victory then
@@ -1481,6 +1452,10 @@ function GameState:gameOver(victory)
     end
     self.shopGoldAwarded = math.floor(self.goldEarned / 5) + (victory and 100 or 0)
     pcall(Save.addGold, self.shopGoldAwarded)
+    if victory then
+        self.stars = GameState.starsFor(self.lives, self.startLives)
+        pcall(Save.recordLevelResult, self.levelId, self.stars)
+    end
 
     -- Save game state
     require("systems.save").saveGameState({

@@ -70,11 +70,12 @@ function love.load()
     -- Initialize random seed
     love.math.setRandomSeed(os.time())
     
+    -- Settings first, so sounds start at the saved volumes
+    Save.loadSettings(gameState.settings)
+    if gameState.settings.fullscreen then love.window.setFullscreen(true) end
+
     -- Initialize sounds
     initSounds()
-    
-    -- Load settings
-    Save:loadSettings()
     
     -- Check for save directory
     love.filesystem.createDirectory("save")
@@ -99,37 +100,11 @@ function love.load()
     Gamestate.switch(initialState)
 end
 
--- Initialize all game sounds
+-- Load sounds and music (systems/audio.lua) at the saved volumes
 function initSounds()
-    -- Helper function to safely load a sound or create a placeholder if not found
-    local function safeAudioLoad(path, sourceType)
-        local success, result = pcall(love.audio.newSource, path, sourceType)
-        if success then
-            return result
-        else
-            print("Warning: Could not load sound " .. path .. ", using placeholder instead.")
-            -- Create a silent placeholder sound
-            local placeholder = love.audio.newSource(love.sound.newSoundData(1024, 44100, 16, 1), "static")
-            return placeholder
-        end
-    end
-    
-    -- Music
-    sounds.music.menu = safeAudioLoad("sounds/music/menu.mp3", "stream")
-    sounds.music.game = safeAudioLoad("sounds/music/game.mp3", "stream")
-    sounds.music.victory = safeAudioLoad("sounds/music/victory.mp3", "stream")
-    sounds.music.defeat = safeAudioLoad("sounds/music/defeat.mp3", "stream")
-    
-    -- SFX
-    sounds.sfx.buttonClick = safeAudioLoad("sounds/sfx/button_click.wav", "static")
-    sounds.sfx.towerPlace = safeAudioLoad("sounds/sfx/tower_place.wav", "static")
-    sounds.sfx.towerSell = safeAudioLoad("sounds/sfx/tower_sell.wav", "static")
-    sounds.sfx.enemyDeath = safeAudioLoad("sounds/sfx/enemy_death.wav", "static")
-    sounds.sfx.playerDamage = safeAudioLoad("sounds/sfx/player_damage.wav", "static")
-    sounds.sfx.heroAbility = safeAudioLoad("sounds/sfx/hero_ability.wav", "static")
-    sounds.sfx.waveStart = safeAudioLoad("sounds/sfx/wave_start.wav", "static")
-    sounds.sfx.purchase = safeAudioLoad("sounds/sfx/purchase.wav", "static")
-    sounds.sfx.levelUp = safeAudioLoad("sounds/sfx/level_up.wav", "static")
+    local Audio = require('systems.audio')
+    Audio.init()
+    Audio.setVolumes(gameState.settings.musicVolume, gameState.settings.sfxVolume)
 end
 
 function love.update(dt)
@@ -203,34 +178,36 @@ end
 
 function love.quit()
     -- Save settings before quitting
-    Save:saveSettings()
+    Save.saveSettings(gameState.settings)
 end
 
--- Global helper functions
+-- Global helpers kept for the screens that call them. Old sound names map
+-- onto systems/audio.lua events; names with no event are ignored.
+local OLD_SFX = { buttonClick = "click", towerPlace = "place", towerSell = "sell", enemyDeath = "enemy_die",
+    playerDamage = "life_lost", heroAbility = "ability", waveStart = "wave_start", purchase = "purchase",
+    levelUp = "level_up", upgrade = "upgrade" }
+
 function playSound(soundType, soundName)
-    if sounds[soundType] and sounds[soundType][soundName] then
-        local volume = soundType == 'music' and gameState.settings.musicVolume or gameState.settings.sfxVolume
-        sounds[soundType][soundName]:setVolume(volume)
-        sounds[soundType][soundName]:play()
+    local Audio = require('systems.audio')
+    if soundType == 'music' then
+        if Audio.MUSIC[soundName] then Audio.playMusic(soundName) end
+    else
+        Audio.play(OLD_SFX[soundName] or soundName)
     end
 end
 
 function stopSound(soundType, soundName)
-    if sounds[soundType] and sounds[soundType][soundName] then
-        sounds[soundType][soundName]:stop()
-    end
+    local Audio = require('systems.audio')
+    if soundType == 'music' and Audio.currentMusic == soundName then Audio.stopMusic() end
 end
 
 function setVolume(soundType, volume)
+    local Audio = require('systems.audio')
     if soundType == 'music' then
         gameState.settings.musicVolume = volume
-        for _, sound in pairs(sounds.music) do
-            sound:setVolume(volume)
-        end
+        Audio.setVolumes(volume, nil)
     elseif soundType == 'sfx' then
         gameState.settings.sfxVolume = volume
-        for _, sound in pairs(sounds.sfx) do
-            sound:setVolume(volume)
-        end
+        Audio.setVolumes(nil, volume)
     end
-end 
+end

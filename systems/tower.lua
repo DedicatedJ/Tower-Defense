@@ -12,6 +12,7 @@
 
 local Factions = require 'data.factions'
 local Effects = require 'systems.effects'
+local Audio = require 'systems.audio'
 
 local Tower = {}
 
@@ -446,6 +447,7 @@ function TowerInstance:update(dt, game)
 end
 
 function TowerInstance:fire(game, x, y)
+    Audio.shot(self.projectileType)
     local tower = self
     local target = self.target
     local sprite = Tower.projectileSprites[self.projectileType]
@@ -462,6 +464,7 @@ function TowerInstance:fire(game, x, y)
             local step = p.speed * dt
             if d <= math.max(step, target.radius or 12) then
                 tower:onHit(target)
+                Audio.play("enemy_hit")
                 p.destroyed = true
                 return
             end

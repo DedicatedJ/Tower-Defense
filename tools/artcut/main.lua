@@ -171,11 +171,71 @@ local function cutBackdrop(inPath, outPath, outW, outH)
 end
 
 ------------------------------------------------------------------------
+-- Map options (flags anywhere on the command line, see love.load):
+--   --stretch     use the whole painting and stretch it to the layout's
+--                 aspect, for a painting made at another aspect (16:9)
+--                 that kept the layout by stretching it; default crops
+--   --road=stone  the road is grey stone, not brown earth: find it as a
+--                 bright, unsaturated color instead
+--   --road=auto   learn the painting's own road, ground and rock colors
+--                 from the cells the layout says they are, then call a
+--                 color road when it is nearest the road color. Works for
+--                 any road color; trusts that most of the road is in place
+------------------------------------------------------------------------
+local OPTS = { stretch = false, road = "earth" }
+
+-- Average color of each layout class (road, ground, rock) in a painting:
+-- the middle 60% of every cell, cells grouped by the layout's class
+local function learnColors(img, ox, oy, cw, ch, b, cols, rows)
+    local bw, bh = b:getDimensions()
+    local sums = {}
+    for gy = 0, rows - 1 do
+        for gx = 0, cols - 1 do
+            local v = b:getPixel(math.floor((gx + 0.5) * bw / cols), math.floor((gy + 0.5) * bh / rows))
+            local class = (v > 0.3 and v < 0.6) and "road" or (v <= 0.3 and "rock" or "ground")
+            local t = sums[class] or { 0, 0, 0, 0 }
+            for y = math.floor(oy + (gy + 0.2) * ch / rows), math.floor(oy + (gy + 0.8) * ch / rows), 3 do
+                for x = math.floor(ox + (gx + 0.2) * cw / cols), math.floor(ox + (gx + 0.8) * cw / cols), 3 do
+                    local r, g, bb = img:getPixel(x, y)
+                    t[1], t[2], t[3], t[4] = t[1] + r, t[2] + g, t[3] + bb, t[4] + 1
+                end
+            end
+            sums[class] = t
+        end
+    end
+    local means = {}
+    for class, t in pairs(sums) do means[class] = { t[1] / t[4], t[2] / t[4], t[3] / t[4] } end
+    OPTS.means = means
+    for class, m in pairs(means) do
+        print(string.format("learned %-6s color: %.2f %.2f %.2f", class, m[1], m[2], m[3]))
+    end
+end
+
+-- Is this color road? r, g, b in 0..1
+local function isRoadColor(r, g, b)
+    if OPTS.road == "auto" then
+        local best, bestD
+        for class, m in pairs(OPTS.means) do
+            local d = (r - m[1]) ^ 2 + (g - m[2]) ^ 2 + (b - m[3]) ^ 2
+            if not bestD or d < bestD then best, bestD = class, d end
+        end
+        return best == "road"
+    end
+    if OPTS.road == "stone" then
+        local hi, lo = math.max(r, g, b), math.min(r, g, b)
+        return hi > 0.35 and (hi - lo) / hi < 0.22
+    end
+    -- Earth is clearly redder than green; warm sunlit grass is not
+    return (r - g) > 0.06 and (r - b) > 0.15
+end
+
+------------------------------------------------------------------------
 -- Map check: does the painted road sit on the road cells of the blockout?
---   lovec tools/artcut mapcheck <map.png> <blockout.png> <cols> <rows>
+--   lovec tools/artcut mapcheck <map.png> <blockout.png> <cols> <rows> [--stretch] [--road=stone]
 -- The map is center-cropped to the blockout's aspect (as the backdrop cut
 -- does), split into cols x rows cells, and each cell's middle 60% is
--- classified as earth (brown: red above green, well above blue) or not.
+-- classified as road color (isRoadColor: brown earth, or grey stone with
+-- --road=stone) or not.
 -- Blockout cells in the mid gray band are road (near black is rock). Prints a grid:
 --   #  road cell, painted earth      x  road cell, not earth (road missing)
 --   .  ground cell, not earth        !  ground cell, painted earth (road misplaced)
@@ -187,8 +247,11 @@ local function mapCheck(mapPath, blockPath, cols, rows)
     local bw, bh = b:getDimensions()
     local target = bw / bh
     local cw, ch = w, h
-    if w / h > target then cw = math.floor(h * target + 0.5) else ch = math.floor(w / target + 0.5) end
+    if not OPTS.stretch then
+        if w / h > target then cw = math.floor(h * target + 0.5) else ch = math.floor(w / target + 0.5) end
+    end
     local ox, oy = math.floor((w - cw) / 2), math.floor((h - ch) / 2)
+    if OPTS.road == "auto" then learnColors(m, ox, oy, cw, ch, b, cols, rows) end
 
     local counts = { hit = 0, miss = 0, stray = 0, ok = 0 }
     local lines = {}
@@ -209,8 +272,7 @@ local function mapCheck(mapPath, blockPath, cols, rows)
                 end
             end
             sr, sg, sb = sr / n, sg / n, sb / n
-            -- Earth is clearly redder than green; warm sunlit grass is not
-            local earth = (sr - sg) > 0.06 and (sr - sb) > 0.15
+            local earth = isRoadColor(sr, sg, sb)
             local c
             if isRoad and earth then c = "#"; counts.hit = counts.hit + 1
             elseif isRoad then c = "x"; counts.miss = counts.miss + 1
@@ -231,7 +293,7 @@ local ffi = require("ffi")
 
 ------------------------------------------------------------------------
 -- Map fix: line the painted road up with the blockout's grid.
---   lovec tools/artcut mapfix <map.png> <blockout.png> <out.png> <outW> <outH> [cols] [rows]
+--   lovec tools/artcut mapfix <map.png> <blockout.png> <out.png> <outW> <outH> [cols] [rows] [--stretch] [--road=stone]
 -- Measures where each straight road run is painted (center of its earth
 -- pixels), then stretches the image piecewise in x and in y so every run's
 -- center lands on its cell center. Run 'mapcheck' on the result. Stops if
@@ -245,9 +307,12 @@ local function mapFix(mapPath, blockPath, outPath, outW, outH, cols, rows)
     local bw, bh = b:getDimensions()
     local target = bw / bh
     local cw, ch = w, h
-    if w / h > target then cw = math.floor(h * target + 0.5) else ch = math.floor(w / target + 0.5) end
+    if not OPTS.stretch then
+        if w / h > target then cw = math.floor(h * target + 0.5) else ch = math.floor(w / target + 0.5) end
+    end
     local src = love.image.newImageData(cw, ch)
     src:paste(m, 0, 0, math.floor((w - cw) / 2), math.floor((h - ch) / 2), cw, ch)
+    if OPTS.road == "auto" then learnColors(src, 0, 0, cw, ch, b, cols, rows) end
     local sp = ffi.cast("uint8_t*", src:getFFIPointer())
     local cellW, cellH = cw / cols, ch / rows
 
@@ -263,7 +328,7 @@ local function mapFix(mapPath, blockPath, outPath, outW, outH, cols, rows)
     local function earthAt(x, y)
         local i = (y * cw + x) * 4
         local r, g, bb = sp[i], sp[i + 1], sp[i + 2]
-        return (r - g) > 15 and (r - bb) > 38 -- same test as mapcheck, in 0-255
+        return isRoadColor(r / 255, g / 255, bb / 255) -- same test as mapcheck
     end
 
     -- Measure straight runs: vertical runs give x knots, horizontal give y
@@ -653,6 +718,14 @@ local function cutSheet(inPath, outPng, outMeta, figureH, floor, rows, cols, anc
 end
 
 function love.load(args)
+    -- Pull out --flags; the rest are positional
+    local pos = {}
+    for _, a in ipairs(args) do
+        if a == "--stretch" then OPTS.stretch = true
+        elseif a:match("^%-%-road=") then OPTS.road = a:match("^%-%-road=(%w+)")
+        else pos[#pos + 1] = a end
+    end
+    args = pos
     local cmd = args[1]
     local ok, err = pcall(function()
         if cmd == "info" then

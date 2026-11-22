@@ -116,7 +116,9 @@ function AchievementState:draw()
             handleHeight)
     end
     
-    -- Draw each achievement
+    -- Draw each achievement, clipped to the list area so rows never run
+    -- under the stats line
+    love.graphics.setScissor(0, 120, love.graphics.getWidth(), visibleHeight)
     for i, achievement in ipairs(self.achievements) do
         local y = startY + (i - 1) * (achievementHeight + spacing)
         
@@ -226,6 +228,7 @@ function AchievementState:draw()
                     love.graphics.getWidth() / 2 - achievementWidth / 2 + 100, 
                     y + 70)
             end
+    love.graphics.setScissor()
         end
     end
     

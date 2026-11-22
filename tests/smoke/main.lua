@@ -589,7 +589,7 @@ local function run()
         check(table.concat(labels, ",") == "Continue,New Game,Load Game,Settings,Tutorial,Credits,Quit",
             "the main menu shows its 7 buttons (" .. table.concat(labels, ",") .. ")")
         local last = menu.buttons[#menu.buttons]
-        check(last.y + last.height <= 768, "the buttons fit on the screen")
+        check(last.y + last.height <= 720, "the buttons fit on the screen")
         shot("main_menu")
         local settingsButton = menu.buttons[4]
         love.mousepressed(settingsButton.x + 20, settingsButton.y + 20, 1)
@@ -902,29 +902,29 @@ local function run()
     end
 
     ------------------------------------------------------------------
-    log("== Any window size (scaled 1024 x 768)")
+    log("== Any window size (scaled 1280 x 720)")
     do
         local Screen = require('utils.screen')
-        love.window.setMode(1600, 900, { resizable = true })
+        love.window.setMode(1600, 1200, { resizable = true })
         local g = newGame("radiant", "sir_galahad")
         wait(3)
-        check(love.graphics.getWidth() == 1024 and love.graphics.getHeight() == 768,
-            "screens still see 1024 x 768 in a 1600 x 900 window")
-        check(math.abs(Screen.scale - 900 / 768) < 1e-6 and Screen.ox > 0 and Screen.oy == 0,
-            string.format("the game is scaled x%.3f and centered with side bars", Screen.scale))
-        love.mouse.setPosition(512, 384)
+        check(love.graphics.getWidth() == 1280 and love.graphics.getHeight() == 720,
+            "screens still see 1280 x 720 in a 1600 x 1200 window")
+        check(math.abs(Screen.scale - 1600 / 1280) < 1e-6 and Screen.ox == 0 and Screen.oy > 0,
+            string.format("the game is scaled x%.3f and centered with bars above and below", Screen.scale))
+        love.mouse.setPosition(640, 360)
         wait(2)
         local mx, my = love.mouse.getPosition()
-        check(math.abs(mx - 512) <= 1 and math.abs(my - 384) <= 1, "the mouse maps back to game coordinates")
+        check(math.abs(mx - 640) <= 1 and math.abs(my - 360) <= 1, "the mouse maps back to game coordinates")
         -- A click at the window spot of the first tower button picks it
         local b = g:getTowerButtons()[1]
         local wx, wy = Screen.toWindow(b.x + 10, b.y + 10)
         love.mousepressed(wx, wy, 1)
         check(g.selectedTower == b.id, "clicking a tower button in the scaled window picks it")
-        shot("scaled_1600x900")
-        love.window.setMode(1024, 768, { resizable = true })
+        shot("scaled_1600x1200")
+        love.window.setMode(1280, 720, { resizable = true })
         wait(3)
-        check(Screen.scale == 1 and Screen.ox == 0, "back at 1024 x 768 the mapping is 1:1")
+        check(Screen.scale == 1 and Screen.ox == 0, "back at 1280 x 720 the mapping is 1:1")
     end
 
     ------------------------------------------------------------------

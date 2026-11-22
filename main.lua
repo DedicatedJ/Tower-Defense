@@ -70,7 +70,7 @@ function love.load()
     -- Initialize random seed
     love.math.setRandomSeed(os.time())
     
-    -- Every screen is laid out for 1024 x 768; scale that to the window
+    -- Every screen is laid out for 1280 x 720; scale that to the window
     Screen.install()
 
     -- Settings first, so sounds start at the saved volumes
@@ -152,7 +152,7 @@ function love.keyreleased(key)
     end
 end
 
--- Mouse events arrive in window pixels; screens work in 1024 x 768
+-- Mouse events arrive in window pixels; screens work in 1280 x 720
 function love.mousepressed(x, y, button)
     x, y = Screen.toVirtual(x, y)
     if Gamestate.current() and Gamestate.current().mousepressed then

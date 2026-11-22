@@ -107,22 +107,7 @@ function PauseState:draw()
     if self.background then
         love.graphics.setColor(1, 1, 1, 0.8)
         
-        -- Calculate dimensions to center the image
-        local screenWidth = love.graphics.getWidth()
-        local screenHeight = love.graphics.getHeight()
-        local imgWidth = self.background:getWidth()
-        local imgHeight = self.background:getHeight()
-        
-        -- Scale to fit the screen while maintaining aspect ratio
-        local scale = math.min(screenWidth / imgWidth, screenHeight / imgHeight)
-        local scaledWidth = imgWidth * scale
-        local scaledHeight = imgHeight * scale
-        
-        -- Center the image
-        local x = (screenWidth - scaledWidth) / 2
-        local y = (screenHeight - scaledHeight) / 2
-        
-        love.graphics.draw(self.background, x, y, 0, scale, scale)
+        require('utils.image').drawCover(self.background)
     end
     
     -- Draw pause menu container

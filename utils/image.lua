@@ -36,4 +36,17 @@ function Image.smooth(src)
     return img
 end
 
+-- Draw an image filling a w x h box (default: the whole screen), cropping
+-- the overflow evenly instead of stretching, so a 4:3 picture fills a
+-- 16:9 screen without distortion
+function Image.drawCover(img, w, h, x, y)
+    w = w or love.graphics.getWidth()
+    h = h or love.graphics.getHeight()
+    local iw, ih = img:getDimensions()
+    local s = math.max(w / iw, h / ih)
+    local qw, qh = w / s, h / s
+    local quad = love.graphics.newQuad((iw - qw) / 2, (ih - qh) / 2, qw, qh, iw, ih)
+    love.graphics.draw(img, quad, x or 0, y or 0, 0, s, s)
+end
+
 return Image

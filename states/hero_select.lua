@@ -164,7 +164,7 @@ function HeroSelectState:updateCarouselPositions()
         if relativeIndex == 0 then
             -- Center card (current selection)
             x = centerX - cardWidth / 2
-            y = centerY - cardHeight / 2 + 30 -- Slightly lower
+            y = centerY - cardHeight / 2 + 6 -- Slightly lower; clears the strip below
             scale = 1.0
             alpha = 1.0
             zIndex = 3

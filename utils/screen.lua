@@ -1,6 +1,6 @@
--- Fixed-size virtual screen. Every screen is laid out for 1024 x 768;
+-- Fixed-size virtual screen. Every screen is laid out for 1280 x 720;
 -- this draws each frame into a canvas of that size and scales it to fit the
--- window (fullscreen, resized, or a 16:9 monitor), with bars where the shapes
+-- window (fullscreen, resized, or a 16:10 or 4:3 monitor), with bars where the shapes
 -- differ. The mouse is mapped back to virtual coordinates.
 --
 --   Screen.install()   once at load: makes love.graphics.getWidth/Height/
@@ -10,9 +10,9 @@
 --   Screen.finish()    at the end of love.draw
 --   Screen.toVirtual(x, y)  window pixel -> virtual (for event callbacks)
 --
--- At exactly 1024 x 768 the mapping is the identity.
+-- At exactly 1280 x 720 the mapping is the identity.
 
-local Screen = { W = 1024, H = 768, scale = 1, ox = 0, oy = 0 }
+local Screen = { W = 1280, H = 720, scale = 1, ox = 0, oy = 0 }
 
 local raw = {}
 

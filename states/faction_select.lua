@@ -236,13 +236,7 @@ function FactionSelectState:draw()
     -- Draw background
     love.graphics.setColor(1, 1, 1, 1)
     if self.background then
-        love.graphics.draw(
-            self.background, 
-            0, 0, 
-            0, 
-            love.graphics.getWidth() / self.background:getWidth(),
-            love.graphics.getHeight() / self.background:getHeight()
-        )
+        require('utils.image').drawCover(self.background)
     else
         -- Fallback gradient background
         local gradient = {

@@ -310,9 +310,7 @@ function ShopState:draw()
     -- Draw background
     love.graphics.setColor(1, 1, 1, 1)
     if self.background then
-        love.graphics.draw(self.background, 0, 0, 0, 
-            love.graphics.getWidth() / self.background:getWidth(),
-            love.graphics.getHeight() / self.background:getHeight())
+        require('utils.image').drawCover(self.background)
     else
         -- Fallback background
         love.graphics.setColor(0.1, 0.1, 0.2, 1)

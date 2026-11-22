@@ -714,6 +714,44 @@ local function run()
     end
 
     ------------------------------------------------------------------
+    log("== Hotkeys and early wave call")
+    do
+        local g = newGame("radiant", "sir_galahad")
+        local buttons = g:getTowerButtons()
+        key("2")
+        check(g.selectedTower == buttons[2].id, "2 picks the second tower (" .. buttons[2].id .. ")")
+        key("1")
+        check(g.selectedTower == buttons[1].id, "1 picks the cheapest tower")
+        key("1")
+        check(g.selectedTower == nil, "the same key again puts it down")
+
+        g.resources = 5000
+        placeTower(g, "holy_bastion", 7, 3)
+        placeTower(g, "seraphim_altar", 9, 6)
+        local hero = g.hero
+        key("space")
+        check(g.wave == 1 and g.waveInProgress, "Space starts wave 1")
+        key("space")
+        check(g.wave == 1, "Space does nothing while the wave is still arriving")
+        simulate(60, function() return #g.waveEnemies == 0 end)
+        check(g:canCallEarly(), "once wave 1 has fully arrived, wave 2 can be called early")
+        shot("early_call")
+        local gold, bonus = g.resources, g:earlyBonus()
+        local pending = g.pendingBonus
+        key("space")
+        check(g.wave == 2 and g.resources == gold + bonus and g.earlyCalls == 1,
+            "calling wave 2 early pays " .. bonus .. " gold at once")
+        check(g.pendingBonus == pending + g.waves[2].bonus, "both waves' clear bonuses are owed")
+        local owed = g.pendingBonus
+        local before = g.resources
+        local goldFromKills = g.goldEarned
+        simulate(200, function() return not g.waveInProgress end)
+        check(not g.waveInProgress and g.pendingBonus == 0
+            and g.resources == before + owed + (g.goldEarned - goldFromKills),
+            "when the field is clear, both clear bonuses are paid (" .. owed .. ")")
+    end
+
+    ------------------------------------------------------------------
     log("== Battle feedback")
     do
         local Fx = require('systems.fx')

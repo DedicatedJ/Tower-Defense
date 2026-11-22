@@ -24,13 +24,14 @@ function TutorialState.new()
         },
         {
             title = "Building Towers",
-            content = "Pick a tower on the right, then click open ground near the road. Towers cannot stand on the road " ..
+            content = "Pick a tower on the right (or press 1, 2 or 3), then click open ground near the road. Towers cannot stand on the road " ..
                 "or on rock. Click a tower you built to see its range, buy its two upgrades, or sell it back for 70%.",
         },
         {
             title = "Waves",
-            content = "Press Start Wave when you are ready. The panel under your hero shows what the next wave brings, and " ..
-                "clearing a wave pays bonus gold. Tab or the 1x button speeds the game up to 3x; Esc or P pauses.",
+            content = "Press Start Wave (or Space) when you are ready. The panel under your hero shows what the next wave " ..
+                "brings, and clearing a wave pays bonus gold. Once a wave has fully arrived you can call the next one " ..
+                "early for extra gold. Tab or the 1x button speeds the game up to 3x; Esc or P pauses.",
         },
         {
             title = "Your Hero",

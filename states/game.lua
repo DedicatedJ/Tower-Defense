@@ -289,7 +289,7 @@ function GameState:initUI()
             if self.waveBonusFlash and self.waveBonusFlash > 0 then
                 love.graphics.setColor(1, 0.85, 0.3, math.min(1, self.waveBonusFlash))
                 love.graphics.setFont(self.fonts.small)
-                local t = "+" .. self.lastWaveBonus .. " wave bonus"
+                local t = "+" .. self.lastWaveBonus .. " " .. (self.bonusLabel or "wave bonus")
                 love.graphics.print(t, self.ui.resources.x + self.ui.resources.width - self.fonts.small:getWidth(t) - 8,
                     self.ui.resources.y + 9)
             end
@@ -346,10 +346,13 @@ function GameState:initUI()
         height = 30,
         enabled = true,
         draw = function()
-            if not self.waveInProgress and self.wave < self.maxWaves then
+            local early = self:canCallEarly()
+            if (not self.waveInProgress and self.wave < self.maxWaves) or early then
                 local hover = self:isMouseOver(self.ui.startWave)
-                
-                if hover then
+
+                if early then
+                    love.graphics.setColor(hover and { 0.75, 0.55, 0.15, 0.95 } or { 0.6, 0.42, 0.1, 0.9 })
+                elseif hover then
                     love.graphics.setColor(0.4, 0.7, 0.4, 0.9)
                 else
                     love.graphics.setColor(0.2, 0.5, 0.2, 0.8)
@@ -360,7 +363,7 @@ function GameState:initUI()
                 love.graphics.rectangle("line", self.ui.startWave.x, self.ui.startWave.y, self.ui.startWave.width, self.ui.startWave.height)
                 
                 love.graphics.setFont(self.fonts.medium)
-                local text = "Start Wave"
+                local text = early and ("Early +" .. self:earlyBonus()) or "Start Wave"
                 local textW = self.fonts.medium:getWidth(text)
                 love.graphics.print(text, self.ui.startWave.x + self.ui.startWave.width/2 - textW/2, self.ui.startWave.y + 5)
             else
@@ -376,9 +379,7 @@ function GameState:initUI()
             end
         end,
         onClick = function()
-            if not self.waveInProgress and self.wave < self.maxWaves then
-                self:startNextWave()
-            end
+            self:startNextWave()
         end
     }
     
@@ -406,7 +407,7 @@ function GameState:initUI()
             love.graphics.print(title, self.ui.towerPanel.x + self.ui.towerPanel.width/2 - titleW/2, self.ui.towerPanel.y + 5)
             
             -- Draw tower buttons (clicks are handled in GameState:mousepressed)
-            for _, button in ipairs(self:getTowerButtons()) do
+            for hotkey, button in ipairs(self:getTowerButtons()) do
                 local id, tower, y = button.id, button.tower, button.y
                 local hover = self:isMouseOver(button)
 
@@ -439,6 +440,10 @@ function GameState:initUI()
                 -- Draw tower info
                 love.graphics.setFont(self.fonts.small)
                 love.graphics.print(tower.name, self.ui.towerPanel.x + 60, y + 12)
+                -- Hotkey (1, 2, 3)
+                love.graphics.setColor(1, 0.85, 0.4, 0.9)
+                love.graphics.print(tostring(hotkey), self.ui.towerPanel.x + self.ui.towerPanel.width - 24, y + 4)
+                love.graphics.setColor(1, 1, 1)
                 love.graphics.print("Cost: " .. tower.cost, self.ui.towerPanel.x + 60, y + 30)
                 
                 -- Check if affordable
@@ -877,6 +882,11 @@ function GameState:keypressed(key)
         if self:hasSelection() then self:clearSelection() else self:pause() end
     elseif key == "p" then
         self:pause()
+    elseif key == "space" then
+        self:startNextWave()
+    elseif key == "1" or key == "2" or key == "3" then
+        local b = self:getTowerButtons()[tonumber(key)]
+        if b then self:selectTowerType(b.id) end
     elseif key == "tab" then
         self:cycleSpeed()
     end
@@ -1041,9 +1051,11 @@ function GameState:step(dt)
         -- Wave cleared: bonus gold, or victory after the last one
         if #self.waveEnemies == 0 and #self.enemies == 0 then
             self.waveInProgress = false
-            local bonus = self.waves[self.wave].bonus
+            -- Every wave out on the field pays its clear bonus now
+            local bonus = self.pendingBonus or self.waves[self.wave].bonus
+            self.pendingBonus = 0
             self.resources = self.resources + bonus
-            self.lastWaveBonus = bonus
+            self.lastWaveBonus, self.bonusLabel = bonus, "wave bonus"
             self.waveBonusFlash = 2.5
 
             if self.wave >= self.maxWaves then
@@ -1089,19 +1101,47 @@ function GameState:drawWaveInfo()
     love.graphics.setColor(1, 1, 1, 1)
 end
 
+-- The next wave can be called early once the current one has finished
+-- arriving (its spawn queue is empty), while its enemies are still out
+function GameState:canCallEarly()
+    return self.waveInProgress and #self.waveEnemies == 0 and self.wave < self.maxWaves and not self.isGameOver
+end
+
+-- Gold for calling the next wave early: more for later waves
+function GameState:earlyBonus()
+    return 15 + 3 * (self.wave + 1)
+end
+
+-- Start the next wave, or call it early (see canCallEarly). Waves can
+-- overlap; each wave's clear bonus is paid when the field is next clear.
 function GameState:startNextWave()
-    if self.waveInProgress or self.wave >= self.maxWaves then return end
+    if self.wave >= self.maxWaves or self.isGameOver then return end
+    local earlyGold
+    if self.waveInProgress then
+        if not self:canCallEarly() then return end
+        earlyGold = self:earlyBonus() -- the amount the button showed
+    end
 
     self.wave = self.wave + 1
     require('systems.audio').play("wave_start")
     self.waveInProgress = true
 
-    -- Copy the planned spawns; the plan stays intact for the HUD
+    -- Copy the planned spawns (each keeps its wave's health); the plan
+    -- stays intact for the HUD
     local plan = self.waves[self.wave]
-    self.waveEnemies = {}
-    for i, e in ipairs(plan.entries) do self.waveEnemies[i] = e end
+    self.waveEnemies = self.waveEnemies or {}
+    if #self.waveEnemies == 0 then self.enemySpawnTimer = 0 end
+    for _, e in ipairs(plan.entries) do
+        self.waveEnemies[#self.waveEnemies + 1] = { type = e.type, path = e.path, delay = e.delay, healthMult = plan.healthMult }
+    end
     self.waveHealthMult = plan.healthMult
-    self.enemySpawnTimer = 0
+    self.pendingBonus = (self.pendingBonus or 0) + plan.bonus
+
+    if earlyGold then
+        self.resources = self.resources + earlyGold
+        self.earlyCalls = (self.earlyCalls or 0) + 1
+        self.lastWaveBonus, self.bonusLabel, self.waveBonusFlash = earlyGold, "early call", 2.5
+    end
 end
 
 -- Create one enemy on road `pathIndex` and add it to the game
@@ -1120,7 +1160,7 @@ end
 function GameState:spawnEnemy()
     local entry = table.remove(self.waveEnemies, 1)
     if entry then
-        self:addEnemy(entry.type, entry.path, self.waveHealthMult)
+        self:addEnemy(entry.type, entry.path, entry.healthMult or self.waveHealthMult)
     end
 end
 

@@ -31,7 +31,7 @@ Enemy.SIZE_OF = { skeleton = "small", zombie = "medium", necromancer = "medium",
 Enemy.LANE_MARGIN = 4                   -- kept clear between an enemy and the road edge
 -- Movement speeds below are multiplied by this (roads are measured in
 -- screen pixels; tuned with tests/run.sh balance)
-Enemy.SPEED_SCALE = 1
+Enemy.SPEED_SCALE = 1.32 -- keeps the walk time on Sunlit Meadows what it was on the old 32 px grid
 
 local function sizeOf(type)
     return Enemy.SIZES[Enemy.SIZE_OF[type] or "medium"]

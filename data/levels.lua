@@ -69,7 +69,7 @@ Levels.list = {
         zones = {
             { 1, 4, 10, 7 }, { 7.5, 10, 15, 16 }, { 13, 4, 20, 7 }, { 18, 10, 24.5, 13 }, { 27.5, 11, 32, 15.5 }, { 0, 9, 4.5, 13 },
         },
-        waves = { count = 12, toughness = 1.6 },
+        waves = { count = 12, toughness = 1.1 },
     },
     {
         id = "celestial_citadel", faction = "radiant", order = 3,
@@ -115,7 +115,7 @@ Levels.list = {
         zones = {
             { 9, 4, 14, 8 }, { 9, 10, 14, 15 }, { 17, 4, 22, 7 }, { 17, 9.5, 22, 13 }, { 1, 10, 6, 13 }, { 25, 10, 31, 13 },
         },
-        waves = { count = 12, toughness = 1.35 },
+        waves = { count = 12, toughness = 1.0 },
     },
     {
         id = "necropolis", faction = "shadow", order = 3,
@@ -162,7 +162,7 @@ Levels.list = {
         zones = {
             { 1, 4, 8.5, 7 }, { 7.5, 10, 16.5, 15 }, { 11.5, 4, 24.5, 7 }, { 19.5, 9, 24.5, 12 }, { 27.5, 6, 32, 12 }, { 0, 9, 4.5, 13 },
         },
-        waves = { count = 12, toughness = 1.7 },
+        waves = { count = 12, toughness = 1.35 },
     },
     {
         id = "nexus_of_balance", faction = "twilight", order = 3,

@@ -517,7 +517,12 @@ function Enemy.create(type, path, gridSize)
         end
         dmg = math.min(dmg, self.health)
         self.health = self.health - dmg
-        if source then self.lastHitBy = source end
+        if source then
+            self.lastHitBy = source
+            -- Credit the tower or unit (end screen stats); burns and other
+            -- damage over time count for whoever applied them
+            source.damageDealt = (source.damageDealt or 0) + dmg
+        end
 
         -- Soul Shackles: direct hits are shared along the chain
         if not opts.dot and not opts.shared then

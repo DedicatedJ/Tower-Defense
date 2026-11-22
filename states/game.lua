@@ -79,6 +79,7 @@ function GameState:setup(selectedFaction, selectedHero, levelId)
     self.enemies = {}
     self.projectiles = {}
     self.effects = {} -- Add effects array
+    self.stats = { kills = 0, built = 0, spent = 0, leaks = {} } -- for the end screen
     require('systems.fx').clear() -- numbers and puffs from the last game
     self.selectedTower = nil
     self.towerPreview = nil
@@ -236,6 +237,7 @@ end
 -- XP for the hero and Soul Forge conversion when an enemy dies
 function GameState:onEnemyDeath(enemy)
     require('systems.audio').play("enemy_die")
+    if not enemy.raised then self.stats.kills = self.stats.kills + 1 end
     local Unit = require('systems.unit')
     local h = self.hero
     if h and not h.dead then
@@ -289,9 +291,10 @@ function GameState:initUI()
             if self.waveBonusFlash and self.waveBonusFlash > 0 then
                 love.graphics.setColor(1, 0.85, 0.3, math.min(1, self.waveBonusFlash))
                 love.graphics.setFont(self.fonts.small)
-                local t = "+" .. self.lastWaveBonus .. " " .. (self.bonusLabel or "wave bonus")
-                love.graphics.print(t, self.ui.resources.x + self.ui.resources.width - self.fonts.small:getWidth(t) - 8,
-                    self.ui.resources.y + 9)
+                -- Short, right after the amount, so it never covers it
+                local t = "+" .. self.lastWaveBonus .. (self.bonusLabel == "early call" and " early" or " bonus")
+                local after = self.ui.resources.x + 10 + self.fonts.medium:getWidth("Gold: " .. math.floor(self.resources)) + 8
+                love.graphics.print(t, after, self.ui.resources.y + 9)
             end
         end
     }
@@ -806,7 +809,9 @@ function GameState:mousepressed(x, y, button)
             elseif self.resources < b.upgrade.cost then
                 self:showError("Not enough resources!")
             else
-                self.resources = self.resources - t:buyUpgrade(b.index)
+                local cost = t:buyUpgrade(b.index)
+                self.resources = self.resources - cost
+                self.stats.spent = self.stats.spent + cost
                 require('systems.audio').play("upgrade")
             end
             return
@@ -999,6 +1004,7 @@ function GameState:step(dt)
         if enemy.state == "attacking" then
             self.lives = self.lives - enemy.damage
             require('systems.audio').play("life_lost")
+            self.stats.leaks[self.wave] = (self.stats.leaks[self.wave] or 0) + enemy.damage
             local gx, gy = self:cellCenter(self.endX, self.endY)
             require('systems.fx').lifeLost(gx, gy, enemy.damage)
             table.remove(self.enemies, i)
@@ -1369,7 +1375,7 @@ function GameState:getEndButtons()
     local w, h, gap = 170, 44, 16
     local total = #list * w + (#list - 1) * gap
     local x0 = love.graphics.getWidth() / 2 - total / 2
-    local y = love.graphics.getHeight() / 2 + 90
+    local y = love.graphics.getHeight() / 2 + 110
     for i, b in ipairs(list) do
         b.x, b.y, b.width, b.height = x0 + (i - 1) * (w + gap), y, w, h
     end
@@ -1395,17 +1401,17 @@ function GameState:drawEndScreen()
 
     love.graphics.setColor(self.victory and { 1, 0.85, 0.35 } or { 0.9, 0.35, 0.3 })
     love.graphics.setFont(self.fonts.title)
-    love.graphics.printf(self.victory and "VICTORY!" or "DEFEAT", 0, sh / 2 - 130, sw, "center")
+    love.graphics.printf(self.victory and "VICTORY!" or "DEFEAT", 0, sh / 2 - 200, sw, "center")
 
     love.graphics.setColor(1, 1, 1)
     love.graphics.setFont(self.fonts.medium)
-    love.graphics.printf(self.level.name, 0, sh / 2 - 80, sw, "center")
+    love.graphics.printf(self.level.name, 0, sh / 2 - 150, sw, "center")
 
     -- Stars
     if self.victory then
         local stars = self.stars or 1
         for i = 1, 3 do
-            local cx, cy = sw / 2 + (i - 2) * 46, sh / 2 - 30
+            local cx, cy = sw / 2 + (i - 2) * 46, sh / 2 - 100
             local pts = {}
             for k = 0, 9 do
                 local r = (k % 2 == 0) and 18 or 8
@@ -1418,16 +1424,32 @@ function GameState:drawEndScreen()
         end
     end
 
-    love.graphics.setColor(0.85, 0.85, 0.85)
+    love.graphics.setColor(0.9, 0.9, 0.9)
     love.graphics.setFont(self.fonts.small)
+    local s = self.summary or self:gameSummary()
     local lines = {
-        string.format("Waves %d / %d     Lives %d / %d", self.wave, self.maxWaves, math.max(0, self.lives), self.startLives),
-        string.format("+%d shop gold", self.shopGoldAwarded or 0),
+        string.format("Waves %d / %d     Lives %d / %d     +%d shop gold", self.wave, self.maxWaves,
+            math.max(0, self.lives), self.startLives, self.shopGoldAwarded or 0),
+        string.format("Enemies slain %d     Towers built %d     Gold spent %d%s", s.kills, s.built, s.spent,
+            s.earlyCalls > 0 and string.format("     Early calls %d", s.earlyCalls) or ""),
+        s.topTower and string.format("Top tower: %s, %d damage", s.topTower, s.topDamage) or "No tower dealt damage",
     }
     if self.hero then
-        lines[#lines + 1] = string.format("%s is level %d", self.hero.name, self.hero.level)
+        lines[#lines + 1] = string.format("%s dealt %d damage and is level %d", self.hero.name, s.heroDamage, self.hero.level)
     end
-    love.graphics.printf(table.concat(lines, "\n"), 0, sh / 2 + 5, sw, "center")
+    if #s.leaks == 0 then
+        lines[#lines + 1] = "No lives lost"
+    else
+        local parts = {}
+        for _, l in ipairs(s.leaks) do parts[#parts + 1] = string.format("wave %d (-%d)", l.wave, l.lives) end
+        lines[#lines + 1] = "Lives lost on " .. table.concat(parts, ", ")
+    end
+    local text = table.concat(lines, "\n")
+    local _, wrapped = self.fonts.small:getWrap(text, 660)
+    love.graphics.setColor(0.06, 0.06, 0.1, 0.85)
+    love.graphics.rectangle("fill", sw / 2 - 345, sh / 2 - 72, 690, #wrapped * self.fonts.small:getHeight() + 24, 8, 8)
+    love.graphics.setColor(0.9, 0.9, 0.9)
+    love.graphics.printf(text, sw / 2 - 330, sh / 2 - 60, 660, "center")
 
     local mx, my = love.mouse.getPosition()
     for _, b in ipairs(self:getEndButtons()) do
@@ -1462,6 +1484,8 @@ function GameState:placeTower(gridX, gridY, type)
     end
     
     require('systems.audio').play("place")
+    self.stats.built = self.stats.built + 1
+    self.stats.spent = self.stats.spent + towerData.cost
 
     -- Deduct resources
     self.resources = self.resources - towerData.cost
@@ -1537,21 +1561,6 @@ function GameState:gameOver(victory)
     Audio.stopMusic()
     Audio.play(victory and "victory" or "defeat")
     
-    -- Play sound effect
-    if victory then
-        -- Play victory sound
-        -- self.sounds.victory:play()
-    else
-        -- Play defeat sound
-        -- self.sounds.defeat:play()
-    end
-    
-    -- Unlock achievements
-    if victory then
-        -- Unlock achievement for completing the game
-        -- Achievement.unlock("complete_game")
-    end
-    
     -- Hero progress and shop gold carry over to the next game
     local Save = require("systems.save")
     if self.hero then
@@ -1564,23 +1573,29 @@ function GameState:gameOver(victory)
         pcall(Save.recordLevelResult, self.levelId, self.stars)
     end
 
-    -- Save game state
-    require("systems.save").saveGameState({
-        victory = victory,
-        wave = self.wave,
-        resources = self.resources,
-        lives = self.lives,
-        towerCount = #self.towers,
-        faction = self.selectedFaction,
-        hero = self.selectedHero
-    })
-    
-    -- Show game over dialog
-    local text = victory and "Victory! You have successfully defended your base!" or
-                  "Game Over! Your base has been destroyed!"
-    
-    -- TODO: Replace with proper dialog
-    print(text)
+    self.summary = self:gameSummary()
+end
+
+-- Numbers for the end screen
+function GameState:gameSummary()
+    local s = self.stats or {}
+    local top
+    for _, t in ipairs(self.towers) do
+        if (t.damageDealt or 0) > 0 and (not top or t.damageDealt > top.damageDealt) then top = t end
+    end
+    local leaks = {}
+    for w = 1, self.maxWaves do
+        if s.leaks and s.leaks[w] then leaks[#leaks + 1] = { wave = w, lives = s.leaks[w] } end
+    end
+    return {
+        kills = s.kills or 0,
+        built = s.built or 0,
+        spent = s.spent or 0,
+        topTower = top and top.name, topDamage = top and math.floor(top.damageDealt),
+        heroDamage = self.hero and math.floor(self.hero.damageDealt or 0) or 0,
+        leaks = leaks,
+        earlyCalls = self.earlyCalls or 0,
+    }
 end
 
 function GameState:isMouseOver(element)

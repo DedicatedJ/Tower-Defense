@@ -793,6 +793,15 @@ local function run()
         e.x, e.y = g:cellCenter(g.endX, g.endY)
         simulate(1)
         check(Fx.counts.life > lostBefore and g.lives < 20, "an enemy reaching the gate flashes the edge and shows the lives lost")
+
+        -- The end screen sums up the game
+        g:gameOver(false)
+        local s = g.summary
+        check(s and s.kills > 0 and s.built == 2 and s.spent == 300 and s.topTower ~= nil and s.topDamage > 0,
+            string.format("end screen: %d slain, %d built, %d spent, top tower %s (%s damage)",
+                s and s.kills or -1, s and s.built or -1, s and s.spent or -1, tostring(s and s.topTower), tostring(s and s.topDamage)))
+        check(#s.leaks == 1 and s.leaks[1].wave == g.wave, "end screen lists the wave that cost lives")
+        shot("end_stats")
     end
 
     ------------------------------------------------------------------

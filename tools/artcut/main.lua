@@ -176,7 +176,7 @@ end
 -- The map is center-cropped to the blockout's aspect (as the backdrop cut
 -- does), split into cols x rows cells, and each cell's middle 60% is
 -- classified as earth (brown: red above green, well above blue) or not.
--- Blockout cells darker than mid gray are road. Prints a grid:
+-- Blockout cells in the mid gray band are road (near black is rock). Prints a grid:
 --   #  road cell, painted earth      x  road cell, not earth (road missing)
 --   .  ground cell, not earth        !  ground cell, painted earth (road misplaced)
 ------------------------------------------------------------------------
@@ -196,7 +196,7 @@ local function mapCheck(mapPath, blockPath, cols, rows)
         local line = {}
         for gx = 0, cols - 1 do
             local br = b:getPixel(math.floor((gx + 0.5) * bw / cols), math.floor((gy + 0.5) * bh / rows))
-            local isRoad = br < 0.6
+            local isRoad = br > 0.3 and br < 0.6 -- near-black cells are rock, not road
             local x0 = ox + (gx + 0.2) * cw / cols
             local x1 = ox + (gx + 0.8) * cw / cols
             local y0 = oy + (gy + 0.2) * ch / rows
@@ -256,7 +256,7 @@ local function mapFix(mapPath, blockPath, outPath, outW, outH, cols, rows)
         road[gy] = {}
         for gx = 0, cols - 1 do
             local v = b:getPixel(math.floor((gx + 0.5) * bw / cols), math.floor((gy + 0.5) * bh / rows))
-            road[gy][gx] = v < 0.6
+            road[gy][gx] = v > 0.3 and v < 0.6 -- near-black cells are rock
         end
     end
     local function isRoad(gx, gy) return road[gy] and road[gy][gx] or false end

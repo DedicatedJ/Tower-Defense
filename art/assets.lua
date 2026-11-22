@@ -22,7 +22,7 @@ A.settings = {
               draft = "quality low, 1K", final = "quality high, 2K" },
     -- map_level1_v1 on GPT Image 2.6 ignored the road layout. Trying Nano
     -- Banana Pro next is a guess (it takes image references), not tested.
-    map   = { model = "GPT Image 2.6; if it moves the road again, try Nano Banana Pro", aspect = "4:3", background = "opaque",
+    map   = { model = "GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro", aspect = "4:3", background = "opaque",
               draft = "quality low, 1K", final = "quality high, 2K (4K if offered)" },
     backdrop = { model = "GPT Image 2.6 or Nano Banana Pro", aspect = "4:3", background = "opaque",
               draft = "quality low, 1K", final = "quality high, 2K" },
@@ -152,31 +152,65 @@ A.map = {
 
 ------------------------------------------------------------------------
 -- Map plates for the other levels (data/levels.lua). Same rules as level 1:
--- a repaint of the gray layout, road exactly where the dark band is.
--- %d = number of roads, %s = scene, %s = rock sentence.
+-- a repaint of the gray layout, road exactly where the gray band is.
+--
+-- tools/artcut mapcheck / mapfix find the painted road by its color: warm
+-- earth (clearly redder than green, well above blue). So every road below
+-- is a warm brown, tan or sandstone, and no open ground is brown, tan or
+-- golden. A grey or violet road could not be lined up.
+--
+-- %s = how the roads run (written by tools/artkit from the level data),
+-- %s = ground, %s = road surface, %s = rock sentence.
 ------------------------------------------------------------------------
+A.mapStyle = "Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light " ..
+    "from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. " ..
+    "No text, no logos."
+
 A.levelMapTemplate = "Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from " ..
-    "directly above. Image 1 is a gray layout: the mid gray band is the road (%d road(s), which may join) " ..
-    "and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the " ..
-    "same width, the same square corners, in the same places across the whole image. Do not add, move, " ..
-    "straighten, widen or smooth any part of it.\n\n" ..
-    "Setting: %s. Any edging lies inside the band, so the road with its edging is no wider than the band.\n\n" ..
+    "directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open " ..
+    "ground. Keep the road exactly where the gray band is: the same path, the same width, the same square " ..
+    "corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any " ..
+    "part of it. %s\n\n" ..
+    "Ground: %s.\n\n" ..
+    "Road: %s. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, " ..
+    "so the road with its edging is no wider than the band.\n\n" ..
     "%s\n\n" ..
-    "Open ground: flat and even so a tower can stand on any patch of it, with small detail only. No trees " ..
-    "standing on open ground, no buildings, no towers, no units, no animals, no text."
+    "Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No " ..
+    "trees, buildings, towers, units, animals or text anywhere on the map."
 
-A.levelRocks = "The near-black areas are solid rock or rubble that nothing can be built on: fill each one " ..
-    "edge to edge with it, and keep it inside the black area."
+A.noRocks = "Every part of the layout that is not road is open ground."
 
-A.levelScenes = {
-    crystal_spires    = "a high plateau of pale grass with clusters of blue crystal, the road paved in pale stone",
-    celestial_citadel = "the sunlit courtyard of a white and gold citadel, the road a spiral of cream flagstones",
-    haunted_forest    = "a dark dead forest floor of moss and fallen leaves, the road a muddy trail",
-    obsidian_caves    = "a cave floor of dark ash and gravel with glints of obsidian, the road worn smooth",
-    necropolis        = "a city of crypts on gray-violet stone, the road cracked paving; two violet portal circles mark where the road breaks off and starts again",
-    misty_borderlands = "a misty marsh border of blue-green grass and shallow pools, the road a raised dirt causeway",
-    ethereal_ruins    = "ancient sandstone ruins half buried in dry grass, the road old cracked paving",
-    nexus_of_balance  = "a twilight plain where violet ground meets golden ground, the road pale stone with silver inlay",
+-- ground, road, rock (rock = what fills the near-black areas, if any)
+A.levelMaps = {
+    crystal_spires = {
+        ground = "a high plateau of short pale green grass with small clusters of blue crystal shards",
+        road = "warm tan packed earth",
+        rock = "tall jagged outcrops of pale blue crystal" },
+    celestial_citadel = {
+        ground = "the trimmed green lawn of a white stone citadel garden, with small white flowers",
+        road = "warm honey-colored sandstone flagstones" },
+    haunted_forest = {
+        ground = "a dark mossy forest floor in deep green and grey-green, scattered with dead twigs and small grey stones",
+        road = "a muddy brown dirt trail" },
+    obsidian_caves = {
+        ground = "a cave floor of dark grey ash and gravel with small glints of black obsidian",
+        road = "rust-brown packed earth worn smooth",
+        rock = "solid black obsidian rock with sharp glassy edges" },
+    necropolis = {
+        ground = "grey-violet cobblestones between low grave slabs set flat into the ground",
+        road = "worn rust-brown paving stones",
+        rock = "the walls and roofs of a stone crypt seen from above, in dark slate" },
+    misty_borderlands = {
+        ground = "a misty marsh border of blue-green grass with a few small shallow pools",
+        road = "a raised brown dirt causeway" },
+    ethereal_ruins = {
+        ground = "green grass scattered with small pale grey ruin stones",
+        road = "warm cracked sandstone paving",
+        rock = "a collapsed wall of large pale grey stone blocks and rubble" },
+    nexus_of_balance = {
+        ground = "a twilight plain of blue-violet grass, slightly lighter toward the center",
+        road = "warm amber packed earth",
+        rock = "a ring of tall dark standing stones" },
 }
 
 ------------------------------------------------------------------------
@@ -261,9 +295,12 @@ A.icons = {
 ------------------------------------------------------------------------
 -- Sound effects (Mirelo SFX). Short, dry, no music.
 ------------------------------------------------------------------------
+-- Game sounds (main.lua loads the event sounds; tower shots play by the
+-- tower's projectileType in data/factions.lua). Already in sounds/sfx and
+-- not listed: button_click, enemy_die, enemy_hit, game_over, shot_basic,
+-- shot_cannon, shot_magic, shot_sniper (the bolt shot), tower_place,
+-- tower_sell, tower_upgrade, victory, wave_start.
 A.sfx = {
-    { id = "sfx_enemy_death", file = "sounds/sfx/enemy_death.wav", dur = 1,
-      prompt = "a short hollow crunch and a dry rattle as a small monster collapses, no voice" },
     { id = "sfx_player_damage", file = "sounds/sfx/player_damage.wav", dur = 1,
       prompt = "a heavy wooden gate being struck once, a dull thud with a short creak" },
     { id = "sfx_hero_ability", file = "sounds/sfx/hero_ability.wav", dur = 2,
@@ -272,18 +309,20 @@ A.sfx = {
       prompt = "a few gold coins dropped into a leather pouch, short and crisp" },
     { id = "sfx_level_up", file = "sounds/sfx/level_up.wav", dur = 2,
       prompt = "a short triumphant rising harp glissando ending on a bell" },
-    { id = "sfx_shot_arrow", file = "sounds/sfx/shot_arrow.wav", dur = 1,
-      prompt = "a single bowstring twang and an arrow whoosh" },
-    { id = "sfx_shot_cannon", file = "sounds/sfx/shot_cannon.wav", dur = 1,
-      prompt = "a single deep mortar boom with a short echo" },
-    { id = "sfx_shot_magic", file = "sounds/sfx/shot_magic.wav", dur = 1,
-      prompt = "a quick crackling arcane zap" },
+    { id = "sfx_shot_holy", file = "sounds/sfx/shot_holy.wav", dur = 1,
+      prompt = "a single soft bright chime with a quick airy swish, like a beam of light" },
+    { id = "sfx_shot_fire", file = "sounds/sfx/shot_fire.wav", dur = 1,
+      prompt = "a quick whoosh of a fireball launching, with a short crackle" },
+    { id = "sfx_shot_poison", file = "sounds/sfx/shot_poison.wav", dur = 1,
+      prompt = "a short wet hiss and a bubbling splash, like a glob of acid" },
+    { id = "sfx_shot_void", file = "sounds/sfx/shot_void.wav", dur = 1,
+      prompt = "a short deep warbling hum that drops in pitch, dark and hollow" },
+    { id = "sfx_shot_soul", file = "sounds/sfx/shot_soul.wav", dur = 1,
+      prompt = "a short ghostly whispering whoosh with a faint eerie tone, no words" },
+    { id = "sfx_shot_hybrid", file = "sounds/sfx/shot_hybrid.wav", dur = 1,
+      prompt = "a quick shimmer that is half a high bright chime and half a low dark hum, together" },
     { id = "sfx_shot_frost", file = "sounds/sfx/shot_frost.wav", dur = 1,
       prompt = "a quick icy crystalline shatter and hiss" },
-    { id = "sfx_shot_bolt", file = "sounds/sfx/shot_bolt.wav", dur = 1,
-      prompt = "a heavy crossbow thunk and a bolt whoosh" },
-    { id = "sfx_shot_bomb", file = "sounds/sfx/shot_bomb.wav", dur = 1,
-      prompt = "a hollow mortar thump followed by a short fizzing fuse" },
 }
 
 ------------------------------------------------------------------------
@@ -314,38 +353,42 @@ A.cTowers = {
       desc = "A round tower of blue-grey stone crowned with two crystals side by side: one ember orange, one ice blue." },
 }
 
+-- Hero sheets follow each hero's portrait (assets/hero images/...), so the
+-- figure on the road is recognisably the same person. Galahad and Michael
+-- are both radiant: Galahad is blond in white plate, Michael dark-haired in
+-- gold plate with wings, so they stay apart at sprite size.
 A.cHeroes = {
-    { id = "hero_sir_galahad", file = "sprites/heroes/sir_galahad.png", name = "knight",
-      character = "A broad, sturdy knight with short grey hair and a short beard. One dominant color: polished steel with gold trim.",
-      gear = "Full plate armor with gold edges, a white tabard, a large kite shield on his left arm and a longsword in his right hand.",
-      notCarried = "No hood, no green skin, no torn clothing. He is a healthy human man." },
+    { id = "hero_sir_galahad", file = "sprites/heroes/sir_galahad.png", name = "holy knight",
+      character = "A young man with short spiky blond hair. One dominant color: white with gold trim.",
+      gear = "White plate armor with gold edges and a gold sun emblem on the chest, large gold feathered shoulder guards, a long white cape lined with blue, and a longsword with a gold hilt in his right hand.",
+      notCarried = "No hood, no green skin, no torn clothing, no wings. He is a healthy human man." },
     { id = "hero_lady_celestia", file = "sprites/heroes/lady_celestia.png", name = "priestess",
-      character = "A tall woman with long golden hair. One dominant color: white and gold.",
-      gear = "A long white robe with gold trim and a gold staff topped with a small sun disc in her right hand.",
+      character = "A tall woman with very long flowing silver-white hair. One dominant color: white with gold trim.",
+      gear = "A long white gown with gold embroidery, gold shoulder armor, white gloves, a light blue cape, and a tall gold staff topped with a ring around a glowing orb in her right hand.",
       notCarried = "No hood, no green skin, no torn clothing. She is a healthy human woman." },
     { id = "hero_archangel_michael", file = "sprites/heroes/archangel_michael.png", name = "archangel",
-      character = "A tall angelic warrior with short golden hair and large white feathered wings folded behind him. One dominant color: gold.",
-      gear = "Gold breastplate over a white tunic, a gold bow in his left hand and a quiver on his back between the wings.",
+      character = "A tall man with long dark brown hair and very large white feathered wings folded behind him. One dominant color: gold.",
+      gear = "Gleaming gold plate armor over a white tunic, a gold longbow in his left hand and a quiver on his back between the wings.",
       notCarried = "No hood, no green skin, no torn clothing." },
     { id = "hero_malachi", file = "sprites/heroes/malachi.png", name = "necromancer lord",
-      character = "A pale man with long white hair and a gaunt face. One dominant color: black and dark blue.",
-      gear = "Black spiked pauldrons, a dark blue robe with silver trim and a skull clasp, a bone staff in his right hand.",
+      character = "A pale gaunt man with straight shoulder-length white hair. One dominant color: dark blue with blood red accents.",
+      gear = "A long dark blue robe with a few thin red lines, black spiked shoulder armor set with red gems, a skull clasp on the chest, a black cape, and a staff topped with a skull holding a red crystal in his right hand.",
       notCarried = "No green skin, no torn clothing, no hood." },
     { id = "hero_morgana", file = "sprites/heroes/morgana.png", name = "dark sorceress",
       character = "A slim woman with long straight black hair. One dominant color: black with silver.",
-      gear = "A long black high-collared robe with silver embroidery and small skull ornaments, a gold staff with a ring top in her right hand.",
+      gear = "A long black high-collared robe and cape with silver edges and three small white skull ornaments down the front, white gloves, and a tall gold staff with a ring top in her right hand.",
       notCarried = "No green skin, no torn clothing, no hood." },
     { id = "hero_dark_lord_malak", file = "sprites/heroes/dark_lord_malak.png", name = "dark warlord",
       character = "A towering armored warlord with glowing violet eyes behind a horned helm. One dominant color: black with violet.",
       gear = "Spiked black plate armor, a black cape, a large two-handed black greatsword held in both hands.",
       notCarried = "No green skin, no hood." },
-    { id = "hero_zephyr", file = "sprites/heroes/zephyr.png", name = "twilight duelist",
-      character = "A lean young man with short silver hair. One dominant color: deep blue and silver.",
-      gear = "A fitted blue and silver coat, light armor on the shoulders, a curved sword in each hand.",
+    { id = "hero_zephyr", file = "sprites/heroes/zephyr.png", name = "knight duelist",
+      character = "A lean young man with short messy black hair. One dominant color: silver steel with crimson.",
+      gear = "Engraved silver plate armor over a crimson tunic and crimson sash, a long white cape, and one long straight silver sword in his right hand.",
       notCarried = "No green skin, no torn clothing, no hood." },
-    { id = "hero_lyra", file = "sprites/heroes/lyra.png", name = "twilight druid",
-      character = "A woman with long auburn hair braided with small leaves. One dominant color: forest green and violet.",
-      gear = "A green and violet layered dress with a leaf-pattern cloak and a wooden staff topped with a pale blue crystal in her right hand.",
+    { id = "hero_lyra", file = "sprites/heroes/lyra.png", name = "star mage",
+      character = "A young woman with short straight silver-white hair. One dominant color: deep navy blue with gold.",
+      gear = "A long deep navy robe and cape with a few large silver moons and gold stars, gold edges, white gloves, and a tall gold staff with a ring top in her right hand.",
       notCarried = "No green skin, no torn clothing, no hood." },
     { id = "hero_elemental_sage", file = "sprites/heroes/elemental_sage.png", name = "elemental sage",
       character = "An old man with a long white beard. One dominant color: half orange, half ice blue.",
@@ -353,17 +396,25 @@ A.cHeroes = {
       notCarried = "No green skin, no torn clothing, no hood." },
 }
 
-A.portraitTemplate = "A character portrait in exactly the same painting style, framing and light as image 1 " ..
-    "(an approved portrait from the same set): %s Upper body, facing the viewer, a soft landscape behind. " ..
-    "No text, no logos, no watermark."
+-- The existing portraits are clean-lined, cel-shaded anime-style paintings,
+-- cropped from the thighs up, head near the top center (Unit.portrait crops
+-- the face from there), a bright sky with clouds and a distant stone tower.
+A.portraitTemplate = "A character portrait in exactly the same art style, line work, coloring, framing and " ..
+    "light as image 1 (an approved portrait from the same set), but a different person: %s Shown from the " ..
+    "thighs up, facing the viewer, with the head near the top center of the frame as in image 1. Behind: %s, " ..
+    "painted the same way as the background of image 1. Do not copy the person, armor or weapon from " ..
+    "image 1. No text, no logos, no watermark."
 
 A.portraits = {
     { id = "portrait_archangel_michael", file = "assets/hero images/radiant order/Michael/Archangel Michael.jpg",
-      desc = "a tall angelic warrior with short golden hair, large white feathered wings and a gold breastplate, holding a gold bow." },
+      desc = "an archangel with long dark brown hair, very large white feathered wings spread behind him, gleaming gold plate armor over a white tunic, holding a gold longbow.",
+      bg = "a bright sky with soft clouds and a distant white stone tower" },
     { id = "portrait_dark_lord_malak", file = "assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg",
-      desc = "a towering warlord in spiked black plate armor and a horned helm with glowing violet eyes, a black greatsword on his shoulder." },
+      desc = "a towering warlord in spiked black plate armor and a horned helm with glowing violet eyes, a black greatsword resting on his shoulder.",
+      bg = "a dusk violet sky over dark mountains" },
     { id = "portrait_elemental_sage", file = "assets/hero images/twilight balance/Sage/Elemental Sage.jpg",
-      desc = "an old sage with a long white beard in a robe that is half ember orange and half ice blue, holding a staff with an orange and a blue crystal." },
+      desc = "an old sage with a long white beard in a robe that is half ember orange and half ice blue, holding a staff topped with one orange and one blue crystal.",
+      bg = "a bright sky with soft clouds over distant green hills" },
 }
 
 return A

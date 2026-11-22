@@ -234,6 +234,7 @@ end
 
 -- XP for the hero and Soul Forge conversion when an enemy dies
 function GameState:onEnemyDeath(enemy)
+    require('systems.audio').play("enemy_die")
     local Unit = require('systems.unit')
     local h = self.hero
     if h and not h.dead then
@@ -454,7 +455,7 @@ function GameState:initUI()
                         stats = {
                             { name = "Damage", value = tower.damage },
                             { name = "Range", value = tower.range },
-                            { name = "Speed", value = "1 shot / " .. tower.attackSpeed .. "s" }
+                            { name = "Speed", value = string.format("%.1f shots / s", tower.fireRate or 0) }
                         }
                     }
                 end
@@ -667,6 +668,7 @@ function GameState:setFocusTower(t)
 end
 
 function GameState:sellTower(t)
+    require('systems.audio').play("sell")
     self.resources = self.resources + t:sellValue()
     for i, other in ipairs(self.towers) do
         if other == t then table.remove(self.towers, i) break end
@@ -792,6 +794,7 @@ function GameState:mousepressed(x, y, button)
                 self:showError("Not enough resources!")
             else
                 self.resources = self.resources - t:buyUpgrade(b.index)
+                require('systems.audio').play("upgrade")
             end
             return
         end
@@ -870,6 +873,7 @@ function GameState:enter(previous, faction, hero)
     if faction and hero then
         self:setup(faction, hero)
     end
+    require('systems.audio').playMusic("game")
     
     -- Initialize auto-save
     local success, result = Error.pcall(function()
@@ -927,6 +931,7 @@ function GameState:update(dt)
         -- Check if enemy reached the end
         if enemy.state == "attacking" then
             self.lives = self.lives - enemy.damage
+            require('systems.audio').play("life_lost")
             table.remove(self.enemies, i)
             
             -- Check game over condition
@@ -1028,6 +1033,7 @@ function GameState:startNextWave()
     if self.waveInProgress or self.wave >= self.maxWaves then return end
 
     self.wave = self.wave + 1
+    require('systems.audio').play("wave_start")
     self.waveInProgress = true
 
     -- Copy the planned spawns; the plan stays intact for the HUD
@@ -1348,6 +1354,8 @@ function GameState:placeTower(gridX, gridY, type)
         return false
     end
     
+    require('systems.audio').play("place")
+
     -- Deduct resources
     self.resources = self.resources - towerData.cost
     
@@ -1418,6 +1426,9 @@ end
 function GameState:gameOver(victory)
     self.isGameOver = true
     self.victory = victory
+    local Audio = require('systems.audio')
+    Audio.stopMusic()
+    Audio.play(victory and "victory" or "defeat")
     
     -- Play sound effect
     if victory then

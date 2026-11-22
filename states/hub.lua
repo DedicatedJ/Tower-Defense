@@ -205,6 +205,7 @@ function HubState:goBack()
 end
 
 function HubState:enter()
+    require('systems.audio').playMusic("menu")
     -- Animation or transition effect when entering this state
     self.timer:clear()
     

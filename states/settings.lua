@@ -325,7 +325,7 @@ function SettingsState:saveSettings()
     gameState.settings.fullscreen = self.toggles.fullscreen.value
     
     -- Save settings to disk
-    Save:saveSettings()
+    Save.saveSettings(gameState.settings)
     
     -- Return to previous state
     Gamestate.pop()

@@ -31,6 +31,9 @@ for i = 1, 5 do love.filesystem.remove("save/profile_" .. i .. ".json") end
 
 love.filesystem.load("game_main.lua")()
 
+-- Count sounds but make none
+require('systems.audio').enabled = false
+
 local Gamestate = require 'libs.hump.gamestate'
 local Levels = require('data.levels')
 local Factions = require('data.factions')

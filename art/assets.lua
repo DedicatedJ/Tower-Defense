@@ -295,7 +295,7 @@ A.icons = {
 ------------------------------------------------------------------------
 -- Sound effects (Mirelo SFX). Short, dry, no music.
 ------------------------------------------------------------------------
--- Game sounds (main.lua loads the event sounds; tower shots play by the
+-- Game sounds (systems/audio.lua plays the event sounds; tower shots play by the
 -- tower's projectileType in data/factions.lua). Already in sounds/sfx and
 -- not listed: button_click, enemy_die, enemy_hit, game_over, shot_basic,
 -- shot_cannon, shot_magic, shot_sniper (the bolt shot), tower_place,

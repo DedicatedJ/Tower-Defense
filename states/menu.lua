@@ -76,8 +76,8 @@ function MenuState:enter()
 end
 
 function MenuState:leave()
-    -- Stop menu music
-    stopSound('music', 'menu')
+    -- Menu music carries on through the hub and level select; the game
+    -- switches to its own track
 end
 
 function MenuState:update(dt)

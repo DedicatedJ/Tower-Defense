@@ -10,6 +10,7 @@ A Tower Defense game built with Lua and the LÖVE framework: three factions, her
 - **Levels**: 3 per faction, unlocked in order, with up to 3 stars each. Maps have one or two roads, rock areas you cannot build on, and portals (`data/levels.lua`).
 - **Waves** built from a difficulty curve per level: more and tougher enemies each wave, necromancers that raise skeletons, dragons that fly over your blockers as bosses, and bonus gold for each wave cleared (`systems/wave.lua`).
 - **Shop**: gold earned in games buys permanent hero and tower boosts and one-use consumables.
+- **Sound**: every tower shot, hit, kill, build, sale, upgrade, wave, ability, level up, purchase, win and loss has a sound, with menu and battle music (`systems/audio.lua`). A missing sound falls back to the closest one that exists, and a new file in `sounds/sfx/` takes over by name. Volumes save with the settings.
 
 ## Dependencies
 

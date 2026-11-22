@@ -31,6 +31,9 @@ for i = 1, 5 do love.filesystem.remove("save/profile_" .. i .. ".json") end
 
 love.filesystem.load("game_main.lua")()
 
+-- Count sounds but make none
+require('systems.audio').enabled = false
+
 local Gamestate = require 'libs.hump.gamestate'
 local gameLoad, gameUpdate, gameDraw = love.load, love.update, love.draw
 local DT = 1 / 60
@@ -493,6 +496,51 @@ local function run()
             "Level Select: Obsidian Caves open and selected, Necropolis locked")
         wait(30) -- let the cards slide in
         shot("level_select")
+    end
+
+    ------------------------------------------------------------------
+    log("== Tower button tooltips")
+    for _, fid in ipairs(FACTION_IDS) do
+        local g = newGame(fid, Factions[fid].heroes[1].id)
+        local shown = 0
+        -- drawTooltip clears the tooltip after drawing it, so watch it there
+        local seen
+        local orig = g.drawTooltip
+        g.drawTooltip = function(self) seen = self.tooltip; return orig(self) end
+        for _, b in ipairs(g:getTowerButtons()) do
+            love.mouse.setPosition(b.x + 10, b.y + 10)
+            seen = nil
+            wait(2) -- the window reports the new mouse position next frame; draw runs then
+            if seen and seen.title == b.tower.name and #seen.stats == 3 then shown = shown + 1
+            else log("  no tooltip over " .. b.id) end
+        end
+        check(shown == #Factions[fid].towers, fid .. ": hovering each tower button draws its tooltip (" .. shown .. ")")
+    end
+    love.mouse.setPosition(0, 0)
+
+    ------------------------------------------------------------------
+    log("== Sounds over a whole run")
+    do
+        local Audio = require('systems.audio')
+        local c = Audio.counts
+        local function n(k) return c[k] or 0 end
+        local shots = 0
+        for k, v in pairs(c) do if k:match("^shot_") then shots = shots + v end end
+        log(string.format("plays: shots %d, hits %d, deaths %d, place %d, sell %d, upgrade %d, wave %d, " ..
+            "ability %d, level up %d, life lost %d, purchase %d, victory %d, defeat %d",
+            shots, n("enemy_hit"), n("enemy_die"), n("place"), n("sell"), n("upgrade"), n("wave_start"),
+            n("ability"), n("level_up"), n("life_lost"), n("purchase"), n("victory"), n("defeat")))
+        check(shots > 0 and n("enemy_hit") > 0 and n("enemy_die") > 0, "towers fire, hit and kill with sound")
+        check(n("place") > 0 and n("sell") > 0 and n("upgrade") > 0, "placing, selling and upgrading make sounds")
+        check(n("wave_start") > 0 and n("ability") > 0 and n("level_up") > 0, "wave start, hero abilities and level ups make sounds")
+        check(n("purchase") > 0 and n("victory") > 0 and n("defeat") > 0, "shop purchase, victory and defeat make sounds")
+        check(n("music:game") > 0 and n("music:menu") > 0, "menu and game music both started")
+        -- The whole run was throttled: far fewer shot sounds than shots
+        local fired = 0
+        for _, k in ipairs({ "shot_holy", "shot_fire", "shot_bolt", "shot_poison", "shot_void", "shot_soul", "shot_hybrid", "shot_frost" }) do
+            fired = fired + n(k)
+        end
+        check(fired == shots, "every shot sound is filed under its projectile type")
     end
 
     ------------------------------------------------------------------

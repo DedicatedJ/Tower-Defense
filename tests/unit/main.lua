@@ -603,6 +603,75 @@ local function testWaves()
 end
 
 ------------------------------------------------------------------------
+local function testAudio()
+    log("== Audio")
+    local Audio = require('systems.audio')
+    Audio.init()
+    Audio.setVolumes(0, 0) -- real playback, silent
+
+    check(Audio.resolve("place") == "tower_place" and Audio.resolve("defeat") == "game_over",
+        "events use their own files (place -> tower_place, defeat -> game_over)")
+    local want = love.filesystem.getInfo("sounds/sfx/enemy_die.wav") and "enemy_die" or "enemy_death"
+    check(Audio.resolve("enemy_die") == want, "enemy death uses enemy_die.wav")
+    local lvl = love.filesystem.getInfo("sounds/sfx/level_up.wav") and "level_up" or "tower_upgrade"
+    check(Audio.resolve("level_up") == lvl, "level up falls back to tower_upgrade until level_up.wav exists (" .. lvl .. ")")
+    check(Audio.resolve("no_such_event") == nil, "an unknown event resolves to nothing")
+
+    -- Every tower projectile has a sound, its own or a stand-in
+    local missing = {}
+    for _, fid in ipairs(FACTION_IDS) do
+        for _, t in ipairs(Factions[fid].towers) do
+            if not Audio.resolveShot(t.projectileType) then missing[#missing + 1] = t.projectileType end
+        end
+    end
+    check(#missing == 0, "every tower projectile type has a shot sound" ..
+        (#missing > 0 and (" (none for " .. table.concat(missing, ", ") .. ")") or ""))
+    local fire = love.filesystem.getInfo("sounds/sfx/shot_fire.wav") and "shot_fire" or "shot_cannon"
+    check(Audio.resolveShot("fire") == fire, "fire shots use " .. fire)
+    check(Audio.resolveShot("something_new") == "shot_basic", "an unknown projectile falls back to shot_basic")
+
+    -- Throttling: a second play inside the gap is dropped
+    Audio.lastPlayed.place = nil
+    local first, second = Audio.play("place"), Audio.play("place")
+    check(first and not second, "the same sound twice within its gap plays once")
+
+    -- At most `max` copies at once (enemy_hit: 3)
+    Audio.playing.enemy_hit = nil
+    local played = 0
+    for _ = 1, 6 do
+        Audio.lastPlayed.enemy_hit = nil -- skip the gap, test only the cap
+        if Audio.play("enemy_hit") then played = played + 1 end
+    end
+    check(played == 3, "no more than 3 enemy hits sound at once (" .. played .. ")")
+
+    Audio.setVolumes(2, -1)
+    check(Audio.volumes.music == 1 and Audio.volumes.sfx == 0, "volumes are clamped to 0..1")
+    Audio.setVolumes(0, 0)
+
+    Audio.playMusic("menu")
+    Audio.playMusic("menu")
+    check(Audio.currentMusic == "menu" and Audio.counts["music:menu"] == 1, "asking for the track already playing does not restart it")
+    Audio.playMusic("game")
+    check(Audio.currentMusic == "game" and (not Audio.music.menu or not Audio.music.menu:isPlaying()),
+        "switching tracks stops the old one")
+    Audio.stopMusic()
+    check(Audio.music.menu ~= nil and Audio.music.game ~= nil, "menu and game music load from sounds/Music")
+
+    -- Settings round trip through the save folder
+    local Save = require('systems.save')
+    love.filesystem.remove("settings.json")
+    local s = { musicVolume = 0.3, sfxVolume = 0.6, showTutorial = false, fullscreen = false }
+    check(Save.saveSettings(s), "settings save")
+    local back = { musicVolume = 1, sfxVolume = 1, showTutorial = true, fullscreen = false, other = 5 }
+    check(Save.loadSettings(back) and back.musicVolume == 0.3 and back.sfxVolume == 0.6 and back.showTutorial == false
+        and back.other == 5, "settings load back (music 0.3, sfx 0.6, tutorial off) and keep unknown keys")
+    love.filesystem.write("settings.json", "null")
+    local d = { musicVolume = 1 }
+    check(not Save.loadSettings(d) and d.musicVolume == 1, "a broken settings file leaves the defaults alone")
+    love.filesystem.remove("settings.json")
+end
+
+------------------------------------------------------------------------
 function love.load()
     love.math.setRandomSeed(1)
     testData()
@@ -614,6 +683,7 @@ function love.load()
     testLevels()
     testWaves()
     testSave()
+    testAudio()
     log(string.format("DONE passes=%d failures=%d", passes, failures))
     os.exit(failures == 0 and 0 or 1)
 end

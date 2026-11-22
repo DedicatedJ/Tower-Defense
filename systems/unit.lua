@@ -13,6 +13,7 @@
 
 local Effects = require("systems.effects")
 local Audio = require("systems.audio")
+local Fx = require("systems.fx")
 local Enemy = require("systems.enemy")
 
 local Unit = {}
@@ -280,6 +281,7 @@ end
 function Unit:attack(target, game)
     local dmg = self.damage * Effects.damageDealtMult(self) * (1 + (self.modeDamageBoost or 0)) * self:critMult()
     local dealt = target:takeDamage(dmg, self) or 0
+    Fx.damage(target, dealt)
     local ls = self:lifestealFraction()
     if ls > 0 and dealt > 0 then self:heal(dealt * ls) end
     self.lunge = 1

@@ -680,6 +680,32 @@ local function testAudio()
 end
 
 ------------------------------------------------------------------------
+local function testFx()
+    log("== Battle feedback")
+    local Fx = require('systems.fx')
+    Fx.clear()
+    local z = { x = 100, y = 100 }
+    Fx.damage(z, 20)
+    Fx.damage(z, 15, true)
+    check(#Fx.items == 1 and Fx.items[1].amount == 35 and Fx.items[1].crit,
+        "hits on one enemy within 0.25 s merge into one number (35, marked crit)")
+    Fx.update(0.3)
+    Fx.damage(z, 5)
+    check(#Fx.items == 2, "a hit after the merge window starts a new number")
+    Fx.damage({ x = 0, y = 0 }, 0.4)
+    check(#Fx.items == 2, "damage under 1 shows no number")
+    Fx.update(1)
+    check(#Fx.items == 0, "numbers fade out after 0.8 s")
+    for i = 1, Fx.MAX + 20 do Fx.gold(i, i, 10) end
+    check(#Fx.items == Fx.MAX, "live effects are capped at " .. Fx.MAX)
+    Fx.clear()
+    Fx.lifeLost(10, 10, 2)
+    check(Fx.flash > 0 and Fx.items[1].amount == 2, "a lost life flashes the screen edge and shows -2")
+    Fx.update(2)
+    check(Fx.flash == 0 and #Fx.items == 0, "the flash and the -2 clear")
+end
+
+------------------------------------------------------------------------
 function love.load()
     love.math.setRandomSeed(1)
     testData()
@@ -692,6 +718,7 @@ function love.load()
     testWaves()
     testSave()
     testAudio()
+    testFx()
     log(string.format("DONE passes=%d failures=%d", passes, failures))
     os.exit(failures == 0 and 0 or 1)
 end

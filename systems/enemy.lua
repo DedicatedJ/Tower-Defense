@@ -79,6 +79,12 @@ Enemy.HOVER_HEIGHT = 22                 -- flyers' body center above their groun
 -- On-map figure height in pixels, per enemy type (scale is data, per asset)
 Enemy.DRAW_HEIGHT = { default = 40, zombie = 40, skeleton = 40, orc = 46, necromancer = 44, dragon = 56 }
 
+-- Color of the motes when an enemy dies (systems/fx.lua)
+Enemy.PUFF_COLORS = {
+    default = { 0.8, 0.8, 0.7 }, zombie = { 0.55, 0.7, 0.35 }, skeleton = { 0.9, 0.88, 0.8 },
+    orc = { 0.6, 0.35, 0.25 }, necromancer = { 0.6, 0.35, 0.8 }, dragon = { 1, 0.55, 0.2 },
+}
+
 -- Status dots drawn over enemies, in this order
 Enemy.STATUS_MARKERS = {
     { "burn", { 1, 0.5, 0.1 } }, { "poison", { 0.4, 0.9, 0.3 } }, { "drain", { 0.7, 0.3, 0.9 } },
@@ -529,6 +535,7 @@ function Enemy.create(type, path, gridSize)
     
     -- Die
     enemy.die = function(self)
+        require('systems.fx').puff(self.x, self.y - 10, Enemy.PUFF_COLORS[self.type] or Enemy.PUFF_COLORS.default)
         self.state = "dead"
         self.dead = true
         self.justDied = true -- read once by the game (XP, conversion)

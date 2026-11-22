@@ -714,6 +714,31 @@ local function run()
     end
 
     ------------------------------------------------------------------
+    log("== Battle feedback")
+    do
+        local Fx = require('systems.fx')
+        local before = { damage = Fx.counts.damage, puff = Fx.counts.puff, gold = Fx.counts.gold }
+        local g = newGame("radiant", "sir_galahad")
+        g.resources = 2000
+        placeTower(g, "holy_bastion", 7, 3)
+        placeTower(g, "seraphim_altar", 9, 6)
+        g:startNextWave()
+        simulate(25, function() return #Fx.items >= 6 end)
+        shot("battle_feedback")
+        simulate(120, function() return not g.waveInProgress end)
+        check(Fx.counts.damage > before.damage and Fx.counts.puff > before.puff and Fx.counts.gold > before.gold,
+            string.format("a wave shows damage numbers (%d), death puffs (%d) and gold popups (%d)",
+                Fx.counts.damage - before.damage, Fx.counts.puff - before.puff, Fx.counts.gold - before.gold))
+        local lostBefore = Fx.counts.life
+        g.lives = 20
+        local e = g:addEnemy("zombie", 1, 1)
+        e.currentPathIndex = #e.path
+        e.x, e.y = g:cellCenter(g.endX, g.endY)
+        simulate(1)
+        check(Fx.counts.life > lostBefore and g.lives < 20, "an enemy reaching the gate flashes the edge and shows the lives lost")
+    end
+
+    ------------------------------------------------------------------
     log("== Sounds over a whole run")
     do
         local Audio = require('systems.audio')

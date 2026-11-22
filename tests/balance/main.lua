@@ -33,6 +33,7 @@ love.filesystem.load("game_main.lua")()
 
 -- Count sounds but make none
 require('systems.audio').enabled = false
+require('systems.fx').enabled = false
 
 local Gamestate = require 'libs.hump.gamestate'
 local Levels = require('data.levels')

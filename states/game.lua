@@ -79,6 +79,7 @@ function GameState:setup(selectedFaction, selectedHero, levelId)
     self.enemies = {}
     self.projectiles = {}
     self.effects = {} -- Add effects array
+    require('systems.fx').clear() -- numbers and puffs from the last game
     self.selectedTower = nil
     self.towerPreview = nil
     self.towerData = {}
@@ -953,6 +954,7 @@ function GameState:step(dt)
     self.ui:update(dt)
     if self.waveBonusFlash then self.waveBonusFlash = self.waveBonusFlash - dt end
     self.mapTime = (self.mapTime or 0) + dt
+    require('systems.fx').update(dt)
     
     -- Update towers
     -- Towers get the whole game state (towers, enemies, projectiles, effects)
@@ -987,6 +989,8 @@ function GameState:step(dt)
         if enemy.state == "attacking" then
             self.lives = self.lives - enemy.damage
             require('systems.audio').play("life_lost")
+            local gx, gy = self:cellCenter(self.endX, self.endY)
+            require('systems.fx').lifeLost(gx, gy, enemy.damage)
             table.remove(self.enemies, i)
             
             -- Check game over condition
@@ -998,6 +1002,7 @@ function GameState:step(dt)
             -- Enemy was killed, add resources
             self.resources = self.resources + enemy.value
             self.goldEarned = self.goldEarned + enemy.value
+            require('systems.fx').gold(enemy.x, enemy.y, enemy.value)
             table.remove(self.enemies, i)
         end
     end
@@ -1251,6 +1256,8 @@ function GameState:draw()
     for _, effect in ipairs(self.effects) do
         effect:draw()
     end
+    love.graphics.setFont(self.fonts.small)
+    require('systems.fx').draw()
     
     -- Draw tower preview
     if self.towerPreview then
@@ -1275,6 +1282,11 @@ function GameState:draw()
     end
 
     love.graphics.pop()
+
+    -- Red edge flash over the map when a life is lost
+    if self.grid then
+        require('systems.fx').drawScreen(0, GameState.MAP_OFFSET_Y, #self.grid[1] * self.tileSize, #self.grid * self.tileSize)
+    end
 
     -- Draw UI
     self.ui:draw()

@@ -13,6 +13,7 @@
 local Factions = require 'data.factions'
 local Effects = require 'systems.effects'
 local Audio = require 'systems.audio'
+local Fx = require 'systems.fx'
 
 local Tower = {}
 
@@ -316,7 +317,7 @@ end
 function TowerInstance:onHit(target)
     if target.dead then return end
     local dmg, crit = self:shotDamage(target)
-    target:takeDamage(dmg, self)
+    Fx.damage(target, target:takeDamage(dmg, self), crit)
     self.hits = (self.hits or 0) + 1
     if crit then self.crits = (self.crits or 0) + 1 end
     if target.dead then return end

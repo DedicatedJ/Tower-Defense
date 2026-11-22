@@ -8,101 +8,111 @@ A Tower Defense game built with Lua and the LÖVE framework: three factions, her
 - **Towers** with their own behavior (healing, burn, poison, crits and marks, summoning, converting the dead, life drain, light/dark hybrid damage, burn/freeze) and 2 upgrades each, bought in game. Sell for 70%.
 - **Heroes** that hold the road and block enemies, walk to any road cell you click, auto-cast 3 abilities (Q/W/E to cast early), and level up to 10. Levels save to your profile.
 - **Levels**: 3 per faction, unlocked in order, with up to 3 stars each. Maps have one or two roads, rock areas you cannot build on, and portals (`data/levels.lua`).
-- **Waves** built from a difficulty curve per level: more and tougher enemies each wave, necromancers that raise skeletons, dragons that fly over your blockers as bosses, and bonus gold for each wave cleared (`systems/wave.lua`).
+- **Waves** built from a difficulty curve per level: more and tougher enemies each wave, necromancers that raise skeletons, dragons that fly over your blockers as bosses, bonus gold for each wave cleared, and extra gold for calling the next wave early (`systems/wave.lua`).
+- **Profiles**: 5 save slots, each keeping its faction, hero levels, shop gold and items, level stars and achievements. Continue opens the one you used last.
 - **Shop**: gold earned in games buys permanent hero and tower boosts and one-use consumables.
+- **Achievements**: 8, tracked across games and shown in the hub.
+- **Feedback**: damage numbers, kill effects, gold popups, and a red flash when a life is lost; an end screen with the game's stats.
 - **Sound**: every tower shot, hit, kill, build, sale, upgrade, wave, ability, level up, purchase, win and loss has a sound, with menu and battle music (`systems/audio.lua`). A missing sound falls back to the closest one that exists, and a new file in `sounds/sfx/` takes over by name. Volumes save with the settings.
+- **First-time hints** on each faction's first level (turn off with Settings > Show Tutorial), and a How to Play screen.
 
-## Dependencies
+## Controls
 
-- LÖVE 11.4 or higher
-- Jumper (for pathfinding)
-- Bump.lua (for collision detection)
-- STI (for map loading)
-- HUMP (for state management and timers)
-- LoveFrames (submodule, not used by the game yet)
+| Action | Mouse | Keys |
+|---|---|---|
+| Pick a tower to build | Click it on the right | 1, 2, 3 |
+| Place it | Click open ground near the road | |
+| Upgrade or sell a tower | Click the tower, then the strip under the map | |
+| Start the next wave, or call it early | Start Wave button | Space |
+| Move the hero | Click the hero, then a road cell | |
+| Cast an ability early | Ability buttons | Q, W, E |
+| Freeze Potion (from the shop) | | F |
+| Game speed 1x / 2x / 3x | Speed button | Tab |
+| Drop the current selection | Right click | Esc |
+| Pause | | Esc (with nothing selected), P |
+| Fullscreen | | F11 |
+
+## Requirements
+
+- [LÖVE](https://love2d.org/) 11.4 or newer (tested on 11.5)
+- HUMP (gamestate and timer), included as a git submodule in `libs/hump`
+
+The repo also has `libs/bump`, `libs/sti`, `libs/jumper` and `libs/loveframes` submodules. The game does not use them; they are listed for removal in `BLOCKED.md`.
 
 ## Installation
 
-1. Install LÖVE framework from [love2d.org](https://love2d.org/)
-2. Clone this repository
-3. Fetch the libraries (git submodules):
+1. Install LÖVE from [love2d.org](https://love2d.org/).
+2. Clone this repository with its submodules:
    ```bash
-   git submodule update --init
+   git clone --recursive https://github.com/DedicatedJ/Tower-Defense.git
    ```
-   Or clone with `git clone --recursive`.
+   In an existing clone: `git submodule update --init`.
+
+## Running the Game
+
+From the project folder:
+
+```bash
+love .
+```
+
+On Windows, if `love` is not on your PATH:
+
+```powershell
+& "C:\Program Files\LOVE\love.exe" .
+```
+
+Saves (profiles and settings) go to LÖVE's save folder for the `tower-defense` identity, for example `%APPDATA%\LOVE\tower-defense` on Windows.
 
 ## Project Structure
 
 ```
-Tower Defense/
+Tower-Defense/
+├── main.lua, conf.lua     LÖVE entry point and window settings
+├── data/                  game content as plain data
+│   ├── factions.lua       factions, towers, heroes, abilities
+│   ├── levels.lua         the 9 levels: roads, rocks, waves, gold, lives
+│   ├── achievements.lua
+│   └── shop_items.lua
+├── systems/               game logic
+│   ├── tower.lua, enemy.lua, unit.lua (heroes, minions), effects.lua
+│   ├── level.lua, wave.lua
+│   ├── save.lua, achievements.lua, audio.lua, fx.lua
+├── states/                screens (menu, profiles, faction and hero select,
+│                          hub, level select, game, pause, shop, settings ...)
+├── utils/                 errors, JSON, selection helpers
+├── sprites/, assets/      art used by the game (towers, enemies, maps, UI,
+│                          hero portraits, backgrounds)
+├── sounds/                sfx/ and Music/
 ├── fonts/
-│   ├── main.ttf
-│   └── title.ttf
-├── sounds/
-│   ├── music/
-│   │   ├── defeat.mp3
-│   │   ├── game.mp3
-│   │   ├── menu.mp3
-│   │   └── victory.mp3
-│   └── sfx/
-│       ├── button_click.wav
-│       ├── enemy_die.wav
-│       └── ...
-├── sprites/
-│   ├── enemies/
-│   │   ├── air/
-│   │   └── ground/
-│   └── ranged/
-│       ├── magic/
-│       └── melee/
-├── states/
-│   ├── splash.lua
-│   ├── menu.lua
-│   ├── faction_select.lua
-│   ├── game.lua
-│   └── pause.lua
-├── libs/
-│   ├── jumper/
-│   ├── bump/
-│   ├── sti/
-│   ├── hump/
-│   └── suite/
-├── main.lua
-└── README.md
+├── art/                   art pipeline: prompts, layout guides, manifest
+├── tools/                 artkit (prompt pack) and artcut (cut and align art)
+├── tests/                 unit, smoke and balance suites
+└── libs/                  submodules (HUMP)
 ```
-
-## Running the Game
-
-1. Navigate to the project directory
-2. Run with LÖVE:
-   ```bash
-   love .
-   ```
 
 ## Development
 
+### Adding content
+
+- **A tower or hero:** add it to its faction in `data/factions.lua`. Its art is picked up by name from `sprites/towers/<id>.png` or `sprites/heroes/<id>.png`.
+- **A level:** add it to `data/levels.lua` (waypoints, rocks, waves). A painted map at `sprites/maps/<level id>.png` replaces the generated ground. Check the difficulty with `tests/run.sh balance`.
+- **Art:** see `art/README.md`. `tools/artkit` writes the prompt pack and layout guides; `tools/artcut` cuts and aligns what comes back.
+
 ### Code Standards
 
-- Use camelCase for variable and function names
-- Use PascalCase for class-like tables
-- Avoid global variables; use local variables or modules
-- Follow LÖVE's coding style guidelines
-
-### Adding New Features
-
-1. Create new state files in the `states/` directory
-2. Add new assets to appropriate directories
-3. Update `main.lua` to include new states
-4. Follow the existing code structure and naming conventions
+- camelCase for variables and functions, PascalCase for module tables
+- Prefer locals and modules over globals (the game still has a few: `gameState`, `fonts`, `playSound`)
+- Keep content in `data/` and behavior in `systems/`
 
 ### Tests
 
-Both suites run the game's code under LÖVE 11.5 in a throwaway copy of the repo, with their own save folders (your saves are never touched). From Git Bash:
+The suites run the game's code under LÖVE 11.5 in a throwaway copy of the repo, with their own save folders (your saves are never touched). From Git Bash:
 
 ```bash
 tests/run.sh          # unit, then smoke
 tests/run.sh unit     # logic checks with exact expected values, a few seconds
-tests/run.sh smoke    # drives the real game: menus, every tower and hero, 10 waves per faction
+tests/run.sh smoke    # drives the real game: every screen, tower, hero and level
 ```
 
 Set `LOVEC` if `lovec.exe` is not at `C:\Program Files\LOVE\lovec.exe`. Exit code 0 = all passed, 1 = a check failed, 2 = crash.
@@ -116,11 +126,8 @@ BALANCE_LEVEL=necropolis tests/run.sh balance
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+No license has been chosen yet, so all rights are reserved by default. See `BLOCKED.md`.
 
 ## Credits
 
-- Game assets created by [Your Name/Team]
-- Sound effects from [Source]
-- Music from [Source]
-- Built with LÖVE framework 
+Built with [LÖVE](https://love2d.org/) and [HUMP](https://github.com/vrld/hump). Full credits are coming (see `BLOCKED.md`).

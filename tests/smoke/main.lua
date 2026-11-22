@@ -583,6 +583,21 @@ local function run()
         local menu = require('states.menu').new()
         Gamestate.switch(menu)
         wait(2)
+        -- The main menu shows its 7 buttons, and a click on one opens it
+        local labels = {}
+        for _, b in ipairs(menu.buttons) do labels[#labels + 1] = b.text end
+        check(table.concat(labels, ",") == "Continue,New Game,Load Game,Settings,Tutorial,Credits,Quit",
+            "the main menu shows its 7 buttons (" .. table.concat(labels, ",") .. ")")
+        local last = menu.buttons[#menu.buttons]
+        check(last.y + last.height <= 768, "the buttons fit on the screen")
+        shot("main_menu")
+        local settingsButton = menu.buttons[4]
+        love.mousepressed(settingsButton.x + 20, settingsButton.y + 20, 1)
+        wait(2)
+        check(isState('states.settings'), "clicking Settings on the main menu opens Settings")
+        Gamestate.switch(require('states.menu').new())
+        menu = Gamestate.current()
+        wait(2)
         -- name, how it is opened, and what Esc should lead back to
         local screens = {
             { "settings", function() menu:openSettings() end, 'states.menu' },

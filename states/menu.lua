@@ -68,9 +68,22 @@ function MenuState:createUI()
             action = function() self:quitGame() end
         }
     }
+
+    -- Lay the items out as a centered column of buttons under the title
+    local w, h, gap, top = 240, 46, 12, 190
+    self.buttons = {}
+    for i, item in ipairs(self.menuItems) do
+        self.buttons[i] = {
+            text = item.text, action = item.action, enabled = item.enabled ~= false,
+            x = love.graphics.getWidth() / 2 - w / 2, y = top + (i - 1) * (h + gap),
+            width = w, height = h, hovered = false,
+        }
+    end
 end
 
 function MenuState:enter()
+    -- Rebuild the buttons: Continue depends on whether a profile exists now
+    self:createUI()
     -- Play menu music
     playSound('music', 'menu')
 end
@@ -117,19 +130,20 @@ function MenuState:draw()
     -- Draw buttons
     for _, button in ipairs(self.buttons) do
         -- Draw button background with rounded corners (10px radius)
+        local dim = button.enabled and 1 or 0.4
         if button.hovered then
             love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
         else
-            love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+            love.graphics.setColor(0.2, 0.2, 0.2, 0.8 * (button.enabled and 1 or 0.6))
         end
         love.graphics.rectangle("fill", button.x, button.y, button.width, button.height, 10, 10)
-        
+
         -- Draw button border with rounded corners
-        love.graphics.setColor(1, 1, 1, 0.5)
+        love.graphics.setColor(1, 1, 1, 0.5 * dim)
         love.graphics.rectangle("line", button.x, button.y, button.width, button.height, 10, 10)
-        
+
         -- Draw button text
-        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.setColor(1, 1, 1, dim)
         local textWidth = fonts.main:getWidth(button.text)
         local textHeight = fonts.main:getHeight()
         love.graphics.print(
@@ -146,12 +160,13 @@ end
 function MenuState:mousepressed(x, y, button)
     if button == 1 then
         for _, button in ipairs(self.buttons) do
-            if self:isPointInButton(x, y, button) then
+            if button.enabled and self:isPointInButton(x, y, button) then
                 -- Play click sound
                 playSound('sfx', 'buttonClick')
-                
+
                 -- Execute button action
                 button.action()
+                return
             end
         end
     end
@@ -160,7 +175,7 @@ end
 function MenuState:mousemoved(x, y, dx, dy)
     -- Update button hover states
     for _, button in ipairs(self.buttons) do
-        button.hovered = self:isPointInButton(x, y, button)
+        button.hovered = button.enabled and self:isPointInButton(x, y, button)
     end
 end
 

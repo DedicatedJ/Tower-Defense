@@ -191,10 +191,17 @@ function MenuState:continueGame()
     end
 end
 
+-- A fresh profile in the first empty slot; with none free, the profile
+-- screen says so (delete one there to make room)
 function MenuState:startNewGame()
-    -- Create a load game state for creating a new save
-    local loadGameState = require('states.load_game').new()
-    Gamestate.switch(loadGameState)
+    local slot = Save.firstEmptySlot()
+    if slot and Save.newProfile(slot) then
+        Gamestate.switch(require('states.faction_select').new())
+    else
+        local screen = require('states.load_game').new()
+        screen.message = "All " .. Save.SLOT_COUNT .. " slots are in use: delete one to start a new game"
+        Gamestate.switch(screen)
+    end
 end
 
 function MenuState:loadGame()

@@ -381,6 +381,7 @@ function Save.saveProfile(profile, slot)
         
         -- Save to file using LÖVE's filesystem for better cross-platform support
         if love.filesystem.getInfo("save") then
+            profile.timestamp = os.time() -- "last played" on the profile screen
             local success = love.filesystem.write(filePath, json.encode(profile))
             if success then
                 lastSaveTime = os.time()
@@ -426,8 +427,8 @@ function Save.loadProfile(slot)
             return nil
         end
         
-        -- Store in global gameState for non-instanced access
-        gameState = profile
+        -- Reading a slot does not make it the current profile; callers that
+        -- want that (currentProfile, getCurrentProfile) cache it themselves
         
         return profile
     end, Error.TYPES.LOAD, "PROFILE_LOAD_FAILED")
@@ -601,6 +602,80 @@ function Save.useConsumables(ids)
         p.purchases[id] = n > 0 and n or nil
     end
     return Save.saveProfile(p, currentSlot)
+end
+
+------------------------------------------------------------------------
+-- Profile slots (the Load Game screen). A profile is everything a player
+-- keeps: faction and hero, hero levels, shop gold and items, level stars.
+-- The slot last used is remembered in save/last_slot.txt for Continue.
+------------------------------------------------------------------------
+Save.SLOT_COUNT = #SAVE_SLOTS
+local LAST_SLOT_FILE = "save/last_slot.txt"
+
+local function profilePath(slot) return string.format("save/profile_%d.json", slot) end
+
+-- Make `slot` the current profile and remember it for the next launch
+function Save.useSlot(slot)
+    if type(slot) ~= "number" or slot < 1 or slot > Save.SLOT_COUNT then return false end
+    currentSlot = slot
+    gameState = nil -- forget the cached profile of the previous slot
+    love.filesystem.createDirectory("save")
+    love.filesystem.write(LAST_SLOT_FILE, tostring(slot))
+    return true
+end
+
+function Save.currentSlotNumber() return currentSlot end
+
+-- At launch: go back to the slot used last time. Returns it, or nil.
+function Save.restoreLastSlot()
+    local n = tonumber(love.filesystem.getInfo(LAST_SLOT_FILE) and love.filesystem.read(LAST_SLOT_FILE) or "")
+    if n and n >= 1 and n <= Save.SLOT_COUNT then
+        currentSlot = n
+        gameState = nil
+        return n
+    end
+end
+
+function Save.slotUsed(slot) return love.filesystem.getInfo(profilePath(slot)) ~= nil end
+
+function Save.firstEmptySlot()
+    for i = 1, Save.SLOT_COUNT do
+        if not Save.slotUsed(i) then return i end
+    end
+end
+
+-- Start a fresh profile in `slot` and make it current
+function Save.newProfile(slot)
+    local profile = { playerName = "Player" .. slot, heroes = {}, levels = {}, purchases = {}, gold = 0 }
+    if not Save.saveProfile(profile, slot) then return false end
+    Save.useSlot(slot)
+    gameState = profile
+    return true
+end
+
+function Save.deleteProfile(slot)
+    love.filesystem.remove(profilePath(slot))
+    if slot == currentSlot then gameState = nil end
+    return not Save.slotUsed(slot)
+end
+
+-- What the profile screen shows for a slot: nil when empty, else
+-- { slot, faction, hero, stars, wins, gold, timestamp } (names, not ids)
+function Save.slotSummary(slot)
+    local p = Save.slotUsed(slot) and Save.loadProfile(slot)
+    if not p then return nil end
+    local Selection = require('utils.selection')
+    local s = { slot = slot, stars = 0, wins = 0, gold = p.gold or 0, timestamp = p.timestamp }
+    if p.selectedFaction then
+        local f, h = Selection.canonical(p.selectedFaction, p.selectedHero)
+        s.faction = f and f.name
+        s.hero = p.selectedHero and h and h.name or nil
+    end
+    for _, r in pairs(p.levels or {}) do
+        s.stars = s.stars + (r.stars or 0)
+        s.wins = s.wins + 1
+    end
+    return s
 end
 
 return Save 

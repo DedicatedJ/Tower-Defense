@@ -80,15 +80,16 @@ function love.load()
     -- Check for save directory
     love.filesystem.createDirectory("save")
     
-    -- Check for last played game
-    local lastProfile = Save.getCurrentProfile()
+    -- Back to the profile used last time (Continue picks it up)
+    Save.restoreLastSlot()
+    local lastProfile = Save.slotUsed(Save.currentSlotNumber()) and Save.getCurrentProfile()
     
     -- Determine which state to show initially
     local initialState
     
     if lastProfile then
         -- Last profile found, go straight to menu to allow loading
-        print("Found last played profile: " .. lastProfile.playerName)
+        print("Found last played profile: " .. tostring(lastProfile.playerName or ("slot " .. Save.currentSlotNumber())))
         initialState = require('states.menu').new()
     else
         -- No profile found, show load game screen to create a new one

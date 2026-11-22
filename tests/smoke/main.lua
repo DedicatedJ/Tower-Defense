@@ -588,7 +588,7 @@ local function run()
             { "settings", function() menu:openSettings() end, 'states.menu' },
             { "tutorial", function() menu:openTutorial() end, 'states.menu' },
             { "credits", function() menu:openCredits() end, 'states.menu' },
-            { "load_game", function() menu:loadGame() end, nil },
+            { "load_game", function() menu:loadGame() end, 'states.menu' },
             { "achievement", function() Gamestate.push(require('states.achievement').new()) end, 'states.menu' },
         }
         for _, sc in ipairs(screens) do
@@ -613,6 +613,66 @@ local function run()
                 end
             end
         end
+    end
+
+    ------------------------------------------------------------------
+    log("== Profiles: New Game, Load Game, Continue")
+    do
+        local Save = require('systems.save')
+        Save.useSlot(1)
+        local before = Save.slotSummary(1)
+        check(before and before.faction ~= nil and before.wins > 0,
+            "slot 1 summary: " .. tostring(before and before.faction) .. ", " .. tostring(before and before.wins) ..
+            " wins, " .. tostring(before and before.stars) .. " stars")
+        for s = 2, Save.SLOT_COUNT do Save.deleteProfile(s) end
+
+        -- New Game takes the first empty slot and starts at faction select
+        Gamestate.switch(require('states.menu').new())
+        wait(1)
+        Gamestate.current():startNewGame()
+        wait(1)
+        check(isState('states.faction_select') and Save.currentSlotNumber() == 2 and Save.slotUsed(2),
+            "New Game starts a fresh profile in slot 2 and opens faction select")
+        check(Save.getGold() == 0 and Save.getLevelResult("sunlit_meadows") == nil,
+            "the new profile starts with no gold and no stars")
+
+        -- The profile screen lists both, and Play on slot 1 goes back to it
+        local lg = require('states.load_game').new()
+        Gamestate.switch(lg)
+        wait(2)
+        check(lg.rows[1].summary and lg.rows[2].summary and not lg.rows[3].summary,
+            "Load Game shows slots 1 and 2 used, slot 3 empty")
+        shot("profiles")
+        local function press(row, action)
+            for _, b in ipairs(row.buttons) do
+                if b.action == action then click(b.x + 5, b.y + 5); return true end
+            end
+        end
+        press(lg.rows[2], "delete")
+        check(Save.slotUsed(2) and lg.confirmDelete == 2, "the first Delete click only asks")
+        press(lg.rows[2], "delete")
+        check(not Save.slotUsed(2) and not lg.rows[2].summary, "the second Delete click removes slot 2")
+        press(lg.rows[1], "play")
+        wait(2)
+        check(isState('states.hub') and Save.currentSlotNumber() == 1 and Save.getGold() == before.gold,
+            "Play on slot 1 opens the hub with slot 1's profile")
+
+        -- The slot is remembered for the next launch
+        Save.useSlot(1)
+        check(Save.restoreLastSlot() == 1, "the last slot used is remembered for Continue")
+
+        -- With every slot full, New Game explains instead of overwriting
+        for s = 2, Save.SLOT_COUNT do Save.newProfile(s) end
+        Save.useSlot(1)
+        Gamestate.switch(require('states.menu').new())
+        wait(1)
+        Gamestate.current():startNewGame()
+        wait(1)
+        local screen = Gamestate.current()
+        check(isState('states.load_game') and screen.message and screen.message:match("slots are in use"),
+            "New Game with every slot used opens Profiles with a note, overwriting nothing")
+        for s = 2, Save.SLOT_COUNT do Save.deleteProfile(s) end
+        Save.useSlot(1)
     end
 
     ------------------------------------------------------------------

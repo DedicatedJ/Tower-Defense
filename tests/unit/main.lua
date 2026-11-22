@@ -643,14 +643,23 @@ local function testAudio()
     local first, second = Audio.play("place"), Audio.play("place")
     check(first and not second, "the same sound twice within its gap plays once")
 
-    -- At most `max` copies at once (enemy_hit: 3)
+    -- At most `max` copies at once (enemy_hit: 3). Stand-in sounds that
+    -- report "still playing" make this independent of the audio device
+    -- (a dummy driver, as in CI, finishes every sound instantly)
+    local still = { isPlaying = function() return true end }
+    Audio.playing.enemy_hit = { still, still }
+    Audio.lastPlayed.enemy_hit = nil
+    local third = Audio.play("enemy_hit")
+    Audio.playing.enemy_hit = { still, still, still }
+    Audio.lastPlayed.enemy_hit = nil
+    local fourth = Audio.play("enemy_hit")
+    local done = { isPlaying = function() return false end }
+    Audio.playing.enemy_hit = { done, done, done }
+    Audio.lastPlayed.enemy_hit = nil
+    local afterFinish = Audio.play("enemy_hit")
+    check(third and not fourth and afterFinish,
+        "no more than 3 enemy hits sound at once; a finished one frees a place")
     Audio.playing.enemy_hit = nil
-    local played = 0
-    for _ = 1, 6 do
-        Audio.lastPlayed.enemy_hit = nil -- skip the gap, test only the cap
-        if Audio.play("enemy_hit") then played = played + 1 end
-    end
-    check(played == 3, "no more than 3 enemy hits sound at once (" .. played .. ")")
 
     Audio.setVolumes(2, -1)
     check(Audio.volumes.music == 1 and Audio.volumes.sfx == 0, "volumes are clamped to 0..1")

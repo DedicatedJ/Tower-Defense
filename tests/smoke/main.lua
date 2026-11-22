@@ -714,6 +714,25 @@ local function run()
     end
 
     ------------------------------------------------------------------
+    log("== Hero select details")
+    do
+        local hs = require('states.hero_select').new()
+        hs:setup(Factions.shadow)
+        Gamestate.switch(hs)
+        wait(40) -- let the carousel settle
+        local center
+        for _, b in ipairs(hs.buttons) do if b.zIndex == 3 then center = b end end
+        love.mouse.setPosition(center.x + 80, center.y + 350 + 10)
+        wait(2)
+        local hero = hs.heroes[hs.currentHeroIndex]
+        check(hs.hoverAbility == 1, "hovering the first ability row picks " .. tostring(hero.abilities[1].name))
+        shot("hero_select_ability")
+        love.mouse.setPosition(0, 0)
+        wait(2)
+        check(hs.hoverAbility == nil, "moving away shows the hero and passive again")
+    end
+
+    ------------------------------------------------------------------
     log("== Hotkeys and early wave call")
     do
         local g = newGame("radiant", "sir_galahad")

@@ -77,7 +77,7 @@ function HeroSelectState:createUI()
     self.titleText = {
         text = self.title,
         x = love.graphics.getWidth() / 2,
-        y = love.graphics.getHeight() - 100, -- Bottom position
+        y = 26, -- top center; the bottom shows the hero details strip
         font = fonts.title
     }
     
@@ -262,31 +262,8 @@ function HeroSelectState:update(dt)
     -- Update error notifications
     Error.update(dt)
     
-    -- Update details panel
+    -- Hero details show in the strip under the cards (drawDetailsStrip)
     self.detailsPanel.visible = false
-    for _, button in ipairs(self.buttons) do
-        if button.zIndex == 3 and button.hovered then
-            self.detailsPanel.visible = true
-            self.detailsPanel.hero = button.hero
-            self.detailsPanel.x = love.mouse.getX() + 20
-            self.detailsPanel.y = love.mouse.getY() - 50
-            
-            -- Keep panel on screen
-            if self.detailsPanel.x + self.detailsPanel.width > love.graphics.getWidth() then
-                self.detailsPanel.x = love.mouse.getX() - 20 - self.detailsPanel.width
-            end
-            
-            if self.detailsPanel.y + self.detailsPanel.height > love.graphics.getHeight() then
-                self.detailsPanel.y = love.graphics.getHeight() - self.detailsPanel.height - 20
-            end
-            
-            if self.detailsPanel.y < 10 then
-                self.detailsPanel.y = 10
-            end
-            
-            break
-        end
-    end
 end
 
 function HeroSelectState:draw()
@@ -430,17 +407,10 @@ function HeroSelectState:draw()
             -- Reset line width
             love.graphics.setLineWidth(1)
             
-            -- Draw hero portrait placeholder (colored rectangle)
-            local portraitColor = {0.7, 0.7, 0.7}
-            if hero.id:find("paladin") or hero.id:find("priest") then
-                portraitColor = {0.9, 0.9, 0.4} -- Gold for holy
-            elseif hero.id:find("necro") or hero.id:find("warlock") or hero.id:find("assassin") then
-                portraitColor = {0.6, 0.2, 0.8} -- Purple for shadow
-            elseif hero.id:find("balance") or hero.id:find("dream") or hero.id:find("star") then
-                portraitColor = {0.4, 0.7, 0.9} -- Blue for twilight
-            end
-            
-            love.graphics.setColor(portraitColor[1], portraitColor[2], portraitColor[3], 0.7 * button.alpha)
+            -- Portrait box, tinted by the hero's role
+            local Unit = require('systems.unit')
+            local roleColor = Unit.ROLE_COLORS[hero.role] or { 0.7, 0.7, 0.7 }
+            love.graphics.setColor(roleColor[1] * 0.35, roleColor[2] * 0.35, roleColor[3] * 0.35, 0.85 * button.alpha)
             love.graphics.rectangle(
                 "fill", 
                 button.x + 25 * button.scale, 
@@ -451,15 +421,27 @@ function HeroSelectState:draw()
             )
             
             -- Portrait (circle-cropped) and saved level, when available
-            local portrait = hero.portrait and require('systems.unit').portrait(hero.portrait)
+            local portrait = hero.portrait and Unit.portrait(hero.portrait)
+            local pcx, pcy = button.x + button.width * button.scale / 2, button.y + 75 * button.scale
             if portrait then
                 local size = 96 * button.scale
                 local ps = size / portrait:getWidth()
                 love.graphics.setColor(1, 1, 1, button.alpha)
-                love.graphics.draw(portrait,
-                    button.x + button.width * button.scale / 2, button.y + 75 * button.scale,
-                    0, ps, ps, portrait:getWidth() / 2, portrait:getHeight() / 2)
+                love.graphics.draw(portrait, pcx, pcy, 0, ps, ps, portrait:getWidth() / 2, portrait:getHeight() / 2)
+            else
+                -- No portrait yet: a lettered token in the role color
+                love.graphics.setColor(roleColor[1] * 0.6, roleColor[2] * 0.6, roleColor[3] * 0.6, button.alpha)
+                love.graphics.circle("fill", pcx, pcy, 46 * button.scale)
+                love.graphics.setColor(1, 1, 1, button.alpha)
+                love.graphics.setFont(fonts.title)
+                local letter = hero.name:sub(1, 1)
+                love.graphics.print(letter, pcx, pcy, 0, button.scale, button.scale,
+                    fonts.title:getWidth(letter) / 2, fonts.title:getHeight() / 2)
             end
+            love.graphics.setColor(roleColor[1], roleColor[2], roleColor[3], 0.9 * button.alpha)
+            love.graphics.setLineWidth(2)
+            love.graphics.circle("line", pcx, pcy, 48 * button.scale)
+            love.graphics.setLineWidth(1)
             local okSave, progress = pcall(require('systems.save').getHeroProgress, hero.id)
             if okSave and progress then
                 local font = fonts.small or fonts.main
@@ -472,14 +454,7 @@ function HeroSelectState:draw()
                 love.graphics.print(label, button.x + 30 * button.scale, button.y + 108 * button.scale)
             end
 
-            -- Draw hero class icon (placeholder)
-            love.graphics.setColor(1, 1, 1, 0.9 * button.alpha)
-            love.graphics.circle(
-                "fill", 
-                button.x + (button.width - 35) * button.scale, 
-                button.y + 35 * button.scale, 
-                20 * button.scale
-            )
+
             
             -- Draw hero name
             love.graphics.setColor(1, 1, 1, button.alpha)
@@ -564,15 +539,28 @@ function HeroSelectState:draw()
                     love.graphics.setColor(1, 1, 1, 0.8)
                     love.graphics.print("Abilities:", button.x + 25, abilityY)
                     
+                    local keys = { "Q", "W", "E" }
+                    local mx, my = love.mouse.getPosition()
+                    self.hoverAbility = nil
                     for i = 1, math.min(3, #hero.abilities) do
                         local ability = hero.abilities[i]
-                        -- Ability icon placeholder
-                        love.graphics.setColor(0.8, 0.8, 0.8, 0.6)
-                        love.graphics.rectangle("fill", button.x + 25, abilityY + 20 + (i-1) * 30, 20, 20, 4, 4)
-                        
-                        -- Ability name
-                        love.graphics.setColor(1, 1, 1, 0.8)
-                        love.graphics.print(ability.name, button.x + 55, abilityY + 20 + (i-1) * 30)
+                        local ry = abilityY + 20 + (i - 1) * 30
+                        local rw = button.width - 50
+                        if mx >= button.x + 20 and mx <= button.x + 25 + rw and my >= ry - 4 and my <= ry + 24 then
+                            self.hoverAbility = i
+                            love.graphics.setColor(1, 1, 1, 0.08)
+                            love.graphics.rectangle("fill", button.x + 20, ry - 4, rw + 10, 28, 4, 4)
+                        end
+                        -- Key, in the role color
+                        love.graphics.setColor(roleColor[1] * 0.5, roleColor[2] * 0.5, roleColor[3] * 0.5, 0.95)
+                        love.graphics.rectangle("fill", button.x + 25, ry, 20, 20, 4, 4)
+                        love.graphics.setColor(1, 1, 1, 1)
+                        love.graphics.printf(keys[i], button.x + 25, ry + 2, 20, "center")
+                        -- Name, and the cooldown on the right
+                        love.graphics.setColor(1, 1, 1, 0.9)
+                        love.graphics.print(ability.name, button.x + 55, ry)
+                        love.graphics.setColor(0.7, 0.7, 0.8, 0.9)
+                        love.graphics.printf((ability.cooldown or 0) .. "s", button.x + 25, ry, rw, "right")
                     end
                 end
             end
@@ -600,6 +588,11 @@ function HeroSelectState:draw()
         )
     end
     
+    -- Details of the hero in the middle: description and passive, or the
+    -- ability under the mouse
+    local centerHero = #self.heroes > 0 and self.heroes[self.currentHeroIndex]
+    if centerHero then self:drawDetailsStrip(centerHero) end
+
     -- Draw back button (moved to top left)
     love.graphics.setColor(0, 0, 0, 0.7)
     love.graphics.rectangle("fill", self.backButton.x, self.backButton.y, self.backButton.width, self.backButton.height, 10, 10)
@@ -765,6 +758,31 @@ function HeroSelectState:mousepressed(x, y, button)
             return
         end
     end
+end
+
+-- Strip under the cards: the hovered ability, else description + passive
+function HeroSelectState:drawDetailsStrip(hero)
+    local sw, sh = love.graphics.getWidth(), love.graphics.getHeight()
+    local w, h = 720, 92
+    local x, y = sw / 2 - w / 2, sh - h - 16
+    love.graphics.setColor(0, 0, 0, 0.6)
+    love.graphics.rectangle("fill", x, y, w, h, 8, 8)
+    local font = fonts.main
+    love.graphics.setFont(font)
+    local ab = self.hoverAbility and hero.abilities and hero.abilities[self.hoverAbility]
+    local title, body
+    if ab then
+        title = ({ "Q", "W", "E" })[self.hoverAbility] .. "  " .. ab.name .. "  (" .. (ab.cooldown or 0) .. " s cooldown)"
+        body = ab.description or ""
+    else
+        title = hero.description or hero.name
+        body = hero.passive and ("Passive, " .. hero.passive.name .. ": " .. (hero.passive.description or "")) or ""
+    end
+    love.graphics.setColor(1, 0.85, 0.4, 1)
+    love.graphics.printf(title, x + 16, y + 12, w - 32, "left")
+    love.graphics.setColor(0.9, 0.9, 0.95, 1)
+    love.graphics.printf(body, x + 16, y + 14 + font:getHeight() * 1.4, w - 32, "left")
+    love.graphics.setColor(1, 1, 1, 1)
 end
 
 function HeroSelectState:mousemoved(x, y, dx, dy)

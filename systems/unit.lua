@@ -28,7 +28,7 @@ Unit.MAX_LEVEL = 10
 Unit.LEVEL_BONUS = 0.10    -- +10% health and damage per level
 Unit.XP_RADIUS = 300
 Unit.FOOT_OFFSET = 10      -- same ground line as enemies
-Unit.HERO_HEIGHT = 44      -- drawn height of a hero walk sheet figure (a little over a zombie)
+Unit.HERO_HEIGHT = 66      -- drawn height of a hero walk sheet figure (a zombie's height)
 
 Unit.ROLE_COLORS = {
     tank = { 0.95, 0.8, 0.3 }, healer = { 1, 1, 0.6 }, dps = { 1, 0.45, 0.3 },
@@ -128,7 +128,7 @@ function Unit.newMinion(def, x, y, opts)
     u.blockCount = 1
     u.melee = true
     u.remaining = def.duration and def.duration * (opts.durationMult or 1) or nil
-    u.drawHeight = 34
+    u.drawHeight = 50
     return u
 end
 
@@ -279,7 +279,7 @@ function Unit:attack(target, game)
     self.lunge = 1
     if not self.melee and game.effects then
         -- Ranged attack: a brief tracer from the unit to the target
-        local sx, sy, tx, ty = self.x, self.y - 14, target.x, target.y - 6
+        local sx, sy, tx, ty = self.x, self.y - 26, target.x, target.y - 14
         local color = (self.kind == "hero" and Unit.ROLE_COLORS[self.role]) or { 1, 1, 1 }
         table.insert(game.effects, {
             t = 0, done = false,
@@ -598,7 +598,7 @@ end
 -- Drawing
 ------------------------------------------------------------------------
 function Unit:isUnder(px, py)
-    return not self.dead and dist(px, py, self.x, self.y - 10) <= 18
+    return not self.dead and dist(px, py, self.x, self.y - 16) <= 26
 end
 
 function Unit:drawBar(x, y, w, frac, color)
@@ -643,11 +643,11 @@ function Unit:draw()
         if self.selected then
             love.graphics.setColor(1, 0.9, 0.3, 0.9)
             love.graphics.setLineWidth(2)
-            love.graphics.ellipse("line", x, groundY, 16, 6)
+            love.graphics.ellipse("line", x, groundY, 22, 8)
         end
         love.graphics.setColor(c[1], c[2], c[3], 0.8 * alpha)
         love.graphics.setLineWidth(self.hitFlash and self.hitFlash > 0 and 3 or 1.5)
-        love.graphics.ellipse("line", x, groundY, 12, 4)
+        love.graphics.ellipse("line", x, groundY, 17, 6)
         love.graphics.setLineWidth(1)
         local tint = (self.hitFlash and self.hitFlash > 0) and { 1, 0.6, 0.6 } or nil
         local top = Enemy.drawFigure(self.sheetKey, x, groundY, self.direction, self.animTime, self.moving,
@@ -675,15 +675,15 @@ function Unit:draw()
 
     -- Hero without a sheet: a portrait token standing on the road
     love.graphics.setColor(0, 0, 0, 0.3 * alpha)
-    love.graphics.ellipse("fill", x + 2, groundY, 12, 4)
+    love.graphics.ellipse("fill", x + 2, groundY, 18, 6)
     if self.selected then
         love.graphics.setColor(1, 0.9, 0.3, 0.9)
         love.graphics.setLineWidth(2)
-        love.graphics.ellipse("line", x, groundY, 16, 6)
+        love.graphics.ellipse("line", x, groundY, 24, 9)
         love.graphics.setLineWidth(1)
     end
-    local cy = groundY - 16
-    local r = 13
+    local cy = groundY - 24
+    local r = 20
     love.graphics.setColor(0.08, 0.08, 0.1, alpha)
     love.graphics.circle("fill", x, cy, r + 2)
     if self.portraitImage then

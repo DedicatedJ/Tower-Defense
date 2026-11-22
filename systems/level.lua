@@ -43,8 +43,8 @@ end
 
 local Path = require('systems.path')
 
-Level.TOWER_CLEARANCE = 18  -- a tower stands at least this far off the road edge
-Level.TOWER_SPACING = 40    -- and at least this far from another tower
+Level.TOWER_CLEARANCE = 24  -- a tower stands at least this far off the road edge
+Level.TOWER_SPACING = 52    -- and at least this far from another tower
 Level.HUD_MARGIN = 24       -- and this far outside the HUD boxes
 
 -- Waypoints (40 px units, "portal" markers) to pieces of pixel points

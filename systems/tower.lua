@@ -461,7 +461,7 @@ function TowerInstance:fire(game, x, y)
     local target = self.target
     local sprite = Tower.projectileSprites[self.projectileType]
     table.insert(game.projectiles, {
-        x = x, y = y - 14, target = target, destroyed = false,
+        x = x, y = y - 40, target = target, destroyed = false,
         speed = Tower.PROJECTILE_SPEED,
         update = function(p, dt)
             if target.dead or target.removed then
@@ -494,7 +494,7 @@ end
 ------------------------------------------------------------------------
 -- Drawing
 ------------------------------------------------------------------------
-Tower.DRAW_WIDTH = 44
+Tower.DRAW_WIDTH = 58
 
 -- Draw a painted tower image standing on the cell centered at (cx, cy).
 -- Painted towers sit on a diamond base that spans the image width; in this

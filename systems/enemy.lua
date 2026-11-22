@@ -18,14 +18,14 @@ Enemy.WALK_CYCLE = { 1, 2, 3, 2 }      -- left foot, standing, right foot, stand
 Enemy.FRAME_TIME = 0.16                 -- seconds per frame at ANIM_BASE_SPEED
 Enemy.ANIM_BASE_SPEED = 40              -- px/s the frame time was tuned for
 Enemy.FOOT_OFFSET = 10                  -- feet sit this far below the enemy's road point
-Enemy.HOVER_HEIGHT = 22                 -- flyers' body center above their ground point
+Enemy.HOVER_HEIGHT = 33                 -- flyers' body center above their ground point
 
 -- Size classes: how much road an enemy takes (radius, also its hit radius)
 -- and how tall it is drawn. A road fits one large and one small abreast.
 Enemy.SIZES = {
-    small = { radius = 10, height = 36 },
-    medium = { radius = 14, height = 44 },
-    large = { radius = 20, height = 58 },
+    small = { radius = 12, height = 54 },
+    medium = { radius = 16, height = 66 },
+    large = { radius = 22, height = 86 },
 }
 Enemy.SIZE_OF = { skeleton = "small", zombie = "medium", necromancer = "medium", orc = "large", dragon = "large" }
 Enemy.LANE_MARGIN = 4                   -- kept clear between an enemy and the road edge

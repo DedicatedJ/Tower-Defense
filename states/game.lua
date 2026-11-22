@@ -698,8 +698,8 @@ end
 function GameState:towerAt(x, y)
     local best, bestD
     for _, t in ipairs(self.towers) do
-        if math.abs(x - t.x) <= 24 and y >= t.y - 60 and y <= t.y + 16 then
-            local d = math.abs(x - t.x) + math.abs(y - (t.y - 20))
+        if math.abs(x - t.x) <= 30 and y >= t.y - 80 and y <= t.y + 18 then
+            local d = math.abs(x - t.x) + math.abs(y - (t.y - 26))
             if not bestD or d < bestD then best, bestD = t, d end
         end
     end
@@ -1225,7 +1225,7 @@ function GameState:draw()
         else
             love.graphics.setColor(1, 0.25, 0.2, 0.45)
         end
-        love.graphics.ellipse("fill", pv.x, pv.y, 22, 10)
+        love.graphics.ellipse("fill", pv.x, pv.y, 29, 13)
         local Tower = require("systems.tower")
         local img = Tower.images and Tower.images[pv.type]
         if img then

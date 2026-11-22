@@ -62,6 +62,8 @@ On Windows, if `love` is not on your PATH:
 & "C:\Program Files\LOVE\love.exe" .
 ```
 
+The game is laid out for 1024 x 768 and scales to any window size or to fullscreen (F11), with bars where the screen shape differs.
+
 Saves (profiles and settings) go to LÖVE's save folder for the `tower-defense` identity, for example `%APPDATA%\LOVE\tower-defense` on Windows.
 
 ## Project Structure

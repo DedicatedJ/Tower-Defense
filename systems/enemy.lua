@@ -266,6 +266,7 @@ function Enemy.createDefaultSprite(enemy)
     end
     
     -- Draw to canvas
+    local prevCanvas = love.graphics.getCanvas() -- restored below (the frame may be drawing into one)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     
@@ -283,7 +284,7 @@ function Enemy.createDefaultSprite(enemy)
     love.graphics.circle("line", size/2, size/2, size/3)
     
     -- Reset canvas
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(prevCanvas)
     
     return canvas
 end

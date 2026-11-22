@@ -109,6 +109,7 @@ function Animations.createPlaceholderAnimation(color, size, frameCount)
     
     -- Create a canvas for the placeholder
     local canvas = love.graphics.newCanvas(size * frameCount, size)
+    local prevCanvas = love.graphics.getCanvas() -- restored below (the frame may be drawing into one)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     
@@ -134,7 +135,7 @@ function Animations.createPlaceholderAnimation(color, size, frameCount)
         )
     end
     
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(prevCanvas)
     
     -- Create frames table
     local frames = {}

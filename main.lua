@@ -18,6 +18,7 @@ local LoadGameState = require 'states.load_game'
 local Save = require 'systems.save'
 local UI = require 'systems.ui'
 local Error = require 'utils.error'
+local Screen = require 'utils.screen'
 
 -- Global game state
 gameState = {
@@ -70,6 +71,9 @@ function love.load()
     -- Initialize random seed
     love.math.setRandomSeed(os.time())
     
+    -- Every screen is laid out for 1024 x 768; scale that to the window
+    Screen.install()
+
     -- Settings first, so sounds start at the saved volumes
     Save.loadSettings(gameState.settings)
     if gameState.settings.fullscreen then love.window.setFullscreen(true) end
@@ -119,13 +123,15 @@ function love.update(dt)
 end
 
 function love.draw()
+    Screen.begin()
     -- Draw current state
     if Gamestate.current() then
         Gamestate.current():draw()
     end
-    
+
     -- Draw error notifications
     Error.draw()
+    Screen.finish()
 end
 
 function love.keypressed(key)
@@ -147,19 +153,24 @@ function love.keyreleased(key)
     end
 end
 
+-- Mouse events arrive in window pixels; screens work in 1024 x 768
 function love.mousepressed(x, y, button)
+    x, y = Screen.toVirtual(x, y)
     if Gamestate.current() and Gamestate.current().mousepressed then
         Gamestate.current():mousepressed(x, y, button)
     end
 end
 
 function love.mousereleased(x, y, button)
+    x, y = Screen.toVirtual(x, y)
     if Gamestate.current() and Gamestate.current().mousereleased then
         Gamestate.current():mousereleased(x, y, button)
     end
 end
 
 function love.mousemoved(x, y, dx, dy)
+    x, y = Screen.toVirtual(x, y)
+    dx, dy = dx / Screen.scale, dy / Screen.scale
     if Gamestate.current() and Gamestate.current().mousemoved then
         Gamestate.current():mousemoved(x, y, dx, dy)
     end

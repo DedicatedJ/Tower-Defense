@@ -105,6 +105,7 @@ function Tower.createDefaultSprite(tower)
     local canvas = love.graphics.newCanvas(size, size)
     local color = FACTION_COLORS[tower.faction] or { 0.5, 0.5, 0.5 }
     local accent = PROJECTILE_COLORS[tower.projectileType] or { 1, 1, 1 }
+    local prevCanvas = love.graphics.getCanvas() -- restored below (the frame may be drawing into one)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(color[1] * 0.55, color[2] * 0.55, color[3] * 0.55)
@@ -116,20 +117,21 @@ function Tower.createDefaultSprite(tower)
     love.graphics.setColor(0, 0, 0)
     love.graphics.rectangle("line", 4, 10, 24, 20, 3, 3)
     love.graphics.rectangle("line", 8, 2, 16, 14, 2, 2)
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(prevCanvas)
     love.graphics.setColor(1, 1, 1, 1)
     return canvas
 end
 
 function Tower.createDefaultProjectileSprite(color)
     local canvas = love.graphics.newCanvas(16, 16)
+    local prevCanvas = love.graphics.getCanvas() -- restored below (the frame may be drawing into one)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(color)
     love.graphics.circle("fill", 8, 8, 4)
     love.graphics.setColor(color[1], color[2], color[3], 0.4)
     love.graphics.circle("fill", 8, 8, 7)
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(prevCanvas)
     love.graphics.setColor(1, 1, 1, 1)
     return canvas
 end

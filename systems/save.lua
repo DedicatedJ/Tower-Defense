@@ -22,7 +22,9 @@ local currentSlot = 1
 local lastSaveTime = 0
 
 -- Add global state variable for non-instanced access
-local gameState = nil
+-- The current profile, cached (loaded on first use). Not the global
+-- `gameState` from main.lua, which holds the settings.
+local profileCache = nil
 
 function Save.new()
     local self = setmetatable({}, Save)
@@ -58,32 +60,32 @@ function Save:saveGame(slot)
     local success, error = Error.pcall(function()
         local saveData = {
             timestamp = os.time(),
-            gameState = {
-                resources = gameState.resources,
-                lives = gameState.lives,
-                currentWave = gameState.currentWave,
-                selectedFaction = gameState.selectedFaction,
-                selectedHero = gameState.selectedHero,
+            profileCache = {
+                resources = profileCache.resources,
+                lives = profileCache.lives,
+                currentWave = profileCache.currentWave,
+                selectedFaction = profileCache.selectedFaction,
+                selectedHero = profileCache.selectedHero,
                 towers = {},
                 enemies = {},
                 projectiles = {},
-                hero = gameState.hero and gameState.hero:serialize() or nil,
-                map = gameState.map and gameState.map:serialize() or nil
+                hero = profileCache.hero and profileCache.hero:serialize() or nil,
+                map = profileCache.map and profileCache.map:serialize() or nil
             }
         }
         
         -- Serialize towers
-        for _, tower in ipairs(gameState.towers) do
+        for _, tower in ipairs(profileCache.towers) do
             table.insert(saveData.gameState.towers, tower:serialize())
         end
         
         -- Serialize enemies
-        for _, enemy in ipairs(gameState.enemies) do
+        for _, enemy in ipairs(profileCache.enemies) do
             table.insert(saveData.gameState.enemies, enemy:serialize())
         end
         
         -- Serialize projectiles
-        for _, projectile in ipairs(gameState.projectiles) do
+        for _, projectile in ipairs(profileCache.projectiles) do
             table.insert(saveData.gameState.projectiles, projectile:serialize())
         end
         
@@ -125,38 +127,38 @@ function Save:loadGame(slot)
         end
         
         -- Restore game state
-        gameState.resources = data.gameState.resources
-        gameState.lives = data.gameState.lives
-        gameState.currentWave = data.gameState.currentWave
-        gameState.selectedFaction = data.gameState.selectedFaction
-        gameState.selectedHero = data.gameState.selectedHero
+        profileCache.resources = data.gameState.resources
+        profileCache.lives = data.gameState.lives
+        profileCache.currentWave = data.gameState.currentWave
+        profileCache.selectedFaction = data.gameState.selectedFaction
+        profileCache.selectedHero = data.gameState.selectedHero
         
         -- Restore hero
         if data.gameState.hero then
-            gameState.hero = Hero.deserialize(data.gameState.hero)
+            profileCache.hero = Hero.deserialize(data.gameState.hero)
         end
         
         -- Restore map
         if data.gameState.map then
-            gameState.map = Map.deserialize(data.gameState.map)
+            profileCache.map = Map.deserialize(data.gameState.map)
         end
         
         -- Restore towers
-        gameState.towers = {}
+        profileCache.towers = {}
         for _, towerData in ipairs(data.gameState.towers) do
-            table.insert(gameState.towers, Tower.deserialize(towerData))
+            table.insert(profileCache.towers, Tower.deserialize(towerData))
         end
         
         -- Restore enemies
-        gameState.enemies = {}
+        profileCache.enemies = {}
         for _, enemyData in ipairs(data.gameState.enemies) do
-            table.insert(gameState.enemies, Enemy.deserialize(enemyData))
+            table.insert(profileCache.enemies, Enemy.deserialize(enemyData))
         end
         
         -- Restore projectiles
-        gameState.projectiles = {}
+        profileCache.projectiles = {}
         for _, projectileData in ipairs(data.gameState.projectiles) do
-            table.insert(gameState.projectiles, Projectile.deserialize(projectileData))
+            table.insert(profileCache.projectiles, Projectile.deserialize(projectileData))
         end
         
         self.lastSaveTime = data.timestamp
@@ -173,7 +175,7 @@ end
 
 -- Making autoSave a module function instead of an instance method
 function Save.autoSave()
-    if not gameState or gameState.gameOver then return end
+    if not profileCache or profileCache.gameOver then return end
     
     -- We don't need to do anything in autoSave yet since we don't have a proper game state
     -- This is just a stub to prevent errors when called from game.lua
@@ -186,12 +188,12 @@ function Save.autoSave()
 end
 
 -- Settings live in <save folder>/settings.json. Both take the settings
--- table (gameState.settings): load fills in the saved values it already
+-- table (the global gameState.settings): load fills in the saved values it already
 -- has keys for, save writes all of it. Return true on success.
 local SETTINGS_FILE = "settings.json"
 
 function Save.saveSettings(settings)
-    if type(settings) ~= "table" or settings == Save then settings = gameState and gameState.settings end
+    if type(settings) ~= "table" or settings == Save then settings = _G.gameState and _G.gameState.settings end
     if not settings then return false end
     local ok, err = pcall(function()
         assert(love.filesystem.write(SETTINGS_FILE, json.encode(settings)))
@@ -201,7 +203,7 @@ function Save.saveSettings(settings)
 end
 
 function Save.loadSettings(settings)
-    if type(settings) ~= "table" or settings == Save then settings = gameState and gameState.settings end
+    if type(settings) ~= "table" or settings == Save then settings = _G.gameState and _G.gameState.settings end
     if not settings or not love.filesystem.getInfo(SETTINGS_FILE) then return false end
     local ok, data = pcall(function() return json.decode(love.filesystem.read(SETTINGS_FILE)) end)
     if not ok or type(data) ~= "table" then
@@ -294,11 +296,11 @@ function Save:getSaveSlots()
 end
 
 function Save:getSettings()
-    return gameState and gameState.settings
+    return _G.gameState and _G.gameState.settings
 end
 
 function Save:setSetting(key, value)
-    local settings = gameState and gameState.settings
+    local settings = _G.gameState and _G.gameState.settings
     if settings and settings[key] ~= nil then
         settings[key] = value
         Save.saveSettings(settings)
@@ -323,9 +325,9 @@ function Save.saveGameState(data)
     -- Ensure save directory exists
     love.filesystem.createDirectory("save")
     
-    -- If we don't have a proper gameState yet, create a simple one
-    if not gameState then
-        gameState = {
+    -- If we don't have a proper profileCache yet, create a simple one
+    if not profileCache then
+        profileCache = {
             playerName = "Player1",
             selectedFaction = data.faction or "default",
             selectedHero = data.hero or "default_hero",
@@ -339,18 +341,18 @@ function Save.saveGameState(data)
             timestamp = os.time()
         }
     else
-        -- Update existing gameState with new data
-        gameState.selectedFaction = data.faction or gameState.selectedFaction
-        gameState.selectedHero = data.hero or gameState.selectedHero
-        gameState.resources = data.resources or gameState.resources
-        gameState.lives = data.lives or gameState.lives
-        gameState.currentWave = data.wave or gameState.currentWave
-        gameState.victory = data.victory or gameState.victory
-        gameState.timestamp = os.time()
+        -- Update existing profileCache with new data
+        profileCache.selectedFaction = data.faction or profileCache.selectedFaction
+        profileCache.selectedHero = data.hero or profileCache.selectedHero
+        profileCache.resources = data.resources or profileCache.resources
+        profileCache.lives = data.lives or profileCache.lives
+        profileCache.currentWave = data.wave or profileCache.currentWave
+        profileCache.victory = data.victory or profileCache.victory
+        profileCache.timestamp = os.time()
     end
     
     -- Save the current profile
-    Save.saveProfile(gameState, currentSlot)
+    Save.saveProfile(profileCache, currentSlot)
     
     return true
 end
@@ -458,17 +460,17 @@ end
 
 -- Get current profile
 function Save.getCurrentProfile()
-    if not gameState then
-        gameState = Save.loadProfile(currentSlot)
+    if not profileCache then
+        profileCache = Save.loadProfile(currentSlot)
     end
     
-    return gameState
+    return profileCache
 end
 
 -- Update faction selection in current profile
 function Save.updateFactionSelection(factionId)
-    if not gameState then
-        gameState = Save.loadProfile(currentSlot) or {
+    if not profileCache then
+        profileCache = Save.loadProfile(currentSlot) or {
             playerName = "Player1",
             selectedFaction = factionId,
             currentLevel = 1,
@@ -478,20 +480,20 @@ function Save.updateFactionSelection(factionId)
             timestamp = os.time()
         }
     else
-        gameState.selectedFaction = factionId
+        profileCache.selectedFaction = factionId
     end
     
     -- Debug info
     print("Saving faction selection: " .. (factionId or "nil"))
     
-    Save.saveProfile(gameState, currentSlot)
+    Save.saveProfile(profileCache, currentSlot)
     return true
 end
 
 -- Update hero selection in current profile
 function Save.updateHeroSelection(heroId)
-    if not gameState then
-        gameState = Save.loadProfile(currentSlot) or {
+    if not profileCache then
+        profileCache = Save.loadProfile(currentSlot) or {
             playerName = "Player1",
             selectedHero = heroId,
             currentLevel = 1,
@@ -501,13 +503,13 @@ function Save.updateHeroSelection(heroId)
             timestamp = os.time()
         }
     else
-        gameState.selectedHero = heroId
+        profileCache.selectedHero = heroId
     end
     
     -- Debug info
     print("Saving hero selection: " .. (heroId or "nil"))
 
-    Save.saveProfile(gameState, currentSlot)
+    Save.saveProfile(profileCache, currentSlot)
     return true
 end
 
@@ -519,12 +521,12 @@ end
 --   purchases = { [itemId] = count }
 ------------------------------------------------------------------------
 local function currentProfile()
-    if not gameState then
+    if not profileCache then
         -- Only load a profile that exists: loadProfile shows an error
         -- notice for a missing file, which is normal for a new player
         local path = string.format("save/profile_%d.json", currentSlot)
-        if love.filesystem.getInfo(path) then gameState = Save.loadProfile(currentSlot) end
-        gameState = gameState or {
+        if love.filesystem.getInfo(path) then profileCache = Save.loadProfile(currentSlot) end
+        profileCache = profileCache or {
             playerName = "Player" .. currentSlot,
             currentLevel = 1,
             completedLevels = {},
@@ -532,11 +534,11 @@ local function currentProfile()
             timestamp = os.time()
         }
     end
-    gameState.heroes = gameState.heroes or {}
-    gameState.levels = gameState.levels or {}
-    gameState.purchases = gameState.purchases or {}
-    gameState.gold = gameState.gold or 0
-    return gameState
+    profileCache.heroes = profileCache.heroes or {}
+    profileCache.levels = profileCache.levels or {}
+    profileCache.purchases = profileCache.purchases or {}
+    profileCache.gold = profileCache.gold or 0
+    return profileCache
 end
 
 function Save.getHeroProgress(heroId)
@@ -627,7 +629,7 @@ local function profilePath(slot) return string.format("save/profile_%d.json", sl
 function Save.useSlot(slot)
     if type(slot) ~= "number" or slot < 1 or slot > Save.SLOT_COUNT then return false end
     currentSlot = slot
-    gameState = nil -- forget the cached profile of the previous slot
+    profileCache = nil -- forget the cached profile of the previous slot
     love.filesystem.createDirectory("save")
     love.filesystem.write(LAST_SLOT_FILE, tostring(slot))
     return true
@@ -640,7 +642,7 @@ function Save.restoreLastSlot()
     local n = tonumber(love.filesystem.getInfo(LAST_SLOT_FILE) and love.filesystem.read(LAST_SLOT_FILE) or "")
     if n and n >= 1 and n <= Save.SLOT_COUNT then
         currentSlot = n
-        gameState = nil
+        profileCache = nil
         return n
     end
 end
@@ -658,13 +660,13 @@ function Save.newProfile(slot)
     local profile = { playerName = "Player" .. slot, heroes = {}, levels = {}, purchases = {}, gold = 0 }
     if not Save.saveProfile(profile, slot) then return false end
     Save.useSlot(slot)
-    gameState = profile
+    profileCache = profile
     return true
 end
 
 function Save.deleteProfile(slot)
     love.filesystem.remove(profilePath(slot))
-    if slot == currentSlot then gameState = nil end
+    if slot == currentSlot then profileCache = nil end
     return not Save.slotUsed(slot)
 end
 

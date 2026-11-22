@@ -677,6 +677,19 @@ local function testAudio()
     local d = { musicVolume = 1 }
     check(not Save.loadSettings(d) and d.musicVolume == 1, "a broken settings file leaves the defaults alone")
     love.filesystem.remove("settings.json")
+
+    -- With no table given, settings means the global gameState.settings
+    -- (main.lua), never the cached profile
+    local saved = _G.gameState
+    _G.gameState = { settings = { musicVolume = 0.25, sfxVolume = 0.5 } }
+    Save.getCurrentProfile() -- make sure a profile is cached
+    check(Save:getSettings() == _G.gameState.settings, "Save:getSettings returns the global settings, not the profile")
+    check(Save.saveSettings(), "saveSettings with no argument saves the global settings")
+    local check2 = { musicVolume = 1, sfxVolume = 1 }
+    Save.loadSettings(check2)
+    check(check2.musicVolume == 0.25, "and they load back (music 0.25)")
+    love.filesystem.remove("settings.json")
+    _G.gameState = saved
 end
 
 ------------------------------------------------------------------------

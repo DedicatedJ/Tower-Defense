@@ -105,11 +105,22 @@ function HubState:createUI()
         action = function() self:goToShop() end
     })
     
+    -- Achievements button
+    table.insert(self.buttons, {
+        text = "Achievements",
+        x = screenWidth / 2 - buttonWidth / 2,
+        y = startY + (buttonHeight + buttonSpacing) * 3,
+        width = buttonWidth,
+        height = buttonHeight,
+        hovered = false,
+        action = function() self:goToAchievements() end
+    })
+
     -- Back button
     table.insert(self.buttons, {
         text = "Back to Menu",
         x = screenWidth / 2 - buttonWidth / 2,
-        y = startY + (buttonHeight + buttonSpacing) * 3,
+        y = startY + (buttonHeight + buttonSpacing) * 4,
         width = buttonWidth,
         height = buttonHeight,
         hovered = false,
@@ -131,6 +142,11 @@ function HubState:createUI()
         width = 300,
         height = 200
     }
+end
+
+function HubState:goToAchievements()
+    -- Pushed: its Back and Esc pop straight back to the hub
+    Gamestate.push(require('states.achievement').new())
 end
 
 function HubState:goToLevelSelect()

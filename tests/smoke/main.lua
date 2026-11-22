@@ -805,6 +805,34 @@ local function run()
     end
 
     ------------------------------------------------------------------
+    log("== Achievements")
+    do
+        local Save = require('systems.save')
+        local p = Save.getCurrentProfile()
+        local unlocked = {}
+        for id in pairs(p.achievements or {}) do unlocked[#unlocked + 1] = id end
+        table.sort(unlocked)
+        check(p.achievements and p.achievements.first_tower and p.stats.games > 0,
+            "games so far unlocked: " .. table.concat(unlocked, ", ") .. " (" .. tostring(p.stats and p.stats.games) .. " games)")
+        local hub = require('states.hub').new()
+        hub:setup(p.selectedFaction, p.selectedHero)
+        Gamestate.switch(hub)
+        wait(2)
+        for _, b in ipairs(hub.buttons) do
+            if b.text == "Achievements" then click(b.x + 5, b.y + 5) end
+        end
+        wait(3)
+        local st = Gamestate.current()
+        local shown = 0
+        for _, r in ipairs(st.achievements or {}) do if r.unlocked then shown = shown + 1 end end
+        check(isState('states.achievement') and shown == #unlocked, "the hub opens Achievements with " .. shown .. " unlocked")
+        shot("achievements")
+        key("escape")
+        wait(2)
+        check(isState('states.hub'), "Esc goes back to the hub")
+    end
+
+    ------------------------------------------------------------------
     log("== Sounds over a whole run")
     do
         local Audio = require('systems.audio')

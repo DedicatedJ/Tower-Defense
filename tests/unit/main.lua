@@ -706,6 +706,45 @@ local function testFx()
 end
 
 ------------------------------------------------------------------------
+local function testAchievements()
+    log("== Achievements")
+    local A = require('systems.achievements')
+    local function ids(list) local t = {} for _, a in ipairs(list) do t[#t + 1] = a.id end table.sort(t) return table.concat(t, ",") end
+    local p = { heroes = { sir_galahad = { level = 3 } }, levels = {} }
+
+    local new = A.recordGame(p, { victory = false, livesLost = 4, towersBuilt = 2, wavesCleared = 5, shopGold = 40,
+        towerTypes = 2, factionTowerCount = 3 })
+    check(ids(new) == "first_tower", "a lost game with 2 towers unlocks only Foundation (" .. ids(new) .. ")")
+    check(p.stats.towersBuilt == 2 and p.stats.wavesCleared == 5 and p.stats.shopGold == 40 and p.stats.games == 1,
+        "the game adds to the profile totals")
+
+    new = A.recordGame(p, { victory = true, livesLost = 0, towersBuilt = 6, wavesCleared = 10, shopGold = 150,
+        towerTypes = 3, factionTowerCount = 3 })
+    check(ids(new) == "perfect_wave,tower_synergy", "a flawless win with all 3 tower types unlocks Flawless and Combined Arms (" .. ids(new) .. ")")
+    new = A.recordGame(p, { victory = true, livesLost = 0, towersBuilt = 1, wavesCleared = 10, shopGold = 0,
+        towerTypes = 3, factionTowerCount = 3 })
+    check(#new == 0, "an achievement unlocks once")
+
+    p.heroes.sir_galahad.level = 10
+    p.levels = { sunlit_meadows = { stars = 3 }, crystal_spires = { stars = 1 }, celestial_citadel = { stars = 2 } }
+    new = A.recordGame(p, { victory = true, livesLost = 2, towersBuilt = 0, wavesCleared = 0, shopGold = 0, towerTypes = 1 })
+    check(ids(new) == "faction_master,hero_legend", "a level 10 hero and a full faction unlock Hero Legend and Faction Master (" .. ids(new) .. ")")
+
+    local rows = A.status(p)
+    local byId = {}
+    for _, r in ipairs(rows) do byId[r.id] = r end
+    check(#rows == 8 and byId.first_tower.unlocked and byId.first_tower.date ~= nil, "the screen lists 8, with unlock dates")
+    check(not byId.tower_master.unlocked and byId.tower_master.progress == 9 and byId.tower_master.maxProgress == 50,
+        "Tower Master shows 9 / 50 towers")
+    check(byId.wave_survivor.progress == 25 and byId.resource_king.progress == 190, "waves (25 / 100) and gold (190 / 2000) progress")
+    for _, a in ipairs(A.list) do
+        if not love.filesystem.getInfo("sprites/ui/achievements/" .. a.id .. ".png") then
+            check(false, a.id .. " has an icon")
+        end
+    end
+end
+
+------------------------------------------------------------------------
 function love.load()
     love.math.setRandomSeed(1)
     testData()
@@ -719,6 +758,7 @@ function love.load()
     testSave()
     testAudio()
     testFx()
+    testAchievements()
     log(string.format("DONE passes=%d failures=%d", passes, failures))
     os.exit(failures == 0 and 0 or 1)
 end

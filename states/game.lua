@@ -1437,6 +1437,9 @@ function GameState:drawEndScreen()
     if self.hero then
         lines[#lines + 1] = string.format("%s dealt %d damage and is level %d", self.hero.name, s.heroDamage, self.hero.level)
     end
+    for _, a in ipairs(self.newAchievements or {}) do
+        lines[#lines + 1] = "Achievement unlocked: " .. a.name
+    end
     if #s.leaks == 0 then
         lines[#lines + 1] = "No lives lost"
     else
@@ -1574,6 +1577,22 @@ function GameState:gameOver(victory)
     end
 
     self.summary = self:gameSummary()
+
+    -- Totals and achievements for the profile
+    local types = {}
+    for _, t in ipairs(self.towers) do types[t.id] = true end
+    local typeCount = 0
+    for _ in pairs(types) do typeCount = typeCount + 1 end
+    local ok, new = pcall(Save.recordGame, {
+        victory = victory,
+        livesLost = self.startLives - math.max(0, self.lives),
+        towersBuilt = self.stats.built,
+        wavesCleared = victory and self.wave or math.max(0, self.wave - 1),
+        shopGold = self.shopGoldAwarded,
+        towerTypes = typeCount,
+        factionTowerCount = #self.factionData.towers,
+    })
+    self.newAchievements = ok and new or {}
 end
 
 -- Numbers for the end screen

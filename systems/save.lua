@@ -594,6 +594,15 @@ function Save.recordLevelResult(levelId, stars)
     return Save.saveProfile(p, currentSlot)
 end
 
+-- Add a finished game to the current profile's totals and unlock what it
+-- earned (systems/achievements.lua). Returns the newly unlocked ones.
+function Save.recordGame(result)
+    local p = currentProfile()
+    local new = require('systems.achievements').recordGame(p, result)
+    Save.saveProfile(p, currentSlot)
+    return new
+end
+
 -- Use up one of each listed consumable
 function Save.useConsumables(ids)
     local p = currentProfile()

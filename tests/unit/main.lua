@@ -381,7 +381,7 @@ local function testTowers()
     log("== Towers")
     Tower.init()
     local hb = Tower.create("holy_bastion", 100, 140)
-    check(hb.damage == 20 and hb.range == 150 and hb.healAmount == 5, "Holy Bastion: damage 20, range 150, heal 5")
+    check(hb.damage == 20 and hb.range == 110 and hb.healAmount == 5, "Holy Bastion: damage 20, range 110, heal 5")
     check(hb:sellValue() == 70, "sell refunds 70% of 100 = 70")
     check(not hb:canBuyUpgrade(1, 149) and hb:canBuyUpgrade(1, 150), "Divine Light needs 150 gold")
     check(hb:buyUpgrade(1) == 150 and near(hb.healAmount, 7.5), "Divine Light: heal 5 -> 7.5")
@@ -389,7 +389,7 @@ local function testTowers()
     check(hb:sellValue() == 175, "sell after upgrade refunds 70% of 250 = 175")
 
     local shop = Tower.create("holy_bastion", 20, 20, { rangeMult = 1.05, fireRateMult = 1.08 })
-    checkNear(shop.range, 157.5, "Focus Crystal: range x1.05")
+    checkNear(shop.range, 115.5, "Focus Crystal: range x1.05")
     checkNear(shop.fireRate, 1.08, "Agility Shard: fire rate x1.08")
 
     local passive = Tower.create("holy_bastion", 20, 20, { towerStat = { { tower = "holy_bastion", stat = "healAmount", mult = 1.15 } } })
@@ -664,11 +664,13 @@ local function testWaves()
     local cc = Wave.plan(Level.get("celestial_citadel")) -- difficulty 3, 15 waves
     check(dragons(cc[15]) == 1 and dragons(cc[8]) == 1 and dragons(cc[7]) == 0, "difficulty 3: dragons at wave 8 and 15")
 
-    -- Health (1 + (0.10 + 0.08 d)(n - 1) + 0.008 d (n - 1)^2) * sqrt(road / 66) * toughness
-    checkNear(a[10].healthMult, (1 + 0.18 * 9 + 0.008 * 81) * math.sqrt(80 / 66),
-        "difficulty 1 wave 10 on an 80-unit road: health x3.59")
-    checkNear(cc[15].healthMult, (1 + 0.34 * 14 + 0.024 * 196) * math.sqrt(113 / 66) * 0.85,
-        "difficulty 3 wave 15 on a 113-unit road, toughness 0.85: health x11.60")
+    -- Health (1 + (0.10 + 0.08 d)(n - 1) + 0.008 d (n - 1)^2) * sqrt(road / 66) * HEALTH_SCALE * toughness
+    local hs = Wave.DEFAULTS.HEALTH_SCALE
+    checkNear(a[10].healthMult, (1 + 0.18 * 9 + 0.008 * 81) * math.sqrt(80 / 66) * hs,
+        string.format("difficulty 1 wave 10 on an 80-unit road: health x%.2f", (1 + 0.18 * 9 + 0.008 * 81) * math.sqrt(80 / 66) * hs))
+    checkNear(cc[15].healthMult, (1 + 0.34 * 14 + 0.024 * 196) * math.sqrt(113 / 66) * hs * 0.85,
+        string.format("difficulty 3 wave 15 on a 113-unit road, toughness 0.85: health x%.2f",
+            (1 + 0.34 * 14 + 0.024 * 196) * math.sqrt(113 / 66) * hs * 0.85))
     check(a[1].bonus == 24 and a[10].bonus == 60, "wave bonus 20 + 4 per wave (24 .. 60)")
 
     -- Two roads: groups of 6 take turns

@@ -398,7 +398,11 @@ local function run()
         watch:buyUpgrade(1)
         click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
         local marked = simulate(40, function()
-            for _, e in ipairs(g.enemies) do if e.statuses and e.statuses.mark then return true end end
+            for _, e in ipairs(g.enemies) do
+                -- Tough enough to live through the hit that marks it
+                if not e.tough then e.tough = true; e.health, e.maxHealth = 1e5, 1e5 end
+                if e.statuses and e.statuses.mark then return true end
+            end
         end)
         check(marked, "Divine Mark marks enemies")
 

@@ -310,96 +310,95 @@ function FactionSelectState:draw()
     for _, button in ipairs(self.buttons) do
         local faction = button.faction
         
-        -- Skip if not visible
-        if button.alpha <= 0 then goto continue end
+        -- Only cards that are visible
+        if button.alpha > 0 then
         
-        -- Apply alpha
-        love.graphics.setColor(1, 1, 1, button.alpha)
+            -- Apply alpha
+            love.graphics.setColor(1, 1, 1, button.alpha)
         
-        -- Button background with transparency
-        love.graphics.setColor(0, 0, 0, 0.5 * button.alpha)
-        love.graphics.rectangle("fill", button.x, button.y, button.width * button.scale, button.height * button.scale, 10, 10)
-        
-        -- Button border based on faction color
-        local borderWidth = 3
-        if button.zIndex == 3 then  -- Center card
-            -- Black outline (thicker for better visibility)
-            love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
-            love.graphics.setLineWidth(8)
-            love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 10, 10)
-            
-            -- Glowing border for center card (inside the black outline)
-            love.graphics.setColor(faction.color[1], faction.color[2], faction.color[3], 1.0 * button.alpha)
-            love.graphics.setLineWidth(3)
-            love.graphics.rectangle("line", button.x + 4, button.y + 4, button.width * button.scale - 8, button.height * button.scale - 8, 8, 8)
-            
-            -- Draw highlight glow
-            love.graphics.setColor(faction.color[1], faction.color[2], faction.color[3], 0.3 * button.alpha)
+            -- Button background with transparency
+            love.graphics.setColor(0, 0, 0, 0.5 * button.alpha)
             love.graphics.rectangle("fill", button.x, button.y, button.width * button.scale, button.height * button.scale, 10, 10)
-        else
-            -- Black outline for side cards (thicker)
-            love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
-            love.graphics.setLineWidth(5)
-            love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 10, 10)
+        
+            -- Button border based on faction color
+            local borderWidth = 3
+            if button.zIndex == 3 then  -- Center card
+                -- Black outline (thicker for better visibility)
+                love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
+                love.graphics.setLineWidth(8)
+                love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 10, 10)
             
-            -- Colored inner border
+                -- Glowing border for center card (inside the black outline)
+                love.graphics.setColor(faction.color[1], faction.color[2], faction.color[3], 1.0 * button.alpha)
+                love.graphics.setLineWidth(3)
+                love.graphics.rectangle("line", button.x + 4, button.y + 4, button.width * button.scale - 8, button.height * button.scale - 8, 8, 8)
+            
+                -- Draw highlight glow
+                love.graphics.setColor(faction.color[1], faction.color[2], faction.color[3], 0.3 * button.alpha)
+                love.graphics.rectangle("fill", button.x, button.y, button.width * button.scale, button.height * button.scale, 10, 10)
+            else
+                -- Black outline for side cards (thicker)
+                love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
+                love.graphics.setLineWidth(5)
+                love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 10, 10)
+            
+                -- Colored inner border
+                love.graphics.setColor(faction.color[1], faction.color[2], faction.color[3], 0.7 * button.alpha)
+                love.graphics.setLineWidth(2)
+                love.graphics.rectangle("line", button.x + 3, button.y + 3, button.width * button.scale - 6, button.height * button.scale - 6, 8, 8)
+            end
+        
+            -- Reset line width
+            love.graphics.setLineWidth(1)
+        
+            -- Draw faction emblem/banner (placeholder with faction colors)
             love.graphics.setColor(faction.color[1], faction.color[2], faction.color[3], 0.7 * button.alpha)
-            love.graphics.setLineWidth(2)
-            love.graphics.rectangle("line", button.x + 3, button.y + 3, button.width * button.scale - 6, button.height * button.scale - 6, 8, 8)
-        end
+            love.graphics.rectangle(
+                "fill", 
+                button.x + 30 * button.scale, 
+                button.y + 30 * button.scale, 
+                (button.width - 60) * button.scale, 
+                80 * button.scale, 
+                5, 5
+            )
         
-        -- Reset line width
-        love.graphics.setLineWidth(1)
+            -- Draw faction name with elegant styling
+            love.graphics.setColor(1, 1, 1, button.alpha)
+            love.graphics.setFont(fonts.title)
+            local nameWidth = fonts.title:getWidth(faction.name) * button.scale
+            love.graphics.print(
+                faction.name, 
+                button.x + (button.width * button.scale - nameWidth) / 2, 
+                button.y + 130 * button.scale,
+                0, button.scale, button.scale
+            )
         
-        -- Draw faction emblem/banner (placeholder with faction colors)
-        love.graphics.setColor(faction.color[1], faction.color[2], faction.color[3], 0.7 * button.alpha)
-        love.graphics.rectangle(
-            "fill", 
-            button.x + 30 * button.scale, 
-            button.y + 30 * button.scale, 
-            (button.width - 60) * button.scale, 
-            80 * button.scale, 
-            5, 5
-        )
-        
-        -- Draw faction name with elegant styling
-        love.graphics.setColor(1, 1, 1, button.alpha)
-        love.graphics.setFont(fonts.title)
-        local nameWidth = fonts.title:getWidth(faction.name) * button.scale
-        love.graphics.print(
-            faction.name, 
-            button.x + (button.width * button.scale - nameWidth) / 2, 
-            button.y + 130 * button.scale,
-            0, button.scale, button.scale
-        )
-        
-        -- Draw faction description only for center card
-        if button.zIndex == 3 then
-            love.graphics.setFont(fonts.main)
-            local descLines = self:wrapText(faction.description, button.width - 40)
-            for i, line in ipairs(descLines) do
-                local lineWidth = fonts.main:getWidth(line)
+            -- Draw faction description only for center card
+            if button.zIndex == 3 then
+                love.graphics.setFont(fonts.main)
+                local descLines = self:wrapText(faction.description, button.width - 40)
+                for i, line in ipairs(descLines) do
+                    local lineWidth = fonts.main:getWidth(line)
+                    love.graphics.print(
+                        line, 
+                        button.x + (button.width - lineWidth) / 2, 
+                        button.y + 180 + (i-1) * 20
+                    )
+                end
+            
+                -- Draw number of heroes
+                local heroCount = faction.heroes and #faction.heroes or 0
+                local heroText = heroCount .. " Heroes Available"
+                local heroTextWidth = fonts.main:getWidth(heroText)
+            
+                love.graphics.setColor(1, 1, 1, 0.8)
                 love.graphics.print(
-                    line, 
-                    button.x + (button.width - lineWidth) / 2, 
-                    button.y + 180 + (i-1) * 20
+                    heroText, 
+                    button.x + (button.width - heroTextWidth) / 2, 
+                    button.y + button.height - 30
                 )
             end
-            
-            -- Draw number of heroes
-            local heroCount = faction.heroes and #faction.heroes or 0
-            local heroText = heroCount .. " Heroes Available"
-            local heroTextWidth = fonts.main:getWidth(heroText)
-            
-            love.graphics.setColor(1, 1, 1, 0.8)
-            love.graphics.print(
-                heroText, 
-                button.x + (button.width - heroTextWidth) / 2, 
-                button.y + button.height - 30
-            )
         end
-        
-        ::continue::
     end
     
     -- Draw navigation arrows

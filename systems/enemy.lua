@@ -720,13 +720,11 @@ function Enemy.loadSheet(key, png)
     local metaPath = png:gsub("%.png$", ".lua")
     if not (love.filesystem.getInfo(png) and love.filesystem.getInfo(metaPath)) then return nil end
     local okMeta, meta = pcall(function() return love.filesystem.load(metaPath)() end)
-    local okImg, img = pcall(love.graphics.newImage, png, { mipmaps = true })
+    local okImg, img = pcall(require('utils.image').smooth, png)
     if not (okMeta and okImg and type(meta) == "table") then
         print("WARNING: could not load walk sheet " .. png)
         return nil
     end
-    img:setFilter("linear", "linear")
-    img:setMipmapFilter("linear")
     local iw, ih = img:getDimensions()
     local quads = {}
     for r = 1, meta.rows do

@@ -5,6 +5,8 @@
     python tools/build/build.py --windows       also dist/TowerDefense-win64.zip
     python tools/build/build.py --verify        then run the smoke suite on the
                                                 packaged files
+    python tools/build/build.py --web           also dist/web/, a page that runs
+                                                the game in a browser
 
 The .love holds only what the game loads (code, data, art, sounds, fonts and
 the HUMP library); the art pipeline, tools, tests and unused libraries stay
@@ -16,7 +18,23 @@ out. The Windows zip is LOVE's own love.exe with the .love fused onto it
 --verify     unpacks the .love into a temp folder, swaps in the smoke test
              harness as main.lua and runs it with lovec, so a file the game
              needs but the package lacks fails the build
+--web        writes dist/web/: index.html (from tools/build/web/index.html),
+             love.js and love.wasm (LOVE 11.4 compiled to WebAssembly, from
+             the love.js npm package, MIT; downloaded once into dist/.cache
+             and checked against its published SHA-1), the game's files
+             under game/ and their list in game.json. Loose files rather
+             than one archive, so every file is a plain web type (.lua goes
+             as text). Serve the folder over http (python -m http.server);
+             file:// does not work. The browser runs Lua 5.1, not LuaJIT:
+             no goto, and the unit suite checks images load without
+             mipmaps where WebGL 1 cannot make them.
 """
+
+import hashlib
+import io
+import json
+import tarfile
+import urllib.request
 
 import argparse
 import os
@@ -112,15 +130,83 @@ def verify(love_file, love_dir):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+LOVEJS_VERSION = "11.4.1"
+LOVEJS_URL = "https://registry.npmjs.org/love.js/-/love.js-%s.tgz" % LOVEJS_VERSION
+LOVEJS_SHA1 = "4b3772a53713c2404b760ae794562d8a72d457ec"  # npm dist.shasum
+# File types the browser build ships; anything else in the package (the
+# HUMP library's docs and repo files) the game never loads
+WEB_EXTENSIONS = {".lua", ".png", ".jpg", ".jpeg", ".mp3", ".wav", ".ogg", ".ttf", ".otf"}
+WEB_SKIP_PREFIXES = ("libs/hump/docs/", "libs/hump/spec/")
+
+
+def lovejs_runtime():
+    """The love.js npm package (cached), checked against its SHA-1."""
+    cache = os.path.join(DIST, ".cache")
+    os.makedirs(cache, exist_ok=True)
+    tgz = os.path.join(cache, "love.js-%s.tgz" % LOVEJS_VERSION)
+    if not os.path.isfile(tgz):
+        print("downloading " + LOVEJS_URL)
+        with urllib.request.urlopen(LOVEJS_URL, timeout=120) as r:
+            data = r.read()
+        with open(tgz, "wb") as f:
+            f.write(data)
+    with open(tgz, "rb") as f:
+        data = f.read()
+    if hashlib.sha1(data).hexdigest() != LOVEJS_SHA1:
+        os.remove(tgz)
+        sys.exit("love.js download does not match its published SHA-1; removed it")
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as t:
+        for name in ("package/src/compat/love.js", "package/src/compat/love.wasm", "package/LICENSE"):
+            files[name.rsplit("/", 1)[1]] = t.extractfile(name).read()
+    return files
+
+
+def build_web():
+    out = os.path.join(DIST, "web")
+    os.makedirs(out, exist_ok=True)
+    for n in os.listdir(out):  # empty it (a local server may be running in it)
+        p = os.path.join(out, n)
+        shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
+    runtime = lovejs_runtime()
+    for name, data in (("love.js", runtime["love.js"]), ("love.wasm", runtime["love.wasm"]),
+                       ("LOVEJS-LICENSE.txt", runtime["LICENSE"])):
+        with open(os.path.join(out, name), "wb") as f:
+            f.write(data)
+    listing, skipped = [], 0
+    for rel in collect():
+        if (os.path.splitext(rel)[1].lower() not in WEB_EXTENSIONS
+                or rel.startswith(WEB_SKIP_PREFIXES)):
+            skipped += 1
+            continue
+        dest = os.path.join(out, "game", rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copyfile(os.path.join(ROOT, rel), dest)
+        listing.append([rel, os.path.getsize(dest)])
+    with open(os.path.join(out, "game.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump(listing, f, separators=(",", ":"))
+    total = sum(size for _, size in listing)
+    with open(os.path.join(ROOT, "tools", "build", "web", "index.html"), encoding="utf-8") as f:
+        page = f.read().replace("__SIZE__", "%.0f" % (total / 1e6))
+    with open(os.path.join(out, "index.html"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(page)
+    print("wrote %s (index.html, love.js, love.wasm, %d game files, %.1f MB; skipped %d non-game files)" % (
+        out, len(listing), total / 1e6, skipped))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build a release of the game")
     ap.add_argument("--windows", action="store_true", help="also build the Windows zip")
     ap.add_argument("--verify", action="store_true", help="run the smoke suite on the packaged files")
+    ap.add_argument("--web", action="store_true", help="also build dist/web, the browser version")
     ap.add_argument("--love-dir", default=r"C:\Program Files\LOVE", help="LOVE install folder")
     args = ap.parse_args()
     love_file = build_love()
     if args.windows:
         build_windows(love_file, args.love_dir)
+    if args.web:
+        build_web()
     if args.verify:
         verify(love_file, args.love_dir)
 

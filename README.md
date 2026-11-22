@@ -132,6 +132,15 @@ python tools/build/build.py --windows --verify
 
 This writes `dist/TowerDefense.love` (runs anywhere LÖVE 11.4+ is installed) and `dist/TowerDefense-win64.zip` (unzip and run `TowerDefense.exe`; no install needed). `--verify` runs the smoke suite on the packaged files, so a missing asset fails the build. Use `--love-dir` if LÖVE is not in `C:\Program Files\LOVE`. The package includes only what the game loads: code, data, art, sounds, fonts and HUMP.
 
+### Browser build
+
+```bash
+python tools/build/build.py --web
+cd dist/web && python -m http.server 8000
+```
+
+This writes `dist/web/`: a page that runs the game in the browser with [love.js](https://github.com/Davidobot/love.js) (LÖVE 11.4 compiled to WebAssembly, MIT; downloaded once and checked against its published hash), plus the game's files. Open `http://localhost:8000`; opening the file directly does not work. Profiles and settings save in the browser. The browser runs Lua 5.1 rather than LuaJIT, so the game code avoids `goto`, and images use `utils/image.lua`, which skips mipmaps where WebGL 1 cannot make them.
+
 ## License
 
 No license has been chosen yet, so all rights are reserved by default. See `BLOCKED.md`.

@@ -47,10 +47,8 @@ function AchievementState:loadAchievements()
         local path = "sprites/ui/achievements/" .. achievement.id .. ".png"
         achievement.icon = nil
         if love.filesystem.getInfo(path) then
-            local success, img = pcall(love.graphics.newImage, path, { mipmaps = true })
+            local success, img = pcall(require('utils.image').smooth, path)
             if success then
-                img:setFilter("linear", "linear")
-                img:setMipmapFilter("linear")
                 achievement.icon = img
             end
         end

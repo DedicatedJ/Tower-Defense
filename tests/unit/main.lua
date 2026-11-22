@@ -767,6 +767,29 @@ local function testAchievements()
 end
 
 ------------------------------------------------------------------------
+local function testImages()
+    log("== Images: mipmaps where the GPU allows (WebGL 1 does not for odd sizes)")
+    local Image = require('utils.image')
+    local npot, pot = love.image.newImageData(300, 200), love.image.newImageData(256, 128)
+    check(Image.smooth(npot):getMipmapCount() > 1, "this GPU mipmaps a 300 x 200 image")
+    local real = love.graphics.getSupported
+    love.graphics.getSupported = function()
+        local t = {}
+        for k, v in pairs(real()) do t[k] = v end
+        t.fullnpot = false
+        return t
+    end
+    local okA, a = pcall(Image.smooth, npot)
+    local okB, b = pcall(Image.smooth, pot)
+    local can = Image.canMipmap(300, 200)
+    love.graphics.getSupported = real
+    check(okA and a:getMipmapCount() == 1 and a:getFilter() == "linear",
+        "without full NPOT support a 300 x 200 image loads unmipmapped, linear")
+    check(okB and b:getMipmapCount() > 1, "a 256 x 128 image still gets mipmaps")
+    check(not can and Image.canMipmap(256, 128), "canMipmap: 300 x 200 no, 256 x 128 yes")
+end
+
+------------------------------------------------------------------------
 function love.load()
     love.math.setRandomSeed(1)
     testData()
@@ -781,6 +804,7 @@ function love.load()
     testAudio()
     testFx()
     testAchievements()
+    testImages()
     log(string.format("DONE passes=%d failures=%d", passes, failures))
     os.exit(failures == 0 and 0 or 1)
 end

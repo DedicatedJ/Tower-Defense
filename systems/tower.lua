@@ -69,10 +69,8 @@ function Tower.init()
         local path = Tower.spritePath(t)
         if path then
             if not loaded[path] then
-                local ok, img = pcall(love.graphics.newImage, path, { mipmaps = true })
+                local ok, img = pcall(require('utils.image').smooth, path)
                 if ok then
-                    img:setFilter("linear", "linear")
-                    img:setMipmapFilter("linear")
                     loaded[path] = img
                 else
                     print("WARNING: Failed to load tower sprite: " .. path)

@@ -365,207 +365,206 @@ function HeroSelectState:draw()
         for _, button in ipairs(self.buttons) do
             local hero = button.hero
             
-            -- Skip if not visible
-            if button.alpha <= 0 then goto continue end
+            -- Only cards that are visible
+            if button.alpha > 0 then
             
-            -- Apply alpha
-            love.graphics.setColor(1, 1, 1, button.alpha)
-            
-            -- Card background with transparency
-            love.graphics.setColor(0, 0, 0, 0.7 * button.alpha)
-            love.graphics.rectangle("fill", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
-            
-            -- Card border and highlight
-            if button.zIndex == 3 then -- Center card
-                -- Black outline (thicker for better visibility)
-                love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
-                love.graphics.setLineWidth(8)
-                love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
-                
-                -- Glowing border for center card
-                local borderColor = self.faction and self.faction.color or {1, 0.8, 0.2}
-                love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], 1.0 * button.alpha)
-                love.graphics.setLineWidth(3)
-                love.graphics.rectangle("line", button.x + 4, button.y + 4, button.width * button.scale - 8, button.height * button.scale - 8, 10, 10)
-                
-                -- Highlight effect
-                love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], 0.2 * button.alpha)
-                love.graphics.rectangle("fill", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
-            else
-                -- Black outline for side cards (thicker)
-                love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
-                love.graphics.setLineWidth(5)
-                love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
-                
-                -- Colored inner border
-                local borderColor = self.faction and self.faction.color or {0.7, 0.7, 0.7}
-                love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], 0.7 * button.alpha)
-                love.graphics.setLineWidth(2)
-                love.graphics.rectangle("line", button.x + 3, button.y + 3, button.width * button.scale - 6, button.height * button.scale - 6, 10, 10)
-            end
-            
-            -- Reset line width
-            love.graphics.setLineWidth(1)
-            
-            -- Portrait box, tinted by the hero's role
-            local Unit = require('systems.unit')
-            local roleColor = Unit.ROLE_COLORS[hero.role] or { 0.7, 0.7, 0.7 }
-            love.graphics.setColor(roleColor[1] * 0.35, roleColor[2] * 0.35, roleColor[3] * 0.35, 0.85 * button.alpha)
-            love.graphics.rectangle(
-                "fill", 
-                button.x + 25 * button.scale, 
-                button.y + 25 * button.scale, 
-                (button.width - 50) * button.scale, 
-                100 * button.scale, 
-                8, 8
-            )
-            
-            -- Portrait (circle-cropped) and saved level, when available
-            local portrait = hero.portrait and Unit.portrait(hero.portrait)
-            local pcx, pcy = button.x + button.width * button.scale / 2, button.y + 75 * button.scale
-            if portrait then
-                local size = 96 * button.scale
-                local ps = size / portrait:getWidth()
+                -- Apply alpha
                 love.graphics.setColor(1, 1, 1, button.alpha)
-                love.graphics.draw(portrait, pcx, pcy, 0, ps, ps, portrait:getWidth() / 2, portrait:getHeight() / 2)
-            else
-                -- No portrait yet: a lettered token in the role color
-                love.graphics.setColor(roleColor[1] * 0.6, roleColor[2] * 0.6, roleColor[3] * 0.6, button.alpha)
-                love.graphics.circle("fill", pcx, pcy, 46 * button.scale)
+            
+                -- Card background with transparency
+                love.graphics.setColor(0, 0, 0, 0.7 * button.alpha)
+                love.graphics.rectangle("fill", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
+            
+                -- Card border and highlight
+                if button.zIndex == 3 then -- Center card
+                    -- Black outline (thicker for better visibility)
+                    love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
+                    love.graphics.setLineWidth(8)
+                    love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
+                
+                    -- Glowing border for center card
+                    local borderColor = self.faction and self.faction.color or {1, 0.8, 0.2}
+                    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], 1.0 * button.alpha)
+                    love.graphics.setLineWidth(3)
+                    love.graphics.rectangle("line", button.x + 4, button.y + 4, button.width * button.scale - 8, button.height * button.scale - 8, 10, 10)
+                
+                    -- Highlight effect
+                    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], 0.2 * button.alpha)
+                    love.graphics.rectangle("fill", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
+                else
+                    -- Black outline for side cards (thicker)
+                    love.graphics.setColor(0, 0, 0, 1.0 * button.alpha)
+                    love.graphics.setLineWidth(5)
+                    love.graphics.rectangle("line", button.x, button.y, button.width * button.scale, button.height * button.scale, 12, 12)
+                
+                    -- Colored inner border
+                    local borderColor = self.faction and self.faction.color or {0.7, 0.7, 0.7}
+                    love.graphics.setColor(borderColor[1], borderColor[2], borderColor[3], 0.7 * button.alpha)
+                    love.graphics.setLineWidth(2)
+                    love.graphics.rectangle("line", button.x + 3, button.y + 3, button.width * button.scale - 6, button.height * button.scale - 6, 10, 10)
+                end
+            
+                -- Reset line width
+                love.graphics.setLineWidth(1)
+            
+                -- Portrait box, tinted by the hero's role
+                local Unit = require('systems.unit')
+                local roleColor = Unit.ROLE_COLORS[hero.role] or { 0.7, 0.7, 0.7 }
+                love.graphics.setColor(roleColor[1] * 0.35, roleColor[2] * 0.35, roleColor[3] * 0.35, 0.85 * button.alpha)
+                love.graphics.rectangle(
+                    "fill", 
+                    button.x + 25 * button.scale, 
+                    button.y + 25 * button.scale, 
+                    (button.width - 50) * button.scale, 
+                    100 * button.scale, 
+                    8, 8
+                )
+            
+                -- Portrait (circle-cropped) and saved level, when available
+                local portrait = hero.portrait and Unit.portrait(hero.portrait)
+                local pcx, pcy = button.x + button.width * button.scale / 2, button.y + 75 * button.scale
+                if portrait then
+                    local size = 96 * button.scale
+                    local ps = size / portrait:getWidth()
+                    love.graphics.setColor(1, 1, 1, button.alpha)
+                    love.graphics.draw(portrait, pcx, pcy, 0, ps, ps, portrait:getWidth() / 2, portrait:getHeight() / 2)
+                else
+                    -- No portrait yet: a lettered token in the role color
+                    love.graphics.setColor(roleColor[1] * 0.6, roleColor[2] * 0.6, roleColor[3] * 0.6, button.alpha)
+                    love.graphics.circle("fill", pcx, pcy, 46 * button.scale)
+                    love.graphics.setColor(1, 1, 1, button.alpha)
+                    love.graphics.setFont(fonts.title)
+                    local letter = hero.name:sub(1, 1)
+                    love.graphics.print(letter, pcx, pcy, 0, button.scale, button.scale,
+                        fonts.title:getWidth(letter) / 2, fonts.title:getHeight() / 2)
+                end
+                love.graphics.setColor(roleColor[1], roleColor[2], roleColor[3], 0.9 * button.alpha)
+                love.graphics.setLineWidth(2)
+                love.graphics.circle("line", pcx, pcy, 48 * button.scale)
+                love.graphics.setLineWidth(1)
+                local okSave, progress = pcall(require('systems.save').getHeroProgress, hero.id)
+                if okSave and progress then
+                    local font = fonts.small or fonts.main
+                    love.graphics.setFont(font)
+                    local label = "Lv " .. progress.level .. "  " .. (hero.role or "")
+                    love.graphics.setColor(0, 0, 0, 0.6 * button.alpha)
+                    love.graphics.rectangle("fill", button.x + 25 * button.scale, button.y + 107 * button.scale,
+                        font:getWidth(label) + 10, font:getHeight() + 2, 3, 3)
+                    love.graphics.setColor(1, 0.85, 0.3, button.alpha)
+                    love.graphics.print(label, button.x + 30 * button.scale, button.y + 108 * button.scale)
+                end
+
+
+            
+                -- Draw hero name
                 love.graphics.setColor(1, 1, 1, button.alpha)
                 love.graphics.setFont(fonts.title)
-                local letter = hero.name:sub(1, 1)
-                love.graphics.print(letter, pcx, pcy, 0, button.scale, button.scale,
-                    fonts.title:getWidth(letter) / 2, fonts.title:getHeight() / 2)
-            end
-            love.graphics.setColor(roleColor[1], roleColor[2], roleColor[3], 0.9 * button.alpha)
-            love.graphics.setLineWidth(2)
-            love.graphics.circle("line", pcx, pcy, 48 * button.scale)
-            love.graphics.setLineWidth(1)
-            local okSave, progress = pcall(require('systems.save').getHeroProgress, hero.id)
-            if okSave and progress then
-                local font = fonts.small or fonts.main
-                love.graphics.setFont(font)
-                local label = "Lv " .. progress.level .. "  " .. (hero.role or "")
-                love.graphics.setColor(0, 0, 0, 0.6 * button.alpha)
-                love.graphics.rectangle("fill", button.x + 25 * button.scale, button.y + 107 * button.scale,
-                    font:getWidth(label) + 10, font:getHeight() + 2, 3, 3)
-                love.graphics.setColor(1, 0.85, 0.3, button.alpha)
-                love.graphics.print(label, button.x + 30 * button.scale, button.y + 108 * button.scale)
-            end
-
-
+                local nameWidth = fonts.title:getWidth(hero.name) * button.scale
+                if nameWidth > (button.width - 30) * button.scale then
+                    -- Scale down font if name is too long
+                    local scaleFactor = ((button.width - 30) * button.scale) / nameWidth
+                    love.graphics.print(
+                        hero.name, 
+                        button.x + (button.width * button.scale - nameWidth * scaleFactor) / 2, 
+                        button.y + 140 * button.scale,
+                        0, button.scale * scaleFactor, button.scale * scaleFactor
+                    )
+                else
+                    love.graphics.print(
+                        hero.name, 
+                        button.x + (button.width * button.scale - nameWidth) / 2, 
+                        button.y + 140 * button.scale,
+                        0, button.scale, button.scale
+                    )
+                end
             
-            -- Draw hero name
-            love.graphics.setColor(1, 1, 1, button.alpha)
-            love.graphics.setFont(fonts.title)
-            local nameWidth = fonts.title:getWidth(hero.name) * button.scale
-            if nameWidth > (button.width - 30) * button.scale then
-                -- Scale down font if name is too long
-                local scaleFactor = ((button.width - 30) * button.scale) / nameWidth
-                love.graphics.print(
-                    hero.name, 
-                    button.x + (button.width * button.scale - nameWidth * scaleFactor) / 2, 
-                    button.y + 140 * button.scale,
-                    0, button.scale * scaleFactor, button.scale * scaleFactor
-                )
-            else
-                love.graphics.print(
-                    hero.name, 
-                    button.x + (button.width * button.scale - nameWidth) / 2, 
-                    button.y + 140 * button.scale,
-                    0, button.scale, button.scale
-                )
-            end
-            
-            -- Only draw stat bars for center card
-            if button.zIndex == 3 then
-                love.graphics.setFont(fonts.main)
+                -- Only draw stat bars for center card
+                if button.zIndex == 3 then
+                    love.graphics.setFont(fonts.main)
                 
-                -- Health bar
-                local statBarWidth = button.width - 50
-                local maxStat = 600
+                    -- Health bar
+                    local statBarWidth = button.width - 50
+                    local maxStat = 600
                 
-                love.graphics.setColor(1, 1, 1, 0.8)
-                love.graphics.print("Health", button.x + 25, button.y + 185)
-                
-                love.graphics.setColor(0.2, 0.2, 0.2, 0.6)
-                love.graphics.rectangle("fill", button.x + 25, button.y + 205, statBarWidth, 15, 4, 4)
-                
-                love.graphics.setColor(0.1, 0.7, 0.3, 0.9)
-                love.graphics.rectangle(
-                    "fill", 
-                    button.x + 25, 
-                    button.y + 205, 
-                    math.min(statBarWidth * ((hero.health or 0) / maxStat), statBarWidth), 
-                    15, 4, 4
-                )
-                
-                -- Attack bar
-                love.graphics.setColor(1, 1, 1, 0.8)
-                love.graphics.print("Attack", button.x + 25, button.y + 230)
-                
-                love.graphics.setColor(0.2, 0.2, 0.2, 0.6)
-                love.graphics.rectangle("fill", button.x + 25, button.y + 250, statBarWidth, 15, 4, 4)
-                
-                love.graphics.setColor(0.9, 0.3, 0.2, 0.9)
-                love.graphics.rectangle(
-                    "fill", 
-                    button.x + 25, 
-                    button.y + 250, 
-                    math.min(statBarWidth * ((hero.attack or 0) / 100), statBarWidth), 
-                    15, 4, 4
-                )
-                
-                -- Speed bar
-                love.graphics.setColor(1, 1, 1, 0.8)
-                love.graphics.print("Speed", button.x + 25, button.y + 275)
-                
-                love.graphics.setColor(0.2, 0.2, 0.2, 0.6)
-                love.graphics.rectangle("fill", button.x + 25, button.y + 295, statBarWidth, 15, 4, 4)
-                
-                love.graphics.setColor(0.2, 0.5, 0.9, 0.9)
-                love.graphics.rectangle(
-                    "fill", 
-                    button.x + 25, 
-                    button.y + 295, 
-                    math.min(statBarWidth * ((hero.speed or 0) / 150), statBarWidth), 
-                    15, 4, 4
-                )
-                
-                -- Ability indicators (simplified for center card)
-                if hero.abilities then
-                    local abilityY = button.y + 330
                     love.graphics.setColor(1, 1, 1, 0.8)
-                    love.graphics.print("Abilities:", button.x + 25, abilityY)
+                    love.graphics.print("Health", button.x + 25, button.y + 185)
+                
+                    love.graphics.setColor(0.2, 0.2, 0.2, 0.6)
+                    love.graphics.rectangle("fill", button.x + 25, button.y + 205, statBarWidth, 15, 4, 4)
+                
+                    love.graphics.setColor(0.1, 0.7, 0.3, 0.9)
+                    love.graphics.rectangle(
+                        "fill", 
+                        button.x + 25, 
+                        button.y + 205, 
+                        math.min(statBarWidth * ((hero.health or 0) / maxStat), statBarWidth), 
+                        15, 4, 4
+                    )
+                
+                    -- Attack bar
+                    love.graphics.setColor(1, 1, 1, 0.8)
+                    love.graphics.print("Attack", button.x + 25, button.y + 230)
+                
+                    love.graphics.setColor(0.2, 0.2, 0.2, 0.6)
+                    love.graphics.rectangle("fill", button.x + 25, button.y + 250, statBarWidth, 15, 4, 4)
+                
+                    love.graphics.setColor(0.9, 0.3, 0.2, 0.9)
+                    love.graphics.rectangle(
+                        "fill", 
+                        button.x + 25, 
+                        button.y + 250, 
+                        math.min(statBarWidth * ((hero.attack or 0) / 100), statBarWidth), 
+                        15, 4, 4
+                    )
+                
+                    -- Speed bar
+                    love.graphics.setColor(1, 1, 1, 0.8)
+                    love.graphics.print("Speed", button.x + 25, button.y + 275)
+                
+                    love.graphics.setColor(0.2, 0.2, 0.2, 0.6)
+                    love.graphics.rectangle("fill", button.x + 25, button.y + 295, statBarWidth, 15, 4, 4)
+                
+                    love.graphics.setColor(0.2, 0.5, 0.9, 0.9)
+                    love.graphics.rectangle(
+                        "fill", 
+                        button.x + 25, 
+                        button.y + 295, 
+                        math.min(statBarWidth * ((hero.speed or 0) / 150), statBarWidth), 
+                        15, 4, 4
+                    )
+                
+                    -- Ability indicators (simplified for center card)
+                    if hero.abilities then
+                        local abilityY = button.y + 330
+                        love.graphics.setColor(1, 1, 1, 0.8)
+                        love.graphics.print("Abilities:", button.x + 25, abilityY)
                     
-                    local keys = { "Q", "W", "E" }
-                    local mx, my = love.mouse.getPosition()
-                    self.hoverAbility = nil
-                    for i = 1, math.min(3, #hero.abilities) do
-                        local ability = hero.abilities[i]
-                        local ry = abilityY + 20 + (i - 1) * 30
-                        local rw = button.width - 50
-                        if mx >= button.x + 20 and mx <= button.x + 25 + rw and my >= ry - 4 and my <= ry + 24 then
-                            self.hoverAbility = i
-                            love.graphics.setColor(1, 1, 1, 0.08)
-                            love.graphics.rectangle("fill", button.x + 20, ry - 4, rw + 10, 28, 4, 4)
+                        local keys = { "Q", "W", "E" }
+                        local mx, my = love.mouse.getPosition()
+                        self.hoverAbility = nil
+                        for i = 1, math.min(3, #hero.abilities) do
+                            local ability = hero.abilities[i]
+                            local ry = abilityY + 20 + (i - 1) * 30
+                            local rw = button.width - 50
+                            if mx >= button.x + 20 and mx <= button.x + 25 + rw and my >= ry - 4 and my <= ry + 24 then
+                                self.hoverAbility = i
+                                love.graphics.setColor(1, 1, 1, 0.08)
+                                love.graphics.rectangle("fill", button.x + 20, ry - 4, rw + 10, 28, 4, 4)
+                            end
+                            -- Key, in the role color
+                            love.graphics.setColor(roleColor[1] * 0.5, roleColor[2] * 0.5, roleColor[3] * 0.5, 0.95)
+                            love.graphics.rectangle("fill", button.x + 25, ry, 20, 20, 4, 4)
+                            love.graphics.setColor(1, 1, 1, 1)
+                            love.graphics.printf(keys[i], button.x + 25, ry + 2, 20, "center")
+                            -- Name, and the cooldown on the right
+                            love.graphics.setColor(1, 1, 1, 0.9)
+                            love.graphics.print(ability.name, button.x + 55, ry)
+                            love.graphics.setColor(0.7, 0.7, 0.8, 0.9)
+                            love.graphics.printf((ability.cooldown or 0) .. "s", button.x + 25, ry, rw, "right")
                         end
-                        -- Key, in the role color
-                        love.graphics.setColor(roleColor[1] * 0.5, roleColor[2] * 0.5, roleColor[3] * 0.5, 0.95)
-                        love.graphics.rectangle("fill", button.x + 25, ry, 20, 20, 4, 4)
-                        love.graphics.setColor(1, 1, 1, 1)
-                        love.graphics.printf(keys[i], button.x + 25, ry + 2, 20, "center")
-                        -- Name, and the cooldown on the right
-                        love.graphics.setColor(1, 1, 1, 0.9)
-                        love.graphics.print(ability.name, button.x + 55, ry)
-                        love.graphics.setColor(0.7, 0.7, 0.8, 0.9)
-                        love.graphics.printf((ability.cooldown or 0) .. "s", button.x + 25, ry, rw, "right")
                     end
                 end
             end
-            
-            ::continue::
         end
         
         -- Draw navigation arrows

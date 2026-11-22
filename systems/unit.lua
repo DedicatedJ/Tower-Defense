@@ -60,10 +60,7 @@ function Unit.portrait(path)
             local d = math.sqrt((x + 0.5 - r) ^ 2 + (y + 0.5 - r) ^ 2)
             return cr, cg, cb, math.max(0, math.min(1, r - d))
         end)
-        local image = love.graphics.newImage(face, { mipmaps = true })
-        image:setFilter("linear", "linear")
-        image:setMipmapFilter("linear")
-        return image
+        return require('utils.image').smooth(face)
     end)
     portraitCache[path] = ok and img or false
     if not ok then print("WARNING: could not load portrait " .. path) end

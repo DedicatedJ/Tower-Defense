@@ -1594,10 +1594,8 @@ function GameState:loadMap(level)
     self.mapImage = nil
     local plate = Level.platePath(level)
     if plate then
-        local ok, img = pcall(love.graphics.newImage, plate, { mipmaps = true })
+        local ok, img = pcall(require('utils.image').smooth, plate)
         if ok then
-            img:setFilter("linear", "linear")
-            img:setMipmapFilter("linear")
             self.mapImage = img
         else
             print("WARNING: could not load map plate " .. plate)

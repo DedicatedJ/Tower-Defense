@@ -5,7 +5,7 @@ Plan steps refer to the game to-do list (steps 1 to 15) agreed on 2026-11-22.
 
 ## Art batch 2 (generate in Higgsfield)
 
-- **Needed:** regenerate 6 level maps (Ethereal Ruins, Haunted Forest, Nexus of Balance, Celestial Citadel, Necropolis, and an edit of Misty Borderlands that removes the painted turrets and huts), 9 faction towers, 3 hero portraits, 9 hero walk sheets, 11 sounds. Use the corrected prompts (`art/prompts.md`, or the batch zip), aspect 4:3 for maps.
+- **Needed:** 9 faction towers, 3 hero portraits, 9 hero walk sheets, 11 sounds. Use the corrected prompts (`art/prompts.md`, or the batch zip). Hold the level maps: since the 16:9 respec (2026-11-22) all 9 levels use the existing paintings with the road drawn over them, and new maps wait for 16:9 blockouts with the wide roads and build zones (the next art pass).
 - **Why:** I cannot generate images or sounds from here.
 - **Affects:** step 2 (the code that picks the art up is done in step 2 and works the moment files land), and the look of 7 of the 9 levels.
 - **Date:** 2026-11-22

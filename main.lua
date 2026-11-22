@@ -16,7 +16,6 @@ local LoadGameState = require 'states.load_game'
 
 -- Load systems
 local Save = require 'systems.save'
-local UI = require 'systems.ui'
 local Error = require 'utils.error'
 local Screen = require 'utils.screen'
 

@@ -997,18 +997,6 @@ function GameState:enter(previous, faction, hero)
         self:setup(faction, hero)
     end
     require('systems.audio').playMusic("game")
-    
-    -- Initialize auto-save
-    local success, result = Error.pcall(function()
-        local Save = require('systems.save')
-        if Save and Save.autoSave then
-            Save.autoSave()
-        end
-    end)
-    
-    if not success then
-        Error.show("Auto-save initialization failed: " .. tostring(result))
-    end
 end
 
 -- One frame: the simulation runs `speed` steps of dt, so 2x and 3x are

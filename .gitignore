@@ -20,6 +20,7 @@ Thumbs.db
 
 # Game specific
 saves/
+save/
 *.log
 
 # Original art downloads: kept locally, not in git. The Higgsfield share

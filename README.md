@@ -37,8 +37,6 @@ A Tower Defense game built with Lua and the LÖVE framework: three factions, her
 - [LÖVE](https://love2d.org/) 11.4 or newer (tested on 11.5)
 - HUMP (gamestate and timer), included as a git submodule in `libs/hump`
 
-The repo also has `libs/bump`, `libs/sti`, `libs/jumper` and `libs/loveframes` submodules. The game does not use them; they are listed for removal in `BLOCKED.md`.
-
 ## Installation
 
 1. Install LÖVE from [love2d.org](https://love2d.org/).
@@ -82,7 +80,7 @@ Tower-Defense/
 │   ├── save.lua, achievements.lua, audio.lua, fx.lua
 ├── states/                screens (menu, profiles, faction and hero select,
 │                          hub, level select, game, pause, shop, settings ...)
-├── utils/                 errors, JSON, selection helpers
+├── utils/                 screen scaling, errors, JSON, selection helpers
 ├── sprites/, assets/      art used by the game (towers, enemies, maps, UI,
 │                          hero portraits, backgrounds)
 ├── sounds/                sfx/ and Music/

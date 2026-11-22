@@ -131,6 +131,66 @@ function GameState:setup(selectedFaction, selectedHero, levelId)
 
     -- The hero takes the field
     self:spawnHero()
+
+    -- First-time hints (Settings > Show Tutorial)
+    self:startHints()
+end
+
+------------------------------------------------------------------------
+-- First-time hints: on a faction's first level, until it has been won,
+-- with "Show Tutorial" on. Each hint stays up until its action is done
+-- (or, for the optional ones, until enough time has passed).
+------------------------------------------------------------------------
+GameState.HINTS = {
+    { text = "Pick a tower on the right (or press 1), then click open ground near the road.",
+      done = function(g) return #g.towers > 0 end },
+    { text = "Press Start Wave (or Space) when you are ready.",
+      done = function(g) return g.wave > 0 end },
+    { text = "Click your hero, then a road cell, to send them where the fight is.",
+      done = function(g, t) return g.heroMoved or t > 25 end },
+    { text = "Abilities fire on their own. Press Q, W or E to cast one early.",
+      done = function(g, t) return g.manualCasts or t > 20 end },
+    { text = "Click a tower you built to buy its upgrades or sell it.",
+      done = function(g, t) return g.focusTower ~= nil or t > 25 end },
+}
+
+function GameState:startHints()
+    self.hintIndex, self.hintTime = nil, 0
+    local settings = gameState and gameState.settings
+    if settings and settings.showTutorial == false then return end
+    if self.level.order ~= 1 then return end
+    local ok, result = pcall(require('systems.save').getLevelResult, self.levelId)
+    if ok and result then return end
+    self.hintIndex = 1
+end
+
+function GameState:updateHints(dt)
+    local h = self.hintIndex and GameState.HINTS[self.hintIndex]
+    if not h then return end
+    self.hintTime = self.hintTime + dt
+    if h.done(self, self.hintTime) then
+        self.hintIndex = self.hintIndex + 1
+        self.hintTime = 0
+        if self.hintIndex > #GameState.HINTS then self.hintIndex = nil end
+    end
+end
+
+function GameState:drawHint()
+    local h = self.hintIndex and GameState.HINTS[self.hintIndex]
+    if not h or self.isGameOver then return end
+    local mapW = #self.grid[1] * self.tileSize
+    local font = self.fonts.small
+    local w = math.min(mapW - 40, font:getWidth(h.text) + 40)
+    -- Under the map, so it never covers the road (the tower strip shows there
+    -- only once a tower is clicked, which ends the last hint)
+    local x, y = mapW / 2 - w / 2, GameState.MAP_OFFSET_Y + #self.grid * self.tileSize + 10
+    love.graphics.setColor(0.08, 0.08, 0.12, 0.85)
+    love.graphics.rectangle("fill", x, y, w, font:getHeight() + 14, 6, 6)
+    love.graphics.setColor(1, 0.85, 0.4, 0.9)
+    love.graphics.rectangle("line", x, y, w, font:getHeight() + 14, 6, 6)
+    love.graphics.setFont(font)
+    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.printf(h.text, x, y + 7, w, "center")
 end
 
 -- Multipliers from the faction bonus, the hero's passive and shop items.
@@ -783,7 +843,7 @@ function GameState:mousepressed(x, y, button)
     -- Hero ability buttons
     for _, b in ipairs(self:getAbilityButtons()) do
         if self:pointInRect(x, y, b) then
-            if self.hero then self.hero:castAbility(b.index, self, true) end
+            if self.hero and self.hero:castAbility(b.index, self, true) then self.manualCasts = true end
             return
         end
     end
@@ -851,6 +911,7 @@ function GameState:mousepressed(x, y, button)
     if hero and hero.selected then
         if self:isRoad(gridX, gridY) then
             if hero:commandMove(gridX, gridY, self) then
+                self.heroMoved = true
                 hero.selected = false
             else
                 self:showError("The hero can't get there")
@@ -874,7 +935,7 @@ function GameState:keypressed(key)
     if self.isGameOver then return end
     local slots = { q = 1, w = 2, e = 3 }
     if slots[key] and self.hero then
-        self.hero:castAbility(slots[key], self, true)
+        if self.hero:castAbility(slots[key], self, true) then self.manualCasts = true end
     elseif key == "f" and self.freezeCharge then
         -- Freeze Potion from the shop: once per game
         local Effects = require('systems.effects')
@@ -970,6 +1031,7 @@ function GameState:step(dt)
     if self.waveBonusFlash then self.waveBonusFlash = self.waveBonusFlash - dt end
     self.mapTime = (self.mapTime or 0) + dt
     require('systems.fx').update(dt)
+    self:updateHints(dt)
     
     -- Update towers
     -- Towers get the whole game state (towers, enemies, projectiles, effects)
@@ -1338,6 +1400,7 @@ function GameState:draw()
     self.ui:draw()
     self:drawFocusPanel()
     self:drawWaveInfo()
+    self:drawHint()
     if self.freezeCharge then
         love.graphics.setFont(self.fonts.small)
         love.graphics.setColor(0.6, 0.85, 1, 1)

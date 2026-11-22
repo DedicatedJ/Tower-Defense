@@ -805,6 +805,35 @@ local function run()
     end
 
     ------------------------------------------------------------------
+    log("== First-time hints")
+    do
+        local Save = require('systems.save')
+        Save.newProfile(3) -- a player who has never won anything
+        local g = newGame("radiant", "sir_galahad")
+        check(g.hintIndex == 1, "a new player on level 1 sees the first hint")
+        shot("hint")
+        placeTower(g, "holy_bastion", 7, 3)
+        simulate(0.1)
+        check(g.hintIndex == 2, "building a tower moves on to Start Wave")
+        key("space")
+        simulate(0.1)
+        check(g.hintIndex == 3, "starting the wave moves on to moving the hero")
+        simulate(26)
+        check(g.hintIndex == 4, "the hero hint gives way after 25 s even if ignored")
+
+        local other = newGame("radiant", "sir_galahad", "crystal_spires")
+        check(other.hintIndex == nil, "no hints on a faction's second level")
+        gameState.settings.showTutorial = false
+        local off = newGame("radiant", "sir_galahad")
+        check(off.hintIndex == nil, "no hints with Show Tutorial off")
+        gameState.settings.showTutorial = true
+        Save.deleteProfile(3)
+        Save.useSlot(1)
+        local veteran = newGame("radiant", "sir_galahad")
+        check(veteran.hintIndex == nil, "no hints once the level has been won")
+    end
+
+    ------------------------------------------------------------------
     log("== Achievements")
     do
         local Save = require('systems.save')

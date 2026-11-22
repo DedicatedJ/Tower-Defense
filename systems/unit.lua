@@ -1,5 +1,8 @@
--- Allied units: heroes and minions. Units stand on the road, block ground
--- enemies (an enemy held by a unit stops and fights it) and fight back.
+-- Allied units: heroes and minions. Units stand on the road and fight.
+-- Blockers (tank heroes and minions, blockCount > 0) hold ground enemies:
+-- an enemy held by a unit stops and fights it. Other heroes do not hold
+-- anything: ranged ones shoot what is in range, melee ones chase enemies
+-- near their spot and hit them as they walk on (and get hit back).
 -- Heroes level up, cast abilities and respawn; minions expire or die.
 --
 -- The game state passed to update() must provide:
@@ -19,8 +22,8 @@ local Enemy = require("systems.enemy")
 local Unit = {}
 Unit.__index = Unit
 
-Unit.MELEE_ENGAGE = 70     -- melee units step out this far from their spot to block
-Unit.RANGED_BLOCK = 26     -- ranged units block only enemies that walk into them
+Unit.MELEE_ENGAGE = 70     -- melee units step out this far from their spot to fight
+Unit.RANGED_BLOCK = 26     -- ranged blockers hold only enemies that walk into them
 Unit.MELEE_REACH = 20      -- melee attack reach
 Unit.RESPAWN_TIME = 10
 Unit.XP_PER_LEVEL = 200
@@ -142,7 +145,7 @@ function Unit:recomputeStats()
     self.range = self.base.range
     self.speed = self.base.speed * (self.statMods.speed or 1)
     self.armor = self.base.armor
-    self.blockCount = self.base.blockCount or 1
+    self.blockCount = self.base.blockCount or 0
     self.melee = self.base.range <= 60
 end
 
@@ -273,6 +276,8 @@ end
 function Unit:attack(target, game)
     local dmg = self.damage * Effects.damageDealtMult(self) * (1 + (self.modeDamageBoost or 0)) * self:critMult()
     local dealt = target:takeDamage(dmg, self) or 0
+    -- Hit in melee by someone not holding it: it swings back as it walks
+    if self.melee and target.blocker ~= self then target.foe = self end
     Fx.damage(target, dealt)
     local ls = self:lifestealFraction()
     if ls > 0 and dealt > 0 then self:heal(dealt * ls) end
@@ -321,7 +326,8 @@ function Unit:engage(game)
         end
     end
 
-    -- Target: an enemy we hold first; ranged units also shoot anything in range
+    -- Target: an enemy we hold first; ranged units also shoot anything in
+    -- range; melee units that do not block chase ground enemies near their spot
     local target = self.blocking[1]
     if not target and not self.melee then
         local bestD
@@ -329,6 +335,14 @@ function Unit:engage(game)
             if enemyAlive(e) then
                 local d = dist(self.x, self.y, e.x, e.y)
                 if d <= self.range and (not bestD or d < bestD) then target, bestD = e, d end
+            end
+        end
+    elseif not target and self.blockCount <= 0 then
+        local bestD
+        for _, e in ipairs(game.enemies) do
+            if enemyAlive(e) and not e.flying and dist(self.holdX, self.holdY, e.x, e.y) <= Unit.MELEE_ENGAGE then
+                local d = dist(self.x, self.y, e.x, e.y)
+                if not bestD or d < bestD then target, bestD = e, d end
             end
         end
     end

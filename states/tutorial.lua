@@ -24,25 +24,26 @@ function TutorialState.new()
         },
         {
             title = "Building Towers",
-            content = "Pick a tower on the right (or press 1, 2 or 3), then click open ground near the road. Towers cannot stand on the road " ..
-                "or on rock. Click a tower you built to see its range, buy its two upgrades, or sell it back for 70%.",
+            content = "Pick a tower at the bottom right (or press 1, 2 or 3), then click inside a marked build zone. Towers cannot stand " ..
+                "on the road or too close to each other. Click a tower you built to see its range, buy its two upgrades, or sell it back for 70%.",
         },
         {
             title = "Waves",
-            content = "Press Start Wave (or Space) when you are ready. The panel under your hero shows what the next wave " ..
+            content = "Press Start Wave (or Space) when you are ready. Point at the wave counter at the top to see what the next wave " ..
                 "brings, and clearing a wave pays bonus gold. Once a wave has fully arrived you can call the next one " ..
                 "early for extra gold. Tab or the 1x button speeds the game up to 3x; Esc or P pauses.",
         },
         {
             title = "Your Hero",
-            content = "Your hero stands on the road and blocks enemies there. Click the hero, then a road cell, to move. " ..
+            content = "Your hero stands on the road. Tanks hold enemies in place; other heroes fight them as they pass. " ..
+                "Click the hero, then a spot on the road, to move. " ..
                 "Abilities fire on their own; press Q, W or E to cast one early. Heroes level up from kills and keep " ..
                 "their level between games.",
         },
         {
             title = "Know Your Enemy",
             content = "Skeletons are fast, orcs are tough, necromancers raise skeletons as they walk, and dragons fly " ..
-                "over your hero. Light damage hurts the undead more; dark damage hurts the living more.",
+                "over anyone holding the road. Light damage hurts the undead more; dark damage hurts the living more.",
         },
         {
             title = "Progress",

@@ -7,6 +7,9 @@
 -- Units of measure: range/radius in pixels (map tiles are 32 px),
 -- fireRate and attackRate in attacks per second, durations in seconds,
 -- dps in damage per second, armor as the fraction of damage blocked.
+-- blockCount: how many ground enemies the hero holds in place at once.
+-- Only tanks block (0 for everyone else): other heroes fight enemies as
+-- they pass and leave the holding to the tank, minions and towers.
 --
 -- Effect types are documented in systems/effects.lua. Ability targets:
 --   enemies  enemies within radius of the hero
@@ -107,7 +110,7 @@ Factions.radiant = {
             role = "healer",
             description = "Healer who burns enemies while restoring allies.",
             portrait = "assets/hero images/radiant order/Celestia/Lady Celestia.jpg",
-            stats = { health = 350, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 350, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Purifying Conflagration", description = "Burns enemies nearby (30/s for 5 s) and heals allies by 100",
                   cooldown = 20, target = "area", radius = 140,
@@ -131,7 +134,7 @@ Factions.radiant = {
             description = "Ranged damage dealer with a devastating single-target strike.",
             -- Art batch 2; until the file exists the game shows a lettered token
             portrait = "assets/hero images/radiant order/Michael/Archangel Michael.jpg",
-            stats = { health = 380, damage = 30, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 1 },
+            stats = { health = 380, damage = 30, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Divine Judgment", description = "200 damage to the strongest enemy in range",
                   cooldown = 25, target = "enemy",
@@ -220,7 +223,7 @@ Factions.shadow = {
             role = "summoner",
             description = "Summoner who drains enemies and raises skeletons.",
             portrait = "assets/hero images/shadow covenant/Malachi/Malachi.jpg",
-            stats = { health = 320, damage = 16, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 320, damage = 16, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Soul Harvest", description = "Drains up to 5 enemies (5/s for 8 s) and heals allies by 40",
                   cooldown = 12, target = "area", radius = 150, maxTargets = 5,
@@ -247,7 +250,7 @@ Factions.shadow = {
             role = "cc",
             description = "Controls the battlefield with slows, roots and chains.",
             portrait = "assets/hero images/shadow covenant/Morgana/Morgana.jpg",
-            stats = { health = 360, damage = 20, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 360, damage = 20, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Veil of Despair", description = "Slows enemies nearby by 40% and strips 30% armor for 6 s",
                   cooldown = 25, target = "enemies", radius = 150,
@@ -266,9 +269,9 @@ Factions.shadow = {
             id = "dark_lord_malak",
             name = "Dark Lord Malak",
             role = "dps",
-            description = "Melee brawler who steals life and steps through shadows.",
+            description = "Melee brawler who steals life and steps through shadows. Hits enemies as they pass; does not hold them.",
             portrait = "assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg",
-            stats = { health = 450, damage = 35, attackRate = 1.2, range = 40, speed = 65, armor = 0.2, blockCount = 2 },
+            stats = { health = 450, damage = 35, attackRate = 1.2, range = 40, speed = 65, armor = 0.2, blockCount = 0 },
             abilities = {
                 { name = "Soul Drain", description = "30 damage to enemies nearby, heals for half the damage dealt",
                   cooldown = 20, target = "enemies", radius = 130,
@@ -356,7 +359,7 @@ Factions.twilight = {
             role = "dps",
             description = "Hybrid duelist who switches between damage and life steal.",
             portrait = "assets/hero images/twilight balance/Zephyr/Zephyr.jpg",
-            stats = { health = 380, damage = 28, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 1 },
+            stats = { health = 380, damage = 28, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Dusk Shift", description = "Switch between +30% damage and 30% life steal",
                   cooldown = 1, target = "self", auto = false,
@@ -379,7 +382,7 @@ Factions.twilight = {
             role = "support",
             description = "Support who strengthens allies and towers and weakens enemies.",
             portrait = "assets/hero images/twilight balance/Lyra/Lyra.jpg",
-            stats = { health = 360, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 360, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Equilibrium Wave", description = "Allies and towers nearby deal 15% more damage; enemies lose 20% armor (6 s)",
                   cooldown = 18, target = "area", radius = 180, includeTowers = true,
@@ -402,7 +405,7 @@ Factions.twilight = {
             role = "dps",
             description = "Elemental caster whose burns hit harder.",
             portrait = "assets/hero images/twilight balance/Sage/Elemental Sage.jpg",
-            stats = { health = 360, damage = 26, attackRate = 1.1, range = 150, speed = 65, armor = 0.1, blockCount = 1 },
+            stats = { health = 360, damage = 26, attackRate = 1.1, range = 150, speed = 65, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Elemental Burst", description = "Enemies nearby burn (25/s for 3 s) or freeze (2 s), alternating each cast",
                   cooldown = 15, target = "enemies", radius = 140,

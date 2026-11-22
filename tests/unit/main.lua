@@ -320,6 +320,40 @@ local function testUnits()
     checkNear(mn.maxHealth, 110, "minion health x1.1 (Shadow bonus)")
     checkNear(mn.remaining, 15, "minion duration x1.5 (passive)")
 
+    -- Blocking is a tank trait: only tank heroes (and minions) hold enemies
+    local wrong = {}
+    for _, fid in ipairs(FACTION_IDS) do
+        for _, h in ipairs(Factions[fid].heroes) do
+            if (h.stats.blockCount > 0) ~= (h.role == "tank") then wrong[#wrong + 1] = h.id end
+        end
+    end
+    check(#wrong == 0, "only tank heroes block" .. (#wrong > 0 and (" (not: " .. table.concat(wrong, ", ") .. ")") or ""))
+    local function near40(kind) local e = enemy(kind); e:placeAt(40); return e end -- at (60, 20)
+    local tank, e1 = Unit.newHero(hd, fd, 50, 20), near40()
+    local tgt = tank:engage({ enemies = { e1 } })
+    check(e1.blocker == tank and tgt == e1, "a tank holds an enemy near it")
+    local mkd, mkf = heroData("dark_lord_malak")
+    local brawler, e2 = Unit.newHero(mkd, mkf, 50, 20), near40()
+    tgt = brawler:engage({ enemies = { e2 } })
+    check(e2.blocker == nil and tgt == e2, "a melee dps hero goes for a passing enemy without holding it")
+    brawler:attack(e2, {})
+    check(e2.foe == brawler, "an enemy hit in melee by a unit not holding it marks that unit")
+    e2.attackCooldown = 0
+    local hp0, d0 = brawler.health, e2.distance
+    e2:update(0.05)
+    check(brawler.health < hp0 and e2.blocker == nil and e2.distance > d0,
+        "the enemy hits back while it keeps walking")
+    brawler.x = 300
+    e2:update(0.05)
+    check(e2.foe == nil, "an enemy drops a foe that is out of reach")
+    local cld, clf = heroData("lady_celestia")
+    local archer, e3 = Unit.newHero(cld, clf, 60, 20), near40()
+    tgt = archer:engage({ enemies = { e3 } })
+    check(e3.blocker == nil and tgt == e3, "a ranged hero shoots an enemy standing on it without holding it")
+    local guard, e4 = Unit.newMinion({ health = 100, damage = 5 }, 50, 20), near40()
+    guard:engage({ enemies = { e4 } })
+    check(e4.blocker == guard, "minions still hold enemies")
+
     -- Toggle cycles its modes (Dusk Shift)
     local toggleHero, toggleAb, toggleEff
     for _, fid in ipairs(FACTION_IDS) do

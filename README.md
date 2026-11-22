@@ -6,7 +6,7 @@ A Tower Defense game built with Lua and the LÖVE framework: three factions, her
 
 - **Three factions** (Radiant Order, Shadow Covenant, Twilight Balance), each with a faction bonus, 3 towers and 3 heroes. All content is data in `data/factions.lua`.
 - **Towers** with their own behavior (healing, burn, poison, crits and marks, summoning, converting the dead, life drain, light/dark hybrid damage, burn/freeze) and 2 upgrades each, bought in game. Sell for 70%.
-- **Heroes** that hold the road and block enemies, walk to any spot on the road you click, auto-cast 3 abilities (Q/W/E to cast early), and level up to 10. Levels save to your profile.
+- **Heroes** that walk to any spot on the road you click (only tanks hold enemies in place; the others fight them as they pass), auto-cast 3 abilities (Q/W/E to cast early), and level up to 10. Levels save to your profile.
 - **Levels**: 3 per faction, unlocked in order, with up to 3 stars each. Maps have one or two roads, rock areas you cannot build on, and portals (`data/levels.lua`).
 - **Waves** built from a difficulty curve per level: more and tougher enemies each wave, necromancers that raise skeletons, dragons that fly over your blockers as bosses, bonus gold for each wave cleared, and extra gold for calling the next wave early (`systems/wave.lua`).
 - **Profiles**: 5 save slots, each keeping its faction, hero levels, shop gold and items, level stars and achievements. Continue opens the one you used last.

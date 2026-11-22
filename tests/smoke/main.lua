@@ -343,12 +343,14 @@ local function run()
             check(ok, hd.name .. ": Q/W/E all cast" .. (ok and "" or (" (not: " .. table.concat(names, ", ") .. ")")))
             if hd.id == "morgana" then check(rooted, "Dark Binding roots enemies") end
 
-            -- Blocking: hero deals no damage and casts nothing, minions gone,
-            -- so enemies reach it
+            -- Holding the road: hero deals no damage and casts nothing,
+            -- minions gone, so enemies reach it. Only tanks hold enemies; a
+            -- melee hero that does not still gets hit by what it fights.
             for _, u in ipairs(g.units) do if u ~= hero then u:die() end end
             hero.damage = 0
             for _, s in ipairs(hero.abilities) do s.cooldown = 1e9 end
             if hero.dead then hero:respawn() end
+            local blocks, melee = hd.stats.blockCount > 0, hd.stats.range <= 60
             local blocked, hurt = false, false
             simulate(30, function()
                 for _, e in ipairs(g.enemies) do if e.blocker == hero then blocked = true end end
@@ -356,9 +358,15 @@ local function run()
                 if #g.enemies == 0 and not g.waveInProgress then
                     click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
                 end
-                return blocked and hurt
+                if blocks then return blocked and hurt end
+                return blocked or (melee and hurt)
             end)
-            check(blocked and hurt, hd.name .. ": blocks an enemy and takes hits")
+            if blocks then
+                check(blocked and hurt, hd.name .. ": blocks an enemy and takes hits")
+            else
+                check(not blocked, hd.name .. ": never holds an enemy (not a tank)")
+                if melee then check(hurt, hd.name .. ": gets hit by the enemies it fights") end
+            end
             if hd.id == "malachi" then
                 check((g.minionsSpawned or 0) >= 2, "Dark Ritual raised skeletons (" .. (g.minionsSpawned or 0) .. ")")
             end

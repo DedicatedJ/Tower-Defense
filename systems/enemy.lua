@@ -28,6 +28,7 @@ Enemy.SIZES = {
     large = { radius = 22, height = 86 },
 }
 Enemy.SIZE_OF = { skeleton = "small", zombie = "medium", necromancer = "medium", orc = "large", dragon = "large" }
+Enemy.STRIKE_REACH = 40 -- how close a passing melee foe must be to get hit
 Enemy.LANE_MARGIN = 4                   -- kept clear between an enemy and the road edge
 -- Movement speeds below are multiplied by this (roads are measured in
 -- screen pixels; tuned with tests/run.sh balance)
@@ -324,6 +325,7 @@ function Enemy.create(type, road, opts)
     enemy.summon = combat.summon
     enemy.summonTimer = combat.summon and combat.summon.interval or nil
     enemy.blocker = nil
+    enemy.foe = nil -- a melee unit that hit us without holding us: swung at in passing
     enemy.attackCooldown = 0
     enemy.lunge = 0
     enemy.statuses = {}
@@ -374,6 +376,17 @@ function Enemy.create(type, road, opts)
         if self.state == "walking" then
             self:move(dt)
         end
+
+        -- A melee unit that is not holding us: hit it while walking past
+        local f = self.foe
+        if f then
+            local fx, fy = f.x - self.x, f.y - self.y
+            if f.dead or f.removed or fx * fx + fy * fy > Enemy.STRIKE_REACH * Enemy.STRIKE_REACH then
+                self.foe = nil
+            else
+                self:strike(f, dt)
+            end
+        end
     end
 
     -- Attack the unit blocking us
@@ -384,6 +397,11 @@ function Enemy.create(type, road, opts)
         else
             self.direction = dy > 0 and "down" or "up"
         end
+        self:strike(unit, dt)
+    end
+
+    -- Count down and hit unit when the attack is ready
+    enemy.strike = function(self, unit, dt)
         self.attackCooldown = self.attackCooldown - dt
         if self.attackCooldown <= 0 and Effects.canAttack(self) then
             self.attackCooldown = 1 / self.attackRate

@@ -124,6 +124,14 @@ tests/run.sh balance
 BALANCE_LEVEL=necropolis tests/run.sh balance
 ```
 
+### Building a release
+
+```bash
+python tools/build/build.py --windows --verify
+```
+
+This writes `dist/TowerDefense.love` (runs anywhere LÖVE 11.4+ is installed) and `dist/TowerDefense-win64.zip` (unzip and run `TowerDefense.exe`; no install needed). `--verify` runs the smoke suite on the packaged files, so a missing asset fails the build. Use `--love-dir` if LÖVE is not in `C:\Program Files\LOVE`. The package includes only what the game loads: code, data, art, sounds, fonts and HUMP.
+
 ## License
 
 No license has been chosen yet, so all rights are reserved by default. See `BLOCKED.md`.

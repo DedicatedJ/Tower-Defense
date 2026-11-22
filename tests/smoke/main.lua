@@ -578,6 +578,44 @@ local function run()
     love.mouse.setPosition(0, 0)
 
     ------------------------------------------------------------------
+    log("== Every menu screen")
+    do
+        local menu = require('states.menu').new()
+        Gamestate.switch(menu)
+        wait(2)
+        -- name, how it is opened, and what Esc should lead back to
+        local screens = {
+            { "settings", function() menu:openSettings() end, 'states.menu' },
+            { "tutorial", function() menu:openTutorial() end, 'states.menu' },
+            { "credits", function() menu:openCredits() end, 'states.menu' },
+            { "load_game", function() menu:loadGame() end, nil },
+            { "achievement", function() Gamestate.push(require('states.achievement').new()) end, 'states.menu' },
+        }
+        for _, sc in ipairs(screens) do
+            Gamestate.switch(require('states.menu').new())
+            menu = Gamestate.current()
+            wait(1)
+            local ok, err = pcall(function()
+                sc[2]()
+                local st = Gamestate.current()
+                for _ = 1, 30 do st:update(DT) end
+                st:draw()
+            end)
+            check(ok and isState('states.' .. sc[1]), sc[1] .. ": opens, updates and draws" ..
+                (ok and "" or (": " .. tostring(err))))
+            if ok then
+                shot("screen_" .. sc[1])
+                if sc[3] then
+                    local ok2, err2 = pcall(function() key("escape") end)
+                    wait(1)
+                    check(ok2 and isState(sc[3]), sc[1] .. ": Esc goes back to " .. sc[3] ..
+                        (ok2 and "" or (": " .. tostring(err2))))
+                end
+            end
+        end
+    end
+
+    ------------------------------------------------------------------
     log("== Dropped-in art is picked up by name")
     do
         -- The save folder is searched before the game folder, so files

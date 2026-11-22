@@ -149,7 +149,7 @@ function SettingsState:draw()
     -- Draw title
     love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setFont(self.titleText.font)
-    love.graphics.print(self.titleText.text, self.titleText.x, self.titleText.y)
+    love.graphics.printf(self.titleText.text, 0, self.titleText.y, love.graphics.getWidth(), "center")
     
     -- Draw sliders
     love.graphics.setFont(fonts.main)

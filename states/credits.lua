@@ -9,36 +9,19 @@ function CreditsState.new()
     local self = setmetatable({}, CreditsState)
     
     self.title = "Credits"
+    -- Only what is true today; names for design, art and sound come from
+    -- the owner (BLOCKED.md)
     self.credits = {
-        { category = "Development", items = {
-            "Lead Developer",
-            "Game Designer",
-            "UI Designer",
-            "Level Designer"
+        { category = "Built With", items = {
+            "LÖVE 11 (love2d.org)",
+            "HUMP: gamestate and timer (vrld)",
         }},
-        { category = "Art", items = {
-            "Character Artist",
-            "Environment Artist",
-            "UI Artist",
-            "Animation"
+        { category = "Credits", items = {
+            "Full credits are coming",
         }},
-        { category = "Sound", items = {
-            "Music Composer",
-            "Sound Effects",
-            "Voice Acting"
+        { category = "Thanks", items = {
+            "The LÖVE community",
         }},
-        { category = "Libraries", items = {
-            "LÖVE Framework",
-            "HUMP (Helper Utilities for Massive Progression)",
-            "STI (Simple Tiled Implementation)",
-            "Bump.lua",
-            "Jumper"
-        }},
-        { category = "Special Thanks", items = {
-            "The LÖVE Community",
-            "Beta Testers",
-            "Family and Friends"
-        }}
     }
     self.scrollY = 0
     self.scrollSpeed = 50
@@ -63,8 +46,6 @@ function CreditsState:init()
 end
 
 function CreditsState:enter()
-    -- Initialize credits when entering the state
-    self:loadCredits()
     self:createUI()
     
     -- Play credits music or continue menu music
@@ -72,15 +53,7 @@ function CreditsState:enter()
 end
 
 function CreditsState:update(dt)
-    -- Handle scrolling animation
-    self.scrollY = self.scrollY - self.scrollSpeed * dt
-    
-    -- Reset scrolling when reaching the end
-    local totalHeight = #self.credits * 30 + 100
-    if self.scrollY < -totalHeight then
-        self.scrollY = love.graphics.getHeight()
-    end
-    
+    -- The list is short enough to sit still; the mouse wheel scrolls it
     -- Update timer
     self.timer:update(dt)
     
@@ -143,7 +116,7 @@ function CreditsState:draw()
     love.graphics.setColor(0.8, 0.8, 0.8, 0.7)
     local instructions = "Use mouse wheel to scroll"
     local instrWidth = fonts.main:getWidth(instructions)
-    love.graphics.print(instructions, love.graphics.getWidth() / 2 - instrWidth / 2, love.graphics.getHeight() - 30)
+    love.graphics.print(instructions, love.graphics.getWidth() / 2 - instrWidth / 2, love.graphics.getHeight() - 90)
     
     -- Draw error notifications
     Error.draw()
@@ -182,18 +155,6 @@ function CreditsState:keypressed(key)
         playSound('sfx', 'buttonClick')
         Gamestate.pop()
     end
-end
-
-function CreditsState:loadCredits()
-    -- Define credits content
-    self.credits = {
-        { title = "Game Design", names = {"John Doe", "Jane Smith"} },
-        { title = "Programming", names = {"Alice Johnson", "Bob Williams"} },
-        { title = "Art", names = {"Charlie Brown", "Diana Miller"} },
-        { title = "Music & Sound", names = {"Eve Clark", "Frank Davis"} },
-        { title = "Testing", names = {"Grace Wilson", "Henry Taylor"} },
-        { title = "Special Thanks", names = {"LÖVE Community", "GitHub", "StackOverflow"} }
-    }
 end
 
 function CreditsState:createUI()

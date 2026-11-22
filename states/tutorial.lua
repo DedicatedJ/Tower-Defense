@@ -10,85 +10,61 @@ function TutorialState.new()
     
     self.title = "How to Play"
     self.currentPage = 1
+    -- How the game plays now. Keep in step with states/game.lua.
     self.pages = {
         {
-            title = "Welcome to Tower Defense",
-            content = "This tutorial will guide you through the basics of playing Tower Defense. Use arrow keys or buttons below to navigate.",
-            image = nil
+            title = "Hold the Road",
+            content = "Enemies walk the road toward the gate at its end. Every one that gets through costs lives; " ..
+                "lose them all and the level is lost. Use the arrow keys or the buttons below to read on.",
         },
         {
-            title = "Select Your Faction",
-            content = "Each faction has unique towers and abilities. Choose the one that fits your playstyle: Radiant, Shadow, or Twilight.",
-            image = nil
-        },
-        {
-            title = "Choose Your Hero",
-            content = "Heroes provide special abilities and bonuses. Each faction has different heroes with unique skills.",
-            image = nil
+            title = "Faction and Hero",
+            content = "Pick a faction (Radiant Order, Shadow Covenant or Twilight Balance) and one of its three heroes. " ..
+                "Each faction has its own three towers and a bonus.",
         },
         {
             title = "Building Towers",
-            content = "Click on tower spots (highlighted in green) to build towers. Different towers have different ranges, damage types, and abilities.",
-            image = nil
+            content = "Pick a tower on the right, then click open ground near the road. Towers cannot stand on the road " ..
+                "or on rock. Click a tower you built to see its range, buy its two upgrades, or sell it back for 70%.",
         },
         {
-            title = "Upgrade Towers",
-            content = "Click on an existing tower to select it, then press the upgrade button to make it stronger. Upgrades cost resources.",
-            image = nil
+            title = "Waves",
+            content = "Press Start Wave when you are ready. The panel under your hero shows what the next wave brings, and " ..
+                "clearing a wave pays bonus gold. Tab or the 1x button speeds the game up to 3x; Esc or P pauses.",
         },
         {
-            title = "Enemy Waves",
-            content = "Enemies come in waves. Each wave gets progressively harder. Defeat all enemies to complete a wave.",
-            image = nil
+            title = "Your Hero",
+            content = "Your hero stands on the road and blocks enemies there. Click the hero, then a road cell, to move. " ..
+                "Abilities fire on their own; press Q, W or E to cast one early. Heroes level up from kills and keep " ..
+                "their level between games.",
         },
         {
-            title = "Hero Abilities",
-            content = "Your hero has special abilities that can turn the tide of battle. Use them wisely as they have cooldowns.",
-            image = nil
+            title = "Know Your Enemy",
+            content = "Skeletons are fast, orcs are tough, necromancers raise skeletons as they walk, and dragons fly " ..
+                "over your hero. Light damage hurts the undead more; dark damage hurts the living more.",
         },
         {
-            title = "Resources",
-            content = "Defeat enemies to earn resources. Use resources to build and upgrade towers or activate special abilities.",
-            image = nil
+            title = "Progress",
+            content = "Win a level to open the next one. Finish with most of your lives for up to three stars. Gold from " ..
+                "your games buys lasting upgrades in the Shop.",
         },
-        {
-            title = "Ready to Play!",
-            content = "You're now ready to defend your territory! Good luck and have fun!",
-            image = nil
-        }
     }
-    
-    self.currentStep = 1
-    self.totalSteps = 5
-    self.tutorialText = {}
-    self.buttons = {}
-    self.images = {}
-    self.timer = Timer.new() -- Create timer instance for this state
-    
-    -- Initialize tutorial content
-    self:initTutorial()
-    
+
+    self.timer = Timer.new()
+    self:createButtons()
+
     return self
 end
 
 function TutorialState:init()
-    -- Load tutorial images
+    -- Optional pictures: sprites/ui/tutorial/tutorial_<page>.png
     self:loadImages()
-    
-    -- Create navigation buttons
-    self:createButtons()
 end
 
 function TutorialState:loadImages()
-    -- Attempt to load tutorial images
     for i, page in ipairs(self.pages) do
-        local success, result = Error.pcall(function()
-            page.image = love.graphics.newImage("sprites/ui/tutorial/tutorial_" .. i .. ".png")
-        end)
-        
-        if not success then
-            page.image = nil
-        end
+        local path = "sprites/ui/tutorial/tutorial_" .. i .. ".png"
+        page.image = love.filesystem.getInfo(path) and love.graphics.newImage(path) or nil
     end
 end
 

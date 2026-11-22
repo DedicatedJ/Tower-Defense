@@ -499,6 +499,65 @@ local function run()
     end
 
     ------------------------------------------------------------------
+    log("== Pause and game speed")
+    do
+        local g = newGame("radiant", "sir_galahad")
+        g:startNextWave()
+        simulate(6, function() return #g.enemies > 0 and g.enemies[1].x > 40 end)
+        local e = g.enemies[1]
+        local x0, y0 = e.x, e.y
+        local tb = g:getTowerButtons()[1]
+        click(tb.x + 5, tb.y + 5)
+        key("escape")
+        check(isState('states.game') and not g:hasSelection(), "Esc with a tower picked drops it and does not pause")
+        key("escape")
+        check(isState('states.pause'), "Esc with nothing selected pauses")
+        wait(30)
+        check(e.x == x0 and e.y == y0, "nothing moves while paused")
+        shot("pause")
+        key("escape")
+        check(isState('states.game') and Gamestate.current() == g, "Esc resumes the same game")
+        key("p")
+        check(isState('states.pause'), "P pauses")
+        key("p")
+        check(Gamestate.current() == g, "P resumes")
+
+        -- Restart Level from the pause menu
+        key("p")
+        local pause = Gamestate.current()
+        local function press(label)
+            for _, b in ipairs(pause.buttons) do
+                if b.text == label then click(b.x + 5, b.y + 5); return true end
+            end
+        end
+        press("Restart Level")
+        wait(2)
+        local r = Gamestate.current()
+        check(isState('states.game') and r ~= g and r.levelId == g.levelId and r.wave == 0,
+            "Restart Level starts the same level fresh")
+        key("p")
+        pause = Gamestate.current()
+        press("Level Select")
+        wait(2)
+        check(isState('states.level_select'), "Level Select leaves the game for level select")
+
+        -- Speed: 3x runs three steps per frame, so game time runs 3x
+        local a = newGame("radiant", "sir_galahad")
+        local t0 = a.mapTime or 0
+        for _ = 1, 60 do gameUpdate(DT) end
+        local slow = (a.mapTime or 0) - t0
+        local b = newGame("radiant", "sir_galahad")
+        key("tab"); key("tab")
+        check(b.speed == 3, "Tab cycles the speed 1x -> 2x -> 3x")
+        local t1 = b.mapTime or 0
+        for _ = 1, 60 do gameUpdate(DT) end
+        local fast = (b.mapTime or 0) - t1
+        check(math.abs(fast - 3 * slow) < 1e-6, string.format("3x runs three times the game time (%.2f s vs %.2f s)", fast, slow))
+        click(b.ui.speed.x + 5, b.ui.speed.y + 5)
+        check(b.speed == 1, "the speed button wraps 3x back to 1x")
+    end
+
+    ------------------------------------------------------------------
     log("== Tower button tooltips")
     for _, fid in ipairs(FACTION_IDS) do
         local g = newGame(fid, Factions[fid].heroes[1].id)

@@ -336,10 +336,12 @@ function GameState:initUI()
     }
     
     -- Start wave button
+    -- Game speed (1x / 2x / 3x), right of Start Wave; Tab cycles it too
+    self.ui.speed = { x = panelX + panelW - 44, y = 115, width = 44, height = 30 }
     self.ui.startWave = {
         x = panelX,
         y = 115,
-        width = panelW,
+        width = panelW - 50,
         height = 30,
         enabled = true,
         draw = function()
@@ -475,6 +477,7 @@ function GameState:initUI()
         self.ui.lives.draw()
         self.ui.wave.draw()
         self.ui.startWave.draw()
+        self:drawSpeedButton()
         self.ui.towerPanel.draw()
         self:drawHeroPanel()
     end
@@ -763,6 +766,10 @@ function GameState:mousepressed(x, y, button)
         self.ui.startWave.onClick()
         return
     end
+    if self:pointInRect(x, y, self.ui.speed) then
+        self:cycleSpeed()
+        return
+    end
 
     -- Hero ability buttons
     for _, b in ipairs(self:getAbilityButtons()) do
@@ -865,8 +872,47 @@ function GameState:keypressed(key)
         end
         self.freezeCharge = nil
     elseif key == "escape" then
-        self:clearSelection()
+        -- Esc first drops whatever is selected; with nothing selected it pauses
+        if self:hasSelection() then self:clearSelection() else self:pause() end
+    elseif key == "p" then
+        self:pause()
+    elseif key == "tab" then
+        self:cycleSpeed()
     end
+end
+
+function GameState:hasSelection()
+    return self.selectedTower ~= nil or self.towerPreview ~= nil or self.focusTower ~= nil
+        or (self.hero ~= nil and self.hero.selected == true)
+end
+
+function GameState:pause()
+    if self.isGameOver then return end
+    local Pause = require('states.pause')
+    Gamestate.push(Pause.new(self))
+end
+
+GameState.SPEEDS = { 1, 2, 3 }
+
+function GameState:cycleSpeed()
+    local cur = self.speed or 1
+    local nextSpeed = 1
+    for i, v in ipairs(GameState.SPEEDS) do
+        if v == cur then nextSpeed = GameState.SPEEDS[i % #GameState.SPEEDS + 1] end
+    end
+    self.speed = nextSpeed
+end
+
+function GameState:drawSpeedButton()
+    local b = self.ui.speed
+    local hover = self:isMouseOver(b)
+    local fast = (self.speed or 1) > 1
+    love.graphics.setColor(fast and { 0.55, 0.4, 0.15, 0.95 } or (hover and { 0.3, 0.3, 0.45, 0.95 } or { 0.2, 0.2, 0.3, 0.85 }))
+    love.graphics.rectangle("fill", b.x, b.y, b.width, b.height)
+    love.graphics.setColor(1, 1, 1, 0.9)
+    love.graphics.rectangle("line", b.x, b.y, b.width, b.height)
+    love.graphics.setFont(self.fonts.medium)
+    love.graphics.printf((self.speed or 1) .. "x", b.x, b.y + 5, b.width, "center")
 end
 
 function GameState:enter(previous, faction, hero)
@@ -888,7 +934,16 @@ function GameState:enter(previous, faction, hero)
     end
 end
 
+-- One frame: the simulation runs `speed` steps of dt, so 2x and 3x are
+-- exactly the same game, just faster
 function GameState:update(dt)
+    for _ = 1, (self.speed or 1) do
+        if self.isGameOver then return end
+        self:step(dt)
+    end
+end
+
+function GameState:step(dt)
     if self.isGameOver then return end
     
     -- Update error messages

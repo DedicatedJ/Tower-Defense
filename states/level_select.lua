@@ -133,8 +133,8 @@ function LevelSelectState:createUI()
     
     -- Level cards
     self.levelCards = {}
-    local cardWidth = 220
-    local cardHeight = 300
+    local cardWidth = 280 -- room for a 16:9 map thumbnail
+    local cardHeight = 340
     local spacing = 40
     local totalWidth = (#self.levels * cardWidth) + ((#self.levels - 1) * spacing)
     local startX = (screenWidth - totalWidth) / 2

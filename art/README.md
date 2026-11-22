@@ -70,9 +70,9 @@ thing: [the change]. Keep everything else exactly." Rewriting the whole prompt l
 | `info <in> [floor]` | Size, transparency report, bounding box | report only |
 | `tower <in> <out> <width>` | One transparent object: strip glow below alpha 200, trim, scale | `sprites/towers/*.png`, 96 px wide |
 | `sheet <in> <out.png> <out.lua> <figureH> [floor] [rows] [cols] [feet\|mass]` | 4x3 walk sheet: find figures by shape, align (feet for walkers, body for flyers), scale | sheet PNG plus frame layout `.lua` |
-| `backdrop <in> <out> <w> <h>` | Opaque image: center crop to aspect, scale | `assets/backgrounds/*.png` at 1280x960 |
+| `backdrop <in> <out> <w> <h> [--stretch]` | Opaque image: center crop to aspect (or stretch the whole image), scale | `assets/backgrounds/*.png` at 1280x960; `sprites/maps/*.png` at 1280x720 |
 | `mapcheck <map> <blockout> <cols> <rows>` | Cell-by-cell road match against the blockout | report and grid |
-| `mapfix <map> <blockout> <out> <w> <h>` | Stretch the painted road onto the grid (runs at most one cell off) | `sprites/maps/*.png` at 1536x1152 |
+| `mapfix <map> <blockout> <out> <w> <h>` | Stretch the painted road onto the old 24 x 18 cell grid (runs at most one cell off). From before the 16:9 map; the game now draws the road over the painting | was `sprites/maps/*.png` at 1536x1152 |
 | `icons <in> <outDir> <size> <rows> <cols> <names>` | Round icons on a sheet; keys out a painted-in checkerboard | one PNG per icon |
 
 ## Rights

@@ -150,16 +150,19 @@ end
 
 ------------------------------------------------------------------------
 -- Backdrops and thumbnails: opaque images, cropped to the target aspect
--- around the center (cover), then scaled.
---   lovec tools/artcut backdrop <in.png> <out.png> <width> <height>
+-- around the center (cover), then scaled. With --stretch the whole image
+-- is stretched to the target instead (no crop).
+--   lovec tools/artcut backdrop <in.png> <out.png> <width> <height> [--stretch]
 ------------------------------------------------------------------------
-local function cutBackdrop(inPath, outPath, outW, outH)
+local function cutBackdrop(inPath, outPath, outW, outH, stretch)
     local data = readImageData(inPath)
     local w, h = data:getDimensions()
     print(string.format("%s: %dx%d", inPath, w, h))
     local target = outW / outH
     local cw, ch = w, h
-    if w / h > target then cw = math.floor(h * target + 0.5) else ch = math.floor(w / target + 0.5) end
+    if stretch then
+        -- keep the whole image
+    elseif w / h > target then cw = math.floor(h * target + 0.5) else ch = math.floor(w / target + 0.5) end
     local cropped = love.image.newImageData(cw, ch)
     cropped:paste(data, 0, 0, math.floor((w - cw) / 2), math.floor((h - ch) / 2), cw, ch)
     if cw ~= w or ch ~= h then
@@ -743,7 +746,7 @@ function love.load(args)
         elseif cmd == "mapcheck" then
             mapCheck(args[2], args[3], tonumber(args[4]) or 24, tonumber(args[5]) or 18)
         elseif cmd == "backdrop" then
-            cutBackdrop(args[2], args[3], tonumber(args[4]) or 1280, tonumber(args[5]) or 960)
+            cutBackdrop(args[2], args[3], tonumber(args[4]) or 1280, tonumber(args[5]) or 960, OPTS.stretch)
         elseif cmd == "sheet" then
             local anchor = args[9] or "feet"
             if anchor ~= "feet" and anchor ~= "mass" then fail("anchor must be feet or mass") end

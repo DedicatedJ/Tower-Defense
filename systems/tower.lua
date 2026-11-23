@@ -7,12 +7,13 @@
 --   enemies, units, effects, projectiles      lists
 --   towerMods                                  multipliers (states/game.lua)
 --   spawnMinion(def, x, y, count) -> units    add minions
---   nearestRoadCellWithin(x, y, r) -> gx, gy  road cell within r of a point
---   cellCenter(gx, gy) -> x, y
+--   nearestRoadPoint(x, y, r) -> x, y         road center point within r of a
+--                                              point (nil if none)
 
 local Factions = require 'data.factions'
 local Effects = require 'systems.effects'
 local Audio = require 'systems.audio'
+local Fx = require 'systems.fx'
 
 local Tower = {}
 
@@ -65,18 +66,17 @@ function Tower.init()
     Tower.images = {}
     local loaded = {}
     for id, t in pairs(Tower.byId) do
-        if type(t.sprite) == "string" and love.filesystem.getInfo(t.sprite) then
-            if not loaded[t.sprite] then
-                local ok, img = pcall(love.graphics.newImage, t.sprite, { mipmaps = true })
+        local path = Tower.spritePath(t)
+        if path then
+            if not loaded[path] then
+                local ok, img = pcall(require('utils.image').smooth, path)
                 if ok then
-                    img:setFilter("linear", "linear")
-                    img:setMipmapFilter("linear")
-                    loaded[t.sprite] = img
+                    loaded[path] = img
                 else
-                    print("WARNING: Failed to load tower sprite: " .. t.sprite)
+                    print("WARNING: Failed to load tower sprite: " .. path)
                 end
             end
-            Tower.images[id] = loaded[t.sprite]
+            Tower.images[id] = loaded[path]
         end
     end
 
@@ -88,12 +88,22 @@ function Tower.init()
     Tower.initialized = true
 end
 
+-- The painted sprite for a tower: its own sprites/towers/<id>.png when that
+-- file exists (art batch 2), else the stand-in named in data/factions.lua,
+-- else nil (a generated placeholder is drawn)
+function Tower.spritePath(t)
+    local own = "sprites/towers/" .. t.id .. ".png"
+    if love.filesystem.getInfo(own) then return own end
+    if type(t.sprite) == "string" and love.filesystem.getInfo(t.sprite) then return t.sprite end
+end
+
 -- Placeholder tower drawn in code, tinted by faction
 function Tower.createDefaultSprite(tower)
     local size = 32
     local canvas = love.graphics.newCanvas(size, size)
     local color = FACTION_COLORS[tower.faction] or { 0.5, 0.5, 0.5 }
     local accent = PROJECTILE_COLORS[tower.projectileType] or { 1, 1, 1 }
+    local prevCanvas = love.graphics.getCanvas() -- restored below (the frame may be drawing into one)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(color[1] * 0.55, color[2] * 0.55, color[3] * 0.55)
@@ -105,20 +115,21 @@ function Tower.createDefaultSprite(tower)
     love.graphics.setColor(0, 0, 0)
     love.graphics.rectangle("line", 4, 10, 24, 20, 3, 3)
     love.graphics.rectangle("line", 8, 2, 16, 14, 2, 2)
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(prevCanvas)
     love.graphics.setColor(1, 1, 1, 1)
     return canvas
 end
 
 function Tower.createDefaultProjectileSprite(color)
     local canvas = love.graphics.newCanvas(16, 16)
+    local prevCanvas = love.graphics.getCanvas() -- restored below (the frame may be drawing into one)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     love.graphics.setColor(color)
     love.graphics.circle("fill", 8, 8, 4)
     love.graphics.setColor(color[1], color[2], color[3], 0.4)
     love.graphics.circle("fill", 8, 8, 7)
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(prevCanvas)
     love.graphics.setColor(1, 1, 1, 1)
     return canvas
 end
@@ -190,8 +201,9 @@ local function applyMod(inst, mod)
     end
 end
 
+-- A tower standing at (x, y), the middle of its base in screen pixels.
 -- ctx: towerMods from the game (faction bonus, hero passive, shop items)
-function Tower.create(towerId, gridX, gridY, tileSize, ctx)
+function Tower.create(towerId, x, y, ctx)
     if not Tower.initialized then Tower.init() end
     local d = Tower.byId[towerId]
     if not d then
@@ -209,8 +221,7 @@ function Tower.create(towerId, gridX, gridY, tileSize, ctx)
     inst.projectileType = d.projectileType
     inst.cost = d.cost
     inst.spent = d.cost
-    inst.gridX, inst.gridY = gridX, gridY
-    inst.tileSize = tileSize or 32
+    inst.x, inst.y = x, y
     inst.statuses = {}
     inst.fireCooldown = 0
     inst.target = nil
@@ -232,8 +243,7 @@ function Tower.create(towerId, gridX, gridY, tileSize, ctx)
 end
 
 function TowerInstance:getCenter()
-    local ts = self.tileSize or 32
-    return (self.gridX - 0.5) * ts, (self.gridY - 0.5) * ts
+    return self.x, self.y
 end
 
 ------------------------------------------------------------------------
@@ -306,7 +316,7 @@ end
 function TowerInstance:onHit(target)
     if target.dead then return end
     local dmg, crit = self:shotDamage(target)
-    target:takeDamage(dmg, self)
+    Fx.damage(target, target:takeDamage(dmg, self), crit)
     self.hits = (self.hits or 0) + 1
     if crit then self.crits = (self.crits or 0) + 1 end
     if target.dead then return end
@@ -389,9 +399,8 @@ function TowerInstance:update(dt, game)
         if self.summonTimer <= 0 then
             self.summonTimer = self.summonInterval
             if #self.minions < self.summonMax then
-                local gx, gy = game:nearestRoadCellWithin(x, y, self.range)
-                if gx then
-                    local mx, my = game:cellCenter(gx, gy)
+                local mx, my = game:nearestRoadPoint(x, y, self.range)
+                if mx then
                     for _, m in ipairs(game:spawnMinion(self.summonMinion, mx, my, 1)) do
                         table.insert(self.minions, m)
                     end
@@ -452,7 +461,7 @@ function TowerInstance:fire(game, x, y)
     local target = self.target
     local sprite = Tower.projectileSprites[self.projectileType]
     table.insert(game.projectiles, {
-        x = x, y = y - 14, target = target, destroyed = false,
+        x = x, y = y - 40, target = target, destroyed = false,
         speed = Tower.PROJECTILE_SPEED,
         update = function(p, dt)
             if target.dead or target.removed then
@@ -485,7 +494,7 @@ end
 ------------------------------------------------------------------------
 -- Drawing
 ------------------------------------------------------------------------
-Tower.DRAW_WIDTH = 44
+Tower.DRAW_WIDTH = 58
 
 -- Draw a painted tower image standing on the cell centered at (cx, cy).
 -- Painted towers sit on a diamond base that spans the image width; in this

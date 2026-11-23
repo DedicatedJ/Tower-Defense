@@ -20,9 +20,10 @@ A.settings = {
               draft = "quality low, 1K", final = "quality high, 2K" },
     sheet = { model = "GPT Image 2.6", aspect = "3:4", background = "transparent",
               draft = "quality low, 1K", final = "quality high, 2K" },
-    -- map_level1_v1 on GPT Image 2.6 ignored the road layout. Trying Nano
-    -- Banana Pro next is a guess (it takes image references), not tested.
-    map   = { model = "GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro", aspect = "4:3", background = "opaque",
+    -- map_level1_v1 on GPT Image 2.6 ignored the road layout; v2, worded as
+    -- a repaint of the layout, kept it. Nano Banana Pro is the fallback
+    -- (it takes image references), not tested on maps.
+    map   = { model = "GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro", aspect = "16:9", background = "opaque",
               draft = "quality low, 1K", final = "quality high, 2K (4K if offered)" },
     backdrop = { model = "GPT Image 2.6 or Nano Banana Pro", aspect = "4:3", background = "opaque",
               draft = "quality low, 1K", final = "quality high, 2K" },
@@ -131,86 +132,117 @@ A.enemies = {
 }
 
 ------------------------------------------------------------------------
--- Map plate for level 1 (ground only; towers and units are sprites).
+-- Level maps (16:9, the whole 1280 x 720 screen). The blockout in
+-- art/guides/ is drawn from data/levels.lua: dark gray scenery, mid gray
+-- road with rounded bends, light gray build plots (the level's zones).
+--
+-- What the painting has to do for the game, and why each rule is here:
+--   road: one matte mid-tone surface filling the whole 80 px band. Enemies
+--     (green, bone white, rust red, violet) and heroes walk on it, so it is
+--     never white, black, red or violet, and holds no loose objects.
+--   plots: the lightest, calmest ground, so the eye finds where towers go
+--     without the placement overlay; never grey stone (tower bases are grey
+--     stone). Zones hug the road (cut to tower reach after the range cut).
+--   scenery: everything else, where nothing can stand. It carries the
+--     detail and the place's character, and makes "you cannot build here"
+--     obvious. Wilder where enemies enter, calmer toward the end.
+--   HUD: the four corners and the top middle are under buttons: plain.
+--   Road ends inside the map and portal ends stay plain: the game draws
+--   the goal and the portals there, exactly on the data.
+--   Nothing that moves (fire, smoke, flags) and nothing that reads as a
+--   tower, unit or interface element.
 ------------------------------------------------------------------------
-A.map = {
-    id = "map_level1", file = "sprites/maps/level1.png", guide = "art/guides/map_level1_blockout.png",
-    -- v2 wording: a repaint of image 1 rather than "follow the layout", which
-    -- v1 ignored (it drew its own serpentine road). Turn count is checkable.
-    prompt = "Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly " ..
-        "above. Image 1 is a gray layout: the dark gray band is the road and the light gray is grass. Keep " ..
-        "the road exactly where the dark band is: the same path, the same width, the same square corners, in " ..
-        "the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.\n\n" ..
-        "Road: packed brown earth. Any stone edging lies inside the dark band, so the road with its edging is " ..
-        "no wider than the band. The road runs along the very top edge from the top left corner and has " ..
-        "exactly eight right-angle turns. Its far end is the short stretch in the lower part of the image, " ..
-        "right of center, where a small ruined stone gate stands across the road.\n\n" ..
-        "Ground: open, flat mossy grass, even and uncluttered so a tower can stand on any patch of it, with " ..
-        "small rocks, wildflowers and short tufts only. No trees, no buildings, no towers, no units, no " ..
-        "animals, no smoke, no flags.",
-}
+A.mapMaster = "sunlit_meadows"
 
-------------------------------------------------------------------------
--- Map plates for the other levels (data/levels.lua). Same rules as level 1:
--- a repaint of the gray layout, road exactly where the gray band is.
---
--- tools/artcut mapcheck / mapfix find the painted road by its color: warm
--- earth (clearly redder than green, well above blue). So every road below
--- is a warm brown, tan or sandstone, and no open ground is brown, tan or
--- golden. A grey or violet road could not be lined up.
---
+A.mapIntro = "Attach the level's layout from `art/guides/` as image 1. Make `map_sunlit_meadows` first and send " ..
+    "it to me before the rest: it sets the look of every map, and each other map attaches its approved final as " ..
+    "image 2. I check each painting against the layout (road in place and 80 px wide, plots in their rectangles); " ..
+    "once a level's painted road matches, the game stops drawing its own road over it.\n\n" ..
+    "Check before sending: the road is as wide as the gray band everywhere and its bends are rounded; the plots " ..
+    "are the lightest ground and sit in their rectangles; nothing that looks like a tower, a unit or a button; " ..
+    "the corners and the top middle are plain."
+
+A.mapScene = "Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, " ..
+    "filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray " ..
+    "has one job. Keep every shape exactly where it is, at the same size, with the same outline."
+
+A.mapRedo = "Image 2 is the approved map of another level of the same game. Paint this one the same way: the " ..
+    "same painting style, camera, light and level of detail, and the same way of painting the road, the plots " ..
+    "and the scenery. Take nothing else from image 2: not its layout, its places or its colors."
+
 -- %s = how the roads run (written by tools/artkit from the level data),
--- %s = ground, %s = road surface, %s = rock sentence.
-------------------------------------------------------------------------
-A.mapStyle = "Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light " ..
-    "from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. " ..
-    "No text, no logos."
+-- %s = road surface, %s = plot ground, %s = scenery
+A.mapBody = "The mid gray band is the road the enemies walk: the same path, the same width and the same " ..
+    "smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. %s\n\n" ..
+    "Road: %s. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with " ..
+    "soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.\n\n" ..
+    "The light gray rectangles are build plots, where the player places towers. Plots: %s. Each fills its " ..
+    "rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a " ..
+    "tower can stand anywhere on it.\n\n" ..
+    "The dark gray is scenery, where nothing stands: %s. It fills every dark gray area up to the road and the " ..
+    "plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it " ..
+    "reaches over the road or a plot."
 
-A.levelMapTemplate = "Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from " ..
-    "directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open " ..
-    "ground. Keep the road exactly where the gray band is: the same path, the same width, the same square " ..
-    "corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any " ..
-    "part of it. %s\n\n" ..
-    "Ground: %s.\n\n" ..
-    "Road: %s. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, " ..
-    "so the road with its edging is no wider than the band.\n\n" ..
-    "%s\n\n" ..
-    "Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No " ..
-    "trees, buildings, towers, units, animals or text anywhere on the map."
+A.mapView = "Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots " ..
+    "and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that " ..
+    "size. Warm light from the upper left, even across the road and the plots, with no large shadows falling " ..
+    "over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, " ..
+    "dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or " ..
+    "lettering."
 
-A.noRocks = "Every part of the layout that is not road is open ground."
+A.mapStyle = "Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such " ..
+    "as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm " ..
+    "light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small " ..
+    "size. No text, no logos."
 
--- ground, road, rock (rock = what fills the near-black areas, if any)
+-- place: what and where, and how intense (difficulty 1 calm, 3 dramatic);
+-- road / plot / scenery: materials for the three grays
 A.levelMaps = {
+    sunlit_meadows = {
+        place = "Sunlit Meadows, the first level a new player sees: friendly farmland on a clear late morning, calm and inviting.",
+        road = "packed brown earth with two faint cart ruts",
+        plot = "short, even meadow grass in fresh light green",
+        scenery = "leafy hedgerows, round oak trees, patches of wildflowers, low dry-stone field walls and one small still pond; wilder and more overgrown where the road enters, neat farmland toward its end" },
     crystal_spires = {
-        ground = "a high plateau of short pale green grass with small clusters of blue crystal shards",
+        place = "Crystal Spires: a windswept highland plateau where pale crystals grow out of the rock.",
         road = "warm tan packed earth",
-        rock = "tall jagged outcrops of pale blue crystal" },
+        plot = "short pale-green upland grass",
+        scenery = "grey granite outcrops with clusters of tall pale-blue crystal spires, heather, scree and a few hardy pines; the crystals are dark and cracked where the two roads enter on the left and clear and bright toward the right, where the road leaves" },
     celestial_citadel = {
-        ground = "the trimmed green lawn of a white stone citadel garden, with small white flowers",
-        road = "warm honey-colored sandstone flagstones" },
+        place = "Celestial Citadel: the inner courts of a white and gold holy fortress, the Radiant Order's last stand, grand and solemn.",
+        road = "warm grey-brown sandstone flagstones",
+        plot = "trimmed lawns of bright green grass",
+        scenery = "white stone walls with gold trim, gold-tiled rooftops seen from above, marble terraces, tall cypress trees and formal flowerbeds" },
     haunted_forest = {
-        ground = "a dark mossy forest floor in deep green and grey-green, scattered with dead twigs and small grey stones",
-        road = "a muddy brown dirt trail" },
+        place = "Haunted Forest: a cold, dead wood at dusk, the first level of the Shadow Covenant, eerie but quiet.",
+        road = "a dark brown dirt trail packed hard",
+        plot = "clearings of soft green moss over level ground",
+        scenery = "a dense dead forest seen from above: grey twisted trees with bare branches, tangled roots, ferns, fallen logs, mossy boulders and pale mushrooms" },
     obsidian_caves = {
-        ground = "a cave floor of dark grey ash and gravel with small glints of black obsidian",
-        road = "rust-brown packed earth worn smooth",
-        rock = "solid black obsidian rock with sharp glassy edges" },
+        place = "Obsidian Caves: a great cavern of black volcanic glass, lit through openings far above.",
+        road = "grey-brown packed gravel",
+        plot = "level ledges of pale sand with patches of dull green lichen",
+        scenery = "walls and heaps of black obsidian rock with sharp glassy edges, faint amber glints deep in the cracks, and dark chasms" },
     necropolis = {
-        ground = "grey-violet cobblestones between low grave slabs set flat into the ground",
-        road = "worn rust-brown paving stones",
-        rock = "the walls and roofs of a stone crypt seen from above, in dark slate" },
+        place = "Necropolis: a vast walled city of the dead under a grey sky, the Shadow Covenant's last stand, grim and dramatic.",
+        road = "worn grey-brown paving stones",
+        plot = "overgrown cemetery lawns of dark sage-green grass with a few flat stones set level in it",
+        scenery = "crypts and mausoleum roofs seen from above, rows of headstones behind low iron railings, bare black trees and cracked stone walls" },
     misty_borderlands = {
-        ground = "a misty marsh border of blue-green grass with a few small shallow pools",
-        road = "a raised brown dirt causeway" },
+        place = "Misty Borderlands: a quiet fen on the border between day and night, the first level of the Twilight Balance, soft and still.",
+        road = "a raised causeway of packed brown earth",
+        plot = "firm islands of blue-green grass",
+        scenery = "still marsh water in shades of slate blue, reed beds, mossy hummocks, a few bare silver trees and old weathered border stones" },
     ethereal_ruins = {
-        ground = "green grass scattered with small pale grey ruin stones",
+        place = "Ethereal Ruins: the overgrown remains of an ancient city, quiet and sunlit.",
         road = "warm cracked sandstone paving",
-        rock = "a collapsed wall of large pale grey stone blocks and rubble" },
+        plot = "level courtyards of short green grass",
+        scenery = "collapsed walls, broken columns and toppled carved blocks of grey stone darkened by moss, half buried in grass, roots and ivy" },
     nexus_of_balance = {
-        ground = "a twilight plain of blue-violet grass, slightly lighter toward the center",
-        road = "warm amber packed earth",
-        rock = "a ring of tall dark standing stones" },
+        place = "Nexus of Balance: where night and day meet, the Twilight Balance's last stand, strange and dramatic.",
+        road = "pale grey-brown stone paving, the same on both sides",
+        plot = "level grass, lavender-grey on the left half of the map and pale gold on the right half",
+        scenery = "on the left, a violet night land with dark standing stones and still pools; on the right, a golden day land with dry grass and sun-bleached rocks; the two blend through a grey band in the middle of the map, where the roads meet" },
 }
 
 ------------------------------------------------------------------------
@@ -329,8 +361,8 @@ A.sfx = {
 -- Faction Model C (data/factions.lua). Towers attach the approved
 -- tower_archer final as image 1 (same plinth, scale, light); hero sheets
 -- attach the approved enemy_zombie sheet as image 1 (same grid, poses,
--- size). When a file is cut in, point that tower's `sprite` in
--- data/factions.lua at sprites/towers/<id>.png.
+-- size). Cut files go to sprites/towers/<id>.png and
+-- sprites/heroes/<id>.png (+ .lua); the game picks them up by name.
 ------------------------------------------------------------------------
 A.cTowers = {
     { id = "tower_holy_bastion", file = "sprites/towers/holy_bastion.png", name = "healing shrine tower",
@@ -369,7 +401,7 @@ A.cHeroes = {
     { id = "hero_archangel_michael", file = "sprites/heroes/archangel_michael.png", name = "archangel",
       character = "A tall man with long dark brown hair and very large white feathered wings folded behind him. One dominant color: gold.",
       gear = "Gleaming gold plate armor over a white tunic, a gold longbow in his left hand and a quiver on his back between the wings.",
-      notCarried = "No hood, no green skin, no torn clothing." },
+      notCarried = "No hood, no helmet, no green skin, no torn clothing. His hair is dark brown, never blond or golden." },
     { id = "hero_malachi", file = "sprites/heroes/malachi.png", name = "necromancer lord",
       character = "A pale gaunt man with straight shoulder-length white hair. One dominant color: dark blue with blood red accents.",
       gear = "A long dark blue robe with a few thin red lines, black spiked shoulder armor set with red gems, a skull clasp on the chest, a black cape, and a staff topped with a skull holding a red crystal in his right hand.",

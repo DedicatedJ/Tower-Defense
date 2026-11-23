@@ -16,8 +16,8 @@ local LoadGameState = require 'states.load_game'
 
 -- Load systems
 local Save = require 'systems.save'
-local UI = require 'systems.ui'
 local Error = require 'utils.error'
+local Screen = require 'utils.screen'
 
 -- Global game state
 gameState = {
@@ -70,6 +70,9 @@ function love.load()
     -- Initialize random seed
     love.math.setRandomSeed(os.time())
     
+    -- Every screen is laid out for 1280 x 720; scale that to the window
+    Screen.install()
+
     -- Settings first, so sounds start at the saved volumes
     Save.loadSettings(gameState.settings)
     if gameState.settings.fullscreen then love.window.setFullscreen(true) end
@@ -80,15 +83,16 @@ function love.load()
     -- Check for save directory
     love.filesystem.createDirectory("save")
     
-    -- Check for last played game
-    local lastProfile = Save.getCurrentProfile()
+    -- Back to the profile used last time (Continue picks it up)
+    Save.restoreLastSlot()
+    local lastProfile = Save.slotUsed(Save.currentSlotNumber()) and Save.getCurrentProfile()
     
     -- Determine which state to show initially
     local initialState
     
     if lastProfile then
         -- Last profile found, go straight to menu to allow loading
-        print("Found last played profile: " .. lastProfile.playerName)
+        print("Found last played profile: " .. tostring(lastProfile.playerName or ("slot " .. Save.currentSlotNumber())))
         initialState = require('states.menu').new()
     else
         -- No profile found, show load game screen to create a new one
@@ -118,13 +122,15 @@ function love.update(dt)
 end
 
 function love.draw()
+    Screen.begin()
     -- Draw current state
     if Gamestate.current() then
         Gamestate.current():draw()
     end
-    
+
     -- Draw error notifications
     Error.draw()
+    Screen.finish()
 end
 
 function love.keypressed(key)
@@ -146,19 +152,24 @@ function love.keyreleased(key)
     end
 end
 
+-- Mouse events arrive in window pixels; screens work in 1280 x 720
 function love.mousepressed(x, y, button)
+    x, y = Screen.toVirtual(x, y)
     if Gamestate.current() and Gamestate.current().mousepressed then
         Gamestate.current():mousepressed(x, y, button)
     end
 end
 
 function love.mousereleased(x, y, button)
+    x, y = Screen.toVirtual(x, y)
     if Gamestate.current() and Gamestate.current().mousereleased then
         Gamestate.current():mousereleased(x, y, button)
     end
 end
 
 function love.mousemoved(x, y, dx, dy)
+    x, y = Screen.toVirtual(x, y)
+    dx, dy = dx / Screen.scale, dy / Screen.scale
     if Gamestate.current() and Gamestate.current().mousemoved then
         Gamestate.current():mousemoved(x, y, dx, dy)
     end

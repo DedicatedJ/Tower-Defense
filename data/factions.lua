@@ -4,9 +4,12 @@
 -- the unused systems/faction.lua); notes mark where an effect had to be
 -- reinterpreted to do something in this game.
 --
--- Units of measure: range/radius in pixels (map tiles are 32 px),
+-- Units of measure: range/radius in pixels (the map is 1280 x 720; roads are 80 wide),
 -- fireRate and attackRate in attacks per second, durations in seconds,
 -- dps in damage per second, armor as the fraction of damage blocked.
+-- blockCount: how many ground enemies the hero holds in place at once.
+-- Only tanks block (0 for everyone else): other heroes fight enemies as
+-- they pass and leave the holding to the tank, minions and towers.
 --
 -- Effect types are documented in systems/effects.lua. Ability targets:
 --   enemies  enemies within radius of the hero
@@ -35,7 +38,7 @@ Factions.radiant = {
             id = "holy_bastion",
             name = "Holy Bastion",
             description = "Heals your units in range and strikes nearby enemies.",
-            cost = 100, damage = 20, fireRate = 1.0, range = 150,
+            cost = 100, damage = 20, fireRate = 1.0, range = 110,
             projectileType = "holy",
             sprite = "sprites/towers/archer.png",
             heal = { amount = 5, interval = 1 },
@@ -50,7 +53,7 @@ Factions.radiant = {
             id = "seraphim_altar",
             name = "Seraphim Altar",
             description = "Holy fire that keeps burning after the hit.",
-            cost = 200, damage = 45, fireRate = 0.8, range = 180,
+            cost = 200, damage = 45, fireRate = 0.8, range = 130,
             projectileType = "fire",
             sprite = "sprites/towers/cannon.png",
             onHit = { { type = "burn", dps = 10, duration = 3 } },
@@ -65,7 +68,7 @@ Factions.radiant = {
             id = "seraphs_watch",
             name = "Seraph's Watch",
             description = "Long-range sniper with a chance to crit for double damage.",
-            cost = 300, damage = 80, fireRate = 0.5, range = 300,
+            cost = 300, damage = 80, fireRate = 0.5, range = 220,
             projectileType = "bolt",
             sprite = "sprites/towers/crossbow.png",
             critChance = 0.2, critMult = 2,
@@ -107,7 +110,7 @@ Factions.radiant = {
             role = "healer",
             description = "Healer who burns enemies while restoring allies.",
             portrait = "assets/hero images/radiant order/Celestia/Lady Celestia.jpg",
-            stats = { health = 350, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 350, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Purifying Conflagration", description = "Burns enemies nearby (30/s for 5 s) and heals allies by 100",
                   cooldown = 20, target = "area", radius = 140,
@@ -129,7 +132,9 @@ Factions.radiant = {
             name = "Archangel Michael",
             role = "dps",
             description = "Ranged damage dealer with a devastating single-target strike.",
-            stats = { health = 380, damage = 30, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 1 },
+            -- Art batch 2; until the file exists the game shows a lettered token
+            portrait = "assets/hero images/radiant order/Michael/Archangel Michael.jpg",
+            stats = { health = 380, damage = 30, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Divine Judgment", description = "200 damage to the strongest enemy in range",
                   cooldown = 25, target = "enemy",
@@ -165,7 +170,7 @@ Factions.shadow = {
             id = "cursed_spire",
             name = "Cursed Spire",
             description = "Poisons what it hits.",
-            cost = 100, damage = 18, fireRate = 1.0, range = 160,
+            cost = 100, damage = 18, fireRate = 1.0, range = 120,
             projectileType = "poison",
             sprite = "sprites/towers/cursed_spire.png",
             onHit = { { type = "poison", dps = 3, duration = 3 } },
@@ -180,7 +185,7 @@ Factions.shadow = {
             id = "oblivion_engine",
             name = "Oblivion Engine",
             description = "Raises a skeleton minion on the road every 20 s.",
-            cost = 200, damage = 50, fireRate = 0.7, range = 200,
+            cost = 200, damage = 50, fireRate = 0.7, range = 150,
             projectileType = "void",
             sprite = "sprites/towers/magic.png",
             summon = { interval = 20, max = 1,
@@ -197,7 +202,7 @@ Factions.shadow = {
             id = "soul_forge",
             name = "Soul Forge",
             description = "Enemies that die in range may rise as your minions for 20 s.",
-            cost = 300, damage = 60, fireRate = 0.8, range = 140,
+            cost = 300, damage = 60, fireRate = 0.8, range = 110,
             projectileType = "soul",
             sprite = "sprites/towers/bombard.png",
             convert = { chance = 0.2,
@@ -218,7 +223,7 @@ Factions.shadow = {
             role = "summoner",
             description = "Summoner who drains enemies and raises skeletons.",
             portrait = "assets/hero images/shadow covenant/Malachi/Malachi.jpg",
-            stats = { health = 320, damage = 16, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 320, damage = 16, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Soul Harvest", description = "Drains up to 5 enemies (5/s for 8 s) and heals allies by 40",
                   cooldown = 12, target = "area", radius = 150, maxTargets = 5,
@@ -245,7 +250,7 @@ Factions.shadow = {
             role = "cc",
             description = "Controls the battlefield with slows, roots and chains.",
             portrait = "assets/hero images/shadow covenant/Morgana/Morgana.jpg",
-            stats = { health = 360, damage = 20, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 360, damage = 20, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Veil of Despair", description = "Slows enemies nearby by 40% and strips 30% armor for 6 s",
                   cooldown = 25, target = "enemies", radius = 150,
@@ -264,8 +269,9 @@ Factions.shadow = {
             id = "dark_lord_malak",
             name = "Dark Lord Malak",
             role = "dps",
-            description = "Melee brawler who steals life and steps through shadows.",
-            stats = { health = 450, damage = 35, attackRate = 1.2, range = 40, speed = 65, armor = 0.2, blockCount = 2 },
+            description = "Melee brawler who steals life and steps through shadows. Hits enemies as they pass; does not hold them.",
+            portrait = "assets/hero images/shadow covenant/Malak/Dark Lord Malak.jpg",
+            stats = { health = 450, damage = 35, attackRate = 1.2, range = 40, speed = 65, armor = 0.2, blockCount = 0 },
             abilities = {
                 { name = "Soul Drain", description = "30 damage to enemies nearby, heals for half the damage dealt",
                   cooldown = 20, target = "enemies", radius = 130,
@@ -301,7 +307,7 @@ Factions.twilight = {
             -- Light hurts undead 25% more, dark hurts the living 25% more
             -- (see the `nature` of each enemy in systems/enemy.lua).
             description = "Hybrid tower: half light, half dark damage.",
-            cost = 100, damage = 25, fireRate = 1.0, range = 170,
+            cost = 100, damage = 25, fireRate = 1.0, range = 130,
             projectileType = "hybrid",
             sprite = "sprites/towers/dawn_dusk_nexus.png",
             hybrid = { light = 15, dark = 10 },
@@ -318,7 +324,7 @@ Factions.twilight = {
             id = "eclipse_monolith",
             name = "Eclipse Monolith",
             description = "Drains 2% of its target's max health every second on top of its shots.",
-            cost = 200, damage = 40, fireRate = 0.6, range = 190,
+            cost = 200, damage = 40, fireRate = 0.6, range = 140,
             projectileType = "void",
             sprite = "sprites/towers/eclipse_monolith.png",
             drain = { percent = 0.02 },
@@ -333,7 +339,7 @@ Factions.twilight = {
             id = "elemental_nexus",
             name = "Elemental Nexus",
             description = "Hybrid tower that alternates fire (burn) and ice (freeze) shots.",
-            cost = 300, damage = 45, fireRate = 1.0, range = 160,
+            cost = 300, damage = 45, fireRate = 1.0, range = 120,
             projectileType = "frost",
             sprite = "sprites/towers/frost.png",
             hybrid = { light = 25, dark = 20 },
@@ -353,7 +359,7 @@ Factions.twilight = {
             role = "dps",
             description = "Hybrid duelist who switches between damage and life steal.",
             portrait = "assets/hero images/twilight balance/Zephyr/Zephyr.jpg",
-            stats = { health = 380, damage = 28, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 1 },
+            stats = { health = 380, damage = 28, attackRate = 1.2, range = 150, speed = 70, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Dusk Shift", description = "Switch between +30% damage and 30% life steal",
                   cooldown = 1, target = "self", auto = false,
@@ -376,7 +382,7 @@ Factions.twilight = {
             role = "support",
             description = "Support who strengthens allies and towers and weakens enemies.",
             portrait = "assets/hero images/twilight balance/Lyra/Lyra.jpg",
-            stats = { health = 360, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 1 },
+            stats = { health = 360, damage = 18, attackRate = 1.0, range = 140, speed = 60, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Equilibrium Wave", description = "Allies and towers nearby deal 15% more damage; enemies lose 20% armor (6 s)",
                   cooldown = 18, target = "area", radius = 180, includeTowers = true,
@@ -398,7 +404,8 @@ Factions.twilight = {
             name = "Elemental Sage",
             role = "dps",
             description = "Elemental caster whose burns hit harder.",
-            stats = { health = 360, damage = 26, attackRate = 1.1, range = 150, speed = 65, armor = 0.1, blockCount = 1 },
+            portrait = "assets/hero images/twilight balance/Sage/Elemental Sage.jpg",
+            stats = { health = 360, damage = 26, attackRate = 1.1, range = 150, speed = 65, armor = 0.1, blockCount = 0 },
             abilities = {
                 { name = "Elemental Burst", description = "Enemies nearby burn (25/s for 3 s) or freeze (2 s), alternating each cast",
                   cooldown = 15, target = "enemies", radius = 140,

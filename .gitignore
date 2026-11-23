@@ -20,9 +20,13 @@ Thumbs.db
 
 # Game specific
 saves/
+save/
 *.log
 
 # Original art downloads: kept locally, not in git. The Higgsfield share
 # link for each one is recorded in art/manifest.md.
 art/incoming/*
 !art/incoming/.gitkeep
+
+# Release builds (tools/build/build.py)
+dist/

@@ -4,7 +4,6 @@ PauseState.__index = PauseState
 local Gamestate = require 'libs.hump.gamestate'
 local Timer = require 'libs.hump.timer'
 local Error = require 'utils.error'
-local Save = require 'systems.save'
 
 function PauseState.new(previousState)
     local self = setmetatable({}, PauseState)
@@ -45,17 +44,19 @@ function PauseState:init()
 end
 
 function PauseState:createButtons()
-    local buttonWidth = 200
-    local buttonHeight = 50
-    local spacing = 20
-    local startY = love.graphics.getHeight() / 2 - 75
-    
-    -- Menu options
+    local buttonWidth = 220
+    local buttonHeight = 44
+    local spacing = 12
+    local startY = love.graphics.getHeight() / 2 - 120
+
+    -- Menu options. Progress saves per level (stars, hero level, gold), so
+    -- there is no mid-level save here.
     local options = {
         {text = "Resume", action = function() self:resumeGame() end},
-        {text = "Save Game", action = function() self:saveGame() end},
+        {text = "Restart Level", action = function() self:restartLevel() end},
         {text = "Settings", action = function() self:openSettings() end},
-        {text = "Return to Menu", action = function() self:returnToMenu() end}
+        {text = "Level Select", action = function() self:toLevelSelect() end},
+        {text = "Main Menu", action = function() self:returnToMenu() end}
     }
     
     for i, option in ipairs(options) do
@@ -88,10 +89,7 @@ function PauseState:update(dt)
     -- Update error notifications
     Error.update(dt)
     
-    -- Still update the game slightly in background (animations, etc.)
-    if self.previousState and self.previousState.update then
-        self.previousState:update(dt * 0.1) -- Slow down updates
-    end
+    -- The game below does not update: paused means paused
 end
 
 function PauseState:draw()
@@ -109,28 +107,13 @@ function PauseState:draw()
     if self.background then
         love.graphics.setColor(1, 1, 1, 0.8)
         
-        -- Calculate dimensions to center the image
-        local screenWidth = love.graphics.getWidth()
-        local screenHeight = love.graphics.getHeight()
-        local imgWidth = self.background:getWidth()
-        local imgHeight = self.background:getHeight()
-        
-        -- Scale to fit the screen while maintaining aspect ratio
-        local scale = math.min(screenWidth / imgWidth, screenHeight / imgHeight)
-        local scaledWidth = imgWidth * scale
-        local scaledHeight = imgHeight * scale
-        
-        -- Center the image
-        local x = (screenWidth - scaledWidth) / 2
-        local y = (screenHeight - scaledHeight) / 2
-        
-        love.graphics.draw(self.background, x, y, 0, scale, scale)
+        require('utils.image').drawCover(self.background)
     end
     
     -- Draw pause menu container
     love.graphics.setColor(0.1, 0.1, 0.2, 0.85)
     local menuWidth = 300
-    local menuHeight = 400
+    local menuHeight = 440
     love.graphics.rectangle(
         "fill", 
         love.graphics.getWidth() / 2 - menuWidth / 2, 
@@ -157,7 +140,7 @@ function PauseState:draw()
     love.graphics.print(
         self.title, 
         love.graphics.getWidth() / 2 - titleWidth / 2, 
-        love.graphics.getHeight() / 2 - menuHeight / 2 + 30
+        love.graphics.getHeight() / 2 - menuHeight / 2 + 20
     )
     
     -- Draw buttons
@@ -189,7 +172,7 @@ function PauseState:draw()
     
     -- Draw pause instructions
     love.graphics.setColor(1, 1, 1, 0.8)
-    local instructions = "Press ESC to resume"
+    local instructions = "Esc or P to resume"
     local instrWidth = fonts.main:getWidth(instructions)
     love.graphics.print(
         instructions, 
@@ -232,25 +215,25 @@ function PauseState:resumeGame()
     Gamestate.pop()
 end
 
-function PauseState:saveGame()
-    -- Attempt to save the game
-    local success, result = Error.pcall(function()
-        if Save.saveGame then
-            -- Save to current slot or prompt for slot selection
-            local currentSlot = Save:getCurrentSlot() or 1
-            Save:saveGame(currentSlot)
-            
-            -- Display success message
-            Error.handle(Error.TYPES.SUCCESS, "GAME_SAVED", "Game saved successfully")
-        else
-            -- Mock saving for testing
-            Error.handle(Error.TYPES.SYSTEM, "SYSTEM_INCOMPLETE", "Save system not fully implemented")
-        end
-    end)
-    
-    if not success then
-        Error.handle(Error.TYPES.SYSTEM, "SAVE_ERROR", "Failed to save game: " .. tostring(result))
-    end
+-- Leave the paused game for another screen. The game sits under this
+-- one on the state stack, so pop back to it first, then switch away.
+function PauseState:leaveTo(state)
+    Gamestate.pop()
+    Gamestate.switch(state)
+end
+
+function PauseState:restartLevel()
+    local g = self.previousState
+    local fresh = require('states.game').new()
+    fresh:setup(g.factionData, g.heroData, g.levelId)
+    self:leaveTo(fresh)
+end
+
+function PauseState:toLevelSelect()
+    local g = self.previousState
+    local ls = require('states.level_select').new()
+    ls:setup(g.factionData, g.heroData)
+    self:leaveTo(ls)
 end
 
 function PauseState:openSettings()
@@ -260,16 +243,11 @@ function PauseState:openSettings()
 end
 
 function PauseState:returnToMenu()
-    -- Ask for confirmation
-    if true then -- TODO: Add confirmation dialog
-        -- Switch to menu state
-        local menuState = require('states.menu').new()
-        Gamestate.switch(menuState)
-    end
+    self:leaveTo(require('states.menu').new())
 end
 
 function PauseState:keypressed(key)
-    if key == "escape" then
+    if key == "escape" or key == "p" then
         self:resumeGame()
     end
 end

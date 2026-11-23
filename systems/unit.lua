@@ -1,5 +1,8 @@
--- Allied units: heroes and minions. Units stand on the road, block ground
--- enemies (an enemy held by a unit stops and fights it) and fight back.
+-- Allied units: heroes and minions. Units stand on the road and fight.
+-- Blockers (tank heroes and minions, blockCount > 0) hold ground enemies:
+-- an enemy held by a unit stops and fights it. Other heroes do not hold
+-- anything: ranged ones shoot what is in range, melee ones chase enemies
+-- near their spot and hit them as they walk on (and get hit back).
 -- Heroes level up, cast abilities and respawn; minions expire or die.
 --
 -- The game state passed to update() must provide:
@@ -7,19 +10,20 @@
 --   effects                                    list of visual effects
 --   mods                                       multipliers (see states/game.lua)
 --   spawnMinion(def, x, y, count)              add minions
---   nearestRoadCell(x, y) -> gx, gy            road cell closest to a point
---   cellCenter(gx, gy) -> x, y
---   isRoad(gx, gy) -> bool
+--   nearestRoadPoint(x, y) -> x, y             road center point closest to a point
+--   onRoad(x, y) -> bool                       whether a point is on the road
+--   route(x1, y1, x2, y2) -> {{x, y}, ...}     a way along the road, or nil
 
 local Effects = require("systems.effects")
 local Audio = require("systems.audio")
+local Fx = require("systems.fx")
 local Enemy = require("systems.enemy")
 
 local Unit = {}
 Unit.__index = Unit
 
-Unit.MELEE_ENGAGE = 70     -- melee units step out this far from their spot to block
-Unit.RANGED_BLOCK = 26     -- ranged units block only enemies that walk into them
+Unit.MELEE_ENGAGE = 70     -- melee units step out this far from their spot to fight
+Unit.RANGED_BLOCK = 26     -- ranged blockers hold only enemies that walk into them
 Unit.MELEE_REACH = 20      -- melee attack reach
 Unit.RESPAWN_TIME = 10
 Unit.XP_PER_LEVEL = 200
@@ -27,6 +31,7 @@ Unit.MAX_LEVEL = 10
 Unit.LEVEL_BONUS = 0.10    -- +10% health and damage per level
 Unit.XP_RADIUS = 300
 Unit.FOOT_OFFSET = 10      -- same ground line as enemies
+Unit.HERO_HEIGHT = 66      -- drawn height of a hero walk sheet figure (a zombie's height)
 
 Unit.ROLE_COLORS = {
     tank = { 0.95, 0.8, 0.3 }, healer = { 1, 1, 0.6 }, dps = { 1, 0.45, 0.3 },
@@ -43,7 +48,7 @@ end
 ------------------------------------------------------------------------
 local portraitCache = {}
 function Unit.portrait(path)
-    if not path then return nil end
+    if not path or not love.filesystem.getInfo(path) then return nil end
     if portraitCache[path] ~= nil then return portraitCache[path] or nil end
     local ok, img = pcall(function()
         local src = love.image.newImageData(path)
@@ -58,10 +63,7 @@ function Unit.portrait(path)
             local d = math.sqrt((x + 0.5 - r) ^ 2 + (y + 0.5 - r) ^ 2)
             return cr, cg, cb, math.max(0, math.min(1, r - d))
         end)
-        local image = love.graphics.newImage(face, { mipmaps = true })
-        image:setFilter("linear", "linear")
-        image:setMipmapFilter("linear")
-        return image
+        return require('utils.image').smooth(face)
     end)
     portraitCache[path] = ok and img or false
     if not ok then print("WARNING: could not load portrait " .. path) end
@@ -97,6 +99,10 @@ function Unit.newHero(heroData, factionData, x, y, opts)
     u.xp = opts.xp or 0
     u.passive = heroData.passive
     u.portraitImage = Unit.portrait(heroData.portrait)
+    -- Walk sheet (art batch 2): sprites/heroes/<id>.png plus its .lua
+    if Enemy.loadSheet("hero_" .. heroData.id, "sprites/heroes/" .. heroData.id .. ".png") then
+        u.sheetKey = "hero_" .. heroData.id
+    end
     u.abilities = {}
     for i, ab in ipairs(heroData.abilities) do
         u.abilities[i] = { data = ab, cooldown = 0, flash = 0, altIndex = 0 }
@@ -125,7 +131,7 @@ function Unit.newMinion(def, x, y, opts)
     u.blockCount = 1
     u.melee = true
     u.remaining = def.duration and def.duration * (opts.durationMult or 1) or nil
-    u.drawHeight = 34
+    u.drawHeight = 50
     return u
 end
 
@@ -139,7 +145,7 @@ function Unit:recomputeStats()
     self.range = self.base.range
     self.speed = self.base.speed * (self.statMods.speed or 1)
     self.armor = self.base.armor
-    self.blockCount = self.base.blockCount or 1
+    self.blockCount = self.base.blockCount or 0
     self.melee = self.base.range <= 60
 end
 
@@ -210,22 +216,17 @@ end
 ------------------------------------------------------------------------
 -- Movement along the road
 ------------------------------------------------------------------------
--- Walk along road cells to (gx, gy) and hold there. Returns false if the
--- target is not a road cell or cannot be reached.
-function Unit:commandMove(gx, gy, game)
-    if self.dead or not game:isRoad(gx, gy) then return false end
-    local sx, sy = game:nearestRoadCell(self.x, self.y)
-    if not sx then return false end
-    local cells = Enemy.findPath(sx, sy, gx, gy)
-    if not cells or #cells == 0 then return false end
+-- Walk along the road to (x, y) and hold there. Returns false if the
+-- target is not on the road or cannot be reached.
+function Unit:commandMove(x, y, game)
+    if self.dead or not game:onRoad(x, y) then return false end
+    local pts = game:route(self.x, self.y, x, y)
+    if not pts or #pts == 0 then return false end
     self.path = {}
-    for _, c in ipairs(cells) do
-        local px, py = game:cellCenter(c.x, c.y)
-        self.path[#self.path + 1] = { x = px, y = py }
-    end
+    for _, p in ipairs(pts) do self.path[#self.path + 1] = { x = p[1], y = p[2] } end
     self.pathIndex = 1
     self:release()
-    self.holdX, self.holdY = game:cellCenter(gx, gy)
+    self.holdX, self.holdY = x, y
     return true
 end
 
@@ -275,12 +276,15 @@ end
 function Unit:attack(target, game)
     local dmg = self.damage * Effects.damageDealtMult(self) * (1 + (self.modeDamageBoost or 0)) * self:critMult()
     local dealt = target:takeDamage(dmg, self) or 0
+    -- Hit in melee by someone not holding it: it swings back as it walks
+    if self.melee and target.blocker ~= self then target.foe = self end
+    Fx.damage(target, dealt)
     local ls = self:lifestealFraction()
     if ls > 0 and dealt > 0 then self:heal(dealt * ls) end
     self.lunge = 1
     if not self.melee and game.effects then
         -- Ranged attack: a brief tracer from the unit to the target
-        local sx, sy, tx, ty = self.x, self.y - 14, target.x, target.y - 6
+        local sx, sy, tx, ty = self.x, self.y - 26, target.x, target.y - 14
         local color = (self.kind == "hero" and Unit.ROLE_COLORS[self.role]) or { 1, 1, 1 }
         table.insert(game.effects, {
             t = 0, done = false,
@@ -322,7 +326,8 @@ function Unit:engage(game)
         end
     end
 
-    -- Target: an enemy we hold first; ranged units also shoot anything in range
+    -- Target: an enemy we hold first; ranged units also shoot anything in
+    -- range; melee units that do not block chase ground enemies near their spot
     local target = self.blocking[1]
     if not target and not self.melee then
         local bestD
@@ -330,6 +335,14 @@ function Unit:engage(game)
             if enemyAlive(e) then
                 local d = dist(self.x, self.y, e.x, e.y)
                 if d <= self.range and (not bestD or d < bestD) then target, bestD = e, d end
+            end
+        end
+    elseif not target and self.blockCount <= 0 then
+        local bestD
+        for _, e in ipairs(game.enemies) do
+            if enemyAlive(e) and not e.flying and dist(self.holdX, self.holdY, e.x, e.y) <= Unit.MELEE_ENGAGE then
+                local d = dist(self.x, self.y, e.x, e.y)
+                if not bestD or d < bestD then target, bestD = e, d end
             end
         end
     end
@@ -503,10 +516,8 @@ local BOOST_TYPES = { damageBoost = true, haste = true }
 function Unit:applyEffect(e, set, ab, ctx, game)
     local t = e.type
     if t == "summon" then
-        local gx, gy = game:nearestRoadCell(self.x, self.y)
-        local x, y = self.x, self.y
-        if gx then x, y = game:cellCenter(gx, gy) end
-        game:spawnMinion(e.minion, x, y, e.count or 1)
+        local x, y = game:nearestRoadPoint(self.x, self.y)
+        game:spawnMinion(e.minion, x or self.x, y or self.y, e.count or 1)
     elseif t == "teleport" then
         local best
         for _, en in ipairs(set.enemies) do
@@ -516,8 +527,8 @@ function Unit:applyEffect(e, set, ab, ctx, game)
             self:release()
             self.path = nil
             self.x, self.y = best.x, best.y
-            local gx, gy = game:nearestRoadCell(best.x, best.y)
-            if gx then self.holdX, self.holdY = game:cellCenter(gx, gy) end
+            local hx, hy = game:nearestRoadPoint(best.x, best.y)
+            if hx then self.holdX, self.holdY = hx, hy end
         end
     elseif t == "toggle" then
         local modes = e.modes
@@ -601,7 +612,7 @@ end
 -- Drawing
 ------------------------------------------------------------------------
 function Unit:isUnder(px, py)
-    return not self.dead and dist(px, py, self.x, self.y - 10) <= 18
+    return not self.dead and dist(px, py, self.x, self.y - 16) <= 26
 end
 
 function Unit:drawBar(x, y, w, frac, color)
@@ -638,19 +649,55 @@ function Unit:draw()
         return
     end
 
-    -- Hero: a portrait token standing on the road
     local c = Unit.ROLE_COLORS[self.role] or { 1, 1, 1 }
     local alpha = self.dead and 0.35 or 1
+
+    -- Hero with a walk sheet: the figure, a role-colored ring at its feet
+    if self.sheetKey then
+        if self.selected then
+            love.graphics.setColor(1, 0.9, 0.3, 0.9)
+            love.graphics.setLineWidth(2)
+            love.graphics.ellipse("line", x, groundY, 22, 8)
+        end
+        love.graphics.setColor(c[1], c[2], c[3], 0.8 * alpha)
+        love.graphics.setLineWidth(self.hitFlash and self.hitFlash > 0 and 3 or 1.5)
+        love.graphics.ellipse("line", x, groundY, 17, 6)
+        love.graphics.setLineWidth(1)
+        local tint = (self.hitFlash and self.hitFlash > 0) and { 1, 0.6, 0.6 } or nil
+        local top = Enemy.drawFigure(self.sheetKey, x, groundY, self.direction, self.animTime, self.moving,
+            tint, alpha, Unit.HERO_HEIGHT) or (groundY - Unit.HERO_HEIGHT)
+        if self.dead then
+            love.graphics.setColor(1, 1, 1, 0.9)
+            local txt = tostring(math.ceil(self.respawnTimer or 0))
+            love.graphics.print(txt, x - love.graphics.getFont():getWidth(txt) / 2, top - 14)
+            love.graphics.setColor(1, 1, 1, 1)
+            return
+        end
+        self:drawBar(x - 14, top - 8, 28, self.health / self.maxHealth, { 0.3, 0.95, 0.4 })
+        love.graphics.setColor(0.1, 0.1, 0.15, 0.9)
+        love.graphics.circle("fill", x + 17, top - 5, 6)
+        love.graphics.setColor(1, 0.85, 0.3, 1)
+        local lv = tostring(self.level)
+        love.graphics.print(lv, x + 17 - love.graphics.getFont():getWidth(lv) / 2, top - 12)
+        if self.levelFlash and self.levelFlash > 0 then
+            love.graphics.setColor(1, 0.9, 0.3, self.levelFlash / 1.5)
+            love.graphics.circle("line", x, groundY - Unit.HERO_HEIGHT / 2, 18 + (1.5 - self.levelFlash) * 10)
+        end
+        love.graphics.setColor(1, 1, 1, 1)
+        return
+    end
+
+    -- Hero without a sheet: a portrait token standing on the road
     love.graphics.setColor(0, 0, 0, 0.3 * alpha)
-    love.graphics.ellipse("fill", x + 2, groundY, 12, 4)
+    love.graphics.ellipse("fill", x + 2, groundY, 18, 6)
     if self.selected then
         love.graphics.setColor(1, 0.9, 0.3, 0.9)
         love.graphics.setLineWidth(2)
-        love.graphics.ellipse("line", x, groundY, 16, 6)
+        love.graphics.ellipse("line", x, groundY, 24, 9)
         love.graphics.setLineWidth(1)
     end
-    local cy = groundY - 16
-    local r = 13
+    local cy = groundY - 24
+    local r = 20
     love.graphics.setColor(0.08, 0.08, 0.1, alpha)
     love.graphics.circle("fill", x, cy, r + 2)
     if self.portraitImage then

@@ -59,13 +59,32 @@ local function simulate(seconds, stopWhen)
     return false, seconds
 end
 
-local function offY() return require('states.game').MAP_OFFSET_Y end
-local function cellScreen(gx, gy) return (gx - 0.5) * 32, (gy - 0.5) * 32 + offY() end
+-- A point on road ri (default 1), frac of the way along it (screen pixels;
+-- the map fills the screen)
+local function roadPoint(g, frac, ri)
+    local r = g.roads[ri or 1]
+    local x, y = r:pointAt(r:length() * frac)
+    return x, y
+end
+
+-- The free build spot nearest to (x, y), searched on a 10 px grid
+local function spotNear(g, x, y)
+    local best, bd
+    for dx = -300, 300, 10 do
+        for dy = -300, 300, 10 do
+            if g:canPlaceTower(x + dx, y + dy) then
+                local d = dx * dx + dy * dy
+                if not bd or d < bd then best, bd = { x + dx, y + dy }, d end
+            end
+        end
+    end
+    if best then return best[1], best[2] end
+end
 
 local Factions = require('data.factions')
 local FACTION_IDS = { "radiant", "shadow", "twilight" }
 
--- Gameplay checks use the level 1 map (cell coordinates below are on it)
+-- Gameplay checks use the level 1 map (pixel spots below are on it)
 local function newGame(factionId, heroId, levelId)
     love.math.setRandomSeed(1)
     local GameState = require('states.game')
@@ -76,17 +95,23 @@ local function newGame(factionId, heroId, levelId)
     return g
 end
 
-local function placeTower(g, id, gx, gy)
+local function placeTower(g, id, x, y)
+    if not x then return false end
     for _, b in ipairs(g:getTowerButtons()) do
         if b.id == id then
             if g.selectedTower ~= id then click(b.x + 5, b.y + 5) end
             local before = #g.towers
-            click(cellScreen(gx, gy))
+            click(x, y)
             click(0, 0, 2)
             return #g.towers == before + 1
         end
     end
     return false
+end
+
+-- Build a tower at the free spot nearest to the road, frac of the way along
+local function placeNear(g, id, frac)
+    return placeTower(g, id, spotNear(g, roadPoint(g, frac)))
 end
 
 local function enemyNear(g, x, y, r)
@@ -145,8 +170,7 @@ local function run()
     shot("tower_upgrade")
 
     ------------------------------------------------------------------
-    local spots = { { 9, 7 }, { 13, 9 }, { 17, 11 } }
-    local spare = { 15, 4 }
+    local spots = { { 560, 200 }, { 260, 520 }, { 640, 560 } }
     for _, fid in ipairs(FACTION_IDS) do
         local faction = Factions[fid]
         local heroId = faction.heroes[1].id
@@ -174,6 +198,17 @@ local function run()
             click(0, 0, 2)
         end
 
+        -- Pictures: the build zones while placing, and a tower's card
+        if fid == "radiant" then
+            g:selectTowerType(faction.towers[1].id)
+            love.mouse.setPosition(470, 170)
+            shot("placing")
+            click(0, 0, 2)
+            g:setFocusTower(towersById[faction.towers[1].id])
+            shot("tower_card")
+            click(0, 0, 2)
+        end
+
         -- Sell the third tower and build it again (same spot, upgrades again)
         local t3 = g.towers[3]
         g:setFocusTower(t3)
@@ -182,27 +217,27 @@ local function run()
         for _, b in ipairs(g:getFocusButtons()) do
             if b.kind == "sell" then click(b.x + 5, b.y + 5) end
         end
-        check(#g.towers == 2 and g.resources == before + refund and g.grid[t3.gridY][t3.gridX] == 1,
-            "sold " .. t3.id .. " for " .. refund .. " (70%)")
-        check(placeTower(g, t3.id, t3.gridX, t3.gridY), "rebuilt " .. t3.id)
+        check(#g.towers == 2 and g.resources == before + refund and g:canPlaceTower(t3.x, t3.y),
+            "sold " .. t3.id .. " for " .. refund .. " (70%), its spot is free again")
+        check(placeTower(g, t3.id, t3.x, t3.y), "rebuilt " .. t3.id)
         local rebuilt = g.towers[#g.towers]
         rebuilt:buyUpgrade(1); rebuilt:buyUpgrade(2)
         towersById[t3.id] = rebuilt
 
         -- Move the hero along the road, then try a grass cell
         local hero = g.hero
-        click(hero.x, hero.y - 10 + offY())
+        click(hero.x, hero.y - 10)
         check(hero.selected, "clicking the hero selects it")
-        local target = g.roadPath[20]
-        click(cellScreen(target[1], target[2]))
+        local tx, ty = roadPoint(g, 0.42)
+        tx, ty = math.floor(tx + 12), math.floor(ty + 12) -- off the middle line, still on the road
+        click(tx, ty)
         check(hero.path ~= nil, "clicking the road gives a path")
         local arrived = simulate(20, function() return hero.path == nil end)
-        local tx, ty = g:cellCenter(target[1], target[2])
         check(arrived and math.abs(hero.x - tx) < 2 and math.abs(hero.y - ty) < 2,
-            "hero walked the road to cell " .. target[1] .. "," .. target[2])
-        click(hero.x, hero.y - 10 + offY())
+            string.format("hero walked the road to (%d, %d)", tx, ty))
+        click(hero.x, hero.y - 10)
         local hx, hy = hero.holdX, hero.holdY
-        click(cellScreen(11, 4)) -- grass
+        click(160, 220) -- grass
         check(hero.holdX == hx and hero.holdY == hy, "clicking grass does not move the hero")
         click(0, 0, 2)
 
@@ -284,8 +319,8 @@ local function run()
             local g = newGame(fid, hd.id)
             local hero = g.hero
             -- Meet the enemies near the start of the road
-            local c = g.roadPath[6]
-            hero:commandMove(c[1], c[2], g)
+            local mx, my = roadPoint(g, 0.08)
+            hero:commandMove(mx, my, g)
             simulate(20, function() return hero.path == nil end)
             click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
             simulate(40, function() return enemyNear(g, hero.x, hero.y, 100) ~= nil end)
@@ -308,12 +343,14 @@ local function run()
             check(ok, hd.name .. ": Q/W/E all cast" .. (ok and "" or (" (not: " .. table.concat(names, ", ") .. ")")))
             if hd.id == "morgana" then check(rooted, "Dark Binding roots enemies") end
 
-            -- Blocking: hero deals no damage and casts nothing, minions gone,
-            -- so enemies reach it
+            -- Holding the road: hero deals no damage and casts nothing,
+            -- minions gone, so enemies reach it. Only tanks hold enemies; a
+            -- melee hero that does not still gets hit by what it fights.
             for _, u in ipairs(g.units) do if u ~= hero then u:die() end end
             hero.damage = 0
             for _, s in ipairs(hero.abilities) do s.cooldown = 1e9 end
             if hero.dead then hero:respawn() end
+            local blocks, melee = hd.stats.blockCount > 0, hd.stats.range <= 60
             local blocked, hurt = false, false
             simulate(30, function()
                 for _, e in ipairs(g.enemies) do if e.blocker == hero then blocked = true end end
@@ -321,9 +358,15 @@ local function run()
                 if #g.enemies == 0 and not g.waveInProgress then
                     click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
                 end
-                return blocked and hurt
+                if blocks then return blocked and hurt end
+                return blocked or (melee and hurt)
             end)
-            check(blocked and hurt, hd.name .. ": blocks an enemy and takes hits")
+            if blocks then
+                check(blocked and hurt, hd.name .. ": blocks an enemy and takes hits")
+            else
+                check(not blocked, hd.name .. ": never holds an enemy (not a tank)")
+                if melee then check(hurt, hd.name .. ": gets hit by the enemies it fights") end
+            end
             if hd.id == "malachi" then
                 check((g.minionsSpawned or 0) >= 2, "Dark Ritual raised skeletons (" .. (g.minionsSpawned or 0) .. ")")
             end
@@ -336,12 +379,10 @@ local function run()
         -- Holy Bastion heals a hurt hero in range
         local g = newGame("radiant", "sir_galahad")
         g.resources = 5000
-        local c = g.roadPath[30]
-        g.hero:commandMove(c[1], c[2], g)
+        local mx, my = roadPoint(g, 0.4)
+        g.hero:commandMove(mx, my, g)
         simulate(20, function() return g.hero.path == nil end)
-        local gx, gy = c[1] + 1, c[2] + 1
-        if g.grid[gy][gx] ~= 1 then gx, gy = c[1] - 1, c[2] - 1 end
-        check(placeTower(g, "holy_bastion", gx, gy), "Holy Bastion placed next to the hero")
+        check(placeTower(g, "holy_bastion", spotNear(g, g.hero.x, g.hero.y)), "Holy Bastion placed next to the hero")
         local bastion = g.towers[#g.towers]
         g.hero.health = g.hero.maxHealth * 0.5
         local before = g.hero.health
@@ -352,19 +393,23 @@ local function run()
         -- Seraph's Watch with Divine Mark marks what it hits
         g = newGame("radiant", "sir_galahad")
         g.resources = 5000
-        check(placeTower(g, "seraphs_watch", 9, 7), "Seraph's Watch placed")
+        check(placeNear(g, "seraphs_watch", 0.2), "Seraph's Watch placed")
         local watch = g.towers[#g.towers]
         watch:buyUpgrade(1)
         click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
         local marked = simulate(40, function()
-            for _, e in ipairs(g.enemies) do if e.statuses and e.statuses.mark then return true end end
+            for _, e in ipairs(g.enemies) do
+                -- Tough enough to live through the hit that marks it
+                if not e.tough then e.tough = true; e.health, e.maxHealth = 1e5, 1e5 end
+                if e.statuses and e.statuses.mark then return true end
+            end
         end)
         check(marked, "Divine Mark marks enemies")
 
         -- Soul Forge raises enemies that die in range
         g = newGame("shadow", "malachi")
         g.resources = 5000
-        check(placeTower(g, "soul_forge", 7, 3), "Soul Forge placed")
+        check(placeNear(g, "soul_forge", 0.1), "Soul Forge placed")
         local forge = g.towers[#g.towers]
         click(g.ui.startWave.x + 5, g.ui.startWave.y + 5)
         local fx, fy = forge:getCenter()
@@ -381,7 +426,7 @@ local function run()
         -- Eclipse Monolith drains a target with no shots fired
         g = newGame("twilight", "zephyr")
         g.resources = 5000
-        check(placeTower(g, "eclipse_monolith", 9, 7), "Eclipse Monolith placed")
+        check(placeNear(g, "eclipse_monolith", 0.2), "Eclipse Monolith placed")
         local mono = g.towers[#g.towers]
         mono.fireRate = 0.0001 -- isolate the drain
         mono.fireCooldown = 1e9
@@ -423,23 +468,16 @@ local function run()
         local f = Factions[lv.faction]
         local g = newGame(lv.faction, f.heroes[1].id, lv.id)
         local built = LevelSys.build(lv)
-        local heroOnRoad = g.hero and g:isRoad(g:pixelToGrid(g.hero.x, g.hero.y + offY()))
-        check(g.levelId == lv.id and #g.paths == #lv.paths and #g.roadPath == #built.roadCells
+        local heroOnRoad = g.hero and g:onRoad(g.hero.x, g.hero.y)
+        check(g.levelId == lv.id and #g.roads == #lv.paths and #built.roads == #lv.paths
             and g.resources >= lv.startGold and g.maxWaves == lv.waves.count and heroOnRoad,
             lv.id .. ": map, " .. #lv.paths .. " road(s), " .. lv.waves.count .. " waves, hero on the road")
         shot("level_" .. lv.id)
         -- Wave 1 runs to the end on every road and pays its bonus
         g.resources = 5000
         for i, t in ipairs(f.towers) do
-            local spot
-            for _, c in ipairs(g.roadPath) do
-                for _, d in ipairs({ { 0, 1 }, { 0, -1 }, { 1, 0 }, { -1, 0 } }) do
-                    if not spot and g:canPlaceTower(c[1] + d[1], c[2] + d[2]) and (_ * 7 + i) % 5 == 0 then
-                        spot = { c[1] + d[1], c[2] + d[2] }
-                    end
-                end
-            end
-            if spot then g:placeTower(spot[1], spot[2], t.id) end
+            local x, y = spotNear(g, roadPoint(g, 0.15 + 0.2 * i))
+            if x then g:placeTower(x, y, t.id) end
         end
         local goldBefore = g.resources
         g:startNextWave()
@@ -461,7 +499,7 @@ local function run()
         simulate(14, function() return (g.raisedCount or 0) >= 2 end)
         local raised = 0
         for _, e in ipairs(g.enemies) do if e.raised and e.type == "skeleton" then raised = raised + 1 end end
-        check(raised >= 2 and n.currentPathIndex > 1, "a necromancer raises a skeleton every 6 s (" .. raised .. " raised)")
+        check(raised >= 2 and n.distance > 0, "a necromancer raises a skeleton every 6 s (" .. raised .. " raised)")
     end
 
     -- End screen: stars saved, Next Level and Level Select work
@@ -499,6 +537,65 @@ local function run()
     end
 
     ------------------------------------------------------------------
+    log("== Pause and game speed")
+    do
+        local g = newGame("radiant", "sir_galahad")
+        g:startNextWave()
+        simulate(6, function() return #g.enemies > 0 and g.enemies[1].x > 40 end)
+        local e = g.enemies[1]
+        local x0, y0 = e.x, e.y
+        local tb = g:getTowerButtons()[1]
+        click(tb.x + 5, tb.y + 5)
+        key("escape")
+        check(isState('states.game') and not g:hasSelection(), "Esc with a tower picked drops it and does not pause")
+        key("escape")
+        check(isState('states.pause'), "Esc with nothing selected pauses")
+        wait(30)
+        check(e.x == x0 and e.y == y0, "nothing moves while paused")
+        shot("pause")
+        key("escape")
+        check(isState('states.game') and Gamestate.current() == g, "Esc resumes the same game")
+        key("p")
+        check(isState('states.pause'), "P pauses")
+        key("p")
+        check(Gamestate.current() == g, "P resumes")
+
+        -- Restart Level from the pause menu
+        key("p")
+        local pause = Gamestate.current()
+        local function press(label)
+            for _, b in ipairs(pause.buttons) do
+                if b.text == label then click(b.x + 5, b.y + 5); return true end
+            end
+        end
+        press("Restart Level")
+        wait(2)
+        local r = Gamestate.current()
+        check(isState('states.game') and r ~= g and r.levelId == g.levelId and r.wave == 0,
+            "Restart Level starts the same level fresh")
+        key("p")
+        pause = Gamestate.current()
+        press("Level Select")
+        wait(2)
+        check(isState('states.level_select'), "Level Select leaves the game for level select")
+
+        -- Speed: 3x runs three steps per frame, so game time runs 3x
+        local a = newGame("radiant", "sir_galahad")
+        local t0 = a.mapTime or 0
+        for _ = 1, 60 do gameUpdate(DT) end
+        local slow = (a.mapTime or 0) - t0
+        local b = newGame("radiant", "sir_galahad")
+        key("tab"); key("tab")
+        check(b.speed == 3, "Tab cycles the speed 1x -> 2x -> 3x")
+        local t1 = b.mapTime or 0
+        for _ = 1, 60 do gameUpdate(DT) end
+        local fast = (b.mapTime or 0) - t1
+        check(math.abs(fast - 3 * slow) < 1e-6, string.format("3x runs three times the game time (%.2f s vs %.2f s)", fast, slow))
+        click(b.ui.speed.x + 5, b.ui.speed.y + 5)
+        check(b.speed == 1, "the speed button wraps 3x back to 1x")
+    end
+
+    ------------------------------------------------------------------
     log("== Tower button tooltips")
     for _, fid in ipairs(FACTION_IDS) do
         local g = newGame(fid, Factions[fid].heroes[1].id)
@@ -511,12 +608,311 @@ local function run()
             love.mouse.setPosition(b.x + 10, b.y + 10)
             seen = nil
             wait(2) -- the window reports the new mouse position next frame; draw runs then
-            if seen and seen.title == b.tower.name and #seen.stats == 3 then shown = shown + 1
+            if seen and seen.title == b.tower.name and #seen.stats == 4 then shown = shown + 1 -- cost, damage, range, speed
             else log("  no tooltip over " .. b.id) end
         end
         check(shown == #Factions[fid].towers, fid .. ": hovering each tower button draws its tooltip (" .. shown .. ")")
     end
     love.mouse.setPosition(0, 0)
+
+    ------------------------------------------------------------------
+    log("== Every menu screen")
+    do
+        local menu = require('states.menu').new()
+        Gamestate.switch(menu)
+        wait(2)
+        -- The main menu shows its 7 buttons, and a click on one opens it
+        local labels = {}
+        for _, b in ipairs(menu.buttons) do labels[#labels + 1] = b.text end
+        check(table.concat(labels, ",") == "Continue,New Game,Load Game,Settings,Tutorial,Credits,Quit",
+            "the main menu shows its 7 buttons (" .. table.concat(labels, ",") .. ")")
+        local last = menu.buttons[#menu.buttons]
+        check(last.y + last.height <= 720, "the buttons fit on the screen")
+        shot("main_menu")
+        local settingsButton = menu.buttons[4]
+        love.mousepressed(settingsButton.x + 20, settingsButton.y + 20, 1)
+        wait(2)
+        check(isState('states.settings'), "clicking Settings on the main menu opens Settings")
+        Gamestate.switch(require('states.menu').new())
+        menu = Gamestate.current()
+        wait(2)
+        -- name, how it is opened, and what Esc should lead back to
+        local screens = {
+            { "settings", function() menu:openSettings() end, 'states.menu' },
+            { "tutorial", function() menu:openTutorial() end, 'states.menu' },
+            { "credits", function() menu:openCredits() end, 'states.menu' },
+            { "load_game", function() menu:loadGame() end, 'states.menu' },
+            { "achievement", function() Gamestate.push(require('states.achievement').new()) end, 'states.menu' },
+        }
+        for _, sc in ipairs(screens) do
+            Gamestate.switch(require('states.menu').new())
+            menu = Gamestate.current()
+            wait(1)
+            local ok, err = pcall(function()
+                sc[2]()
+                local st = Gamestate.current()
+                for _ = 1, 30 do st:update(DT) end
+                st:draw()
+            end)
+            check(ok and isState('states.' .. sc[1]), sc[1] .. ": opens, updates and draws" ..
+                (ok and "" or (": " .. tostring(err))))
+            if ok then
+                shot("screen_" .. sc[1])
+                if sc[3] then
+                    local ok2, err2 = pcall(function() key("escape") end)
+                    wait(1)
+                    check(ok2 and isState(sc[3]), sc[1] .. ": Esc goes back to " .. sc[3] ..
+                        (ok2 and "" or (": " .. tostring(err2))))
+                end
+            end
+        end
+    end
+
+    ------------------------------------------------------------------
+    log("== Profiles: New Game, Load Game, Continue")
+    do
+        local Save = require('systems.save')
+        Save.useSlot(1)
+        local before = Save.slotSummary(1)
+        check(before and before.faction ~= nil and before.wins > 0,
+            "slot 1 summary: " .. tostring(before and before.faction) .. ", " .. tostring(before and before.wins) ..
+            " wins, " .. tostring(before and before.stars) .. " stars")
+        for s = 2, Save.SLOT_COUNT do Save.deleteProfile(s) end
+
+        -- New Game takes the first empty slot and starts at faction select
+        Gamestate.switch(require('states.menu').new())
+        wait(1)
+        Gamestate.current():startNewGame()
+        wait(1)
+        check(isState('states.faction_select') and Save.currentSlotNumber() == 2 and Save.slotUsed(2),
+            "New Game starts a fresh profile in slot 2 and opens faction select")
+        check(Save.getGold() == 0 and Save.getLevelResult("sunlit_meadows") == nil,
+            "the new profile starts with no gold and no stars")
+
+        -- The profile screen lists both, and Play on slot 1 goes back to it
+        local lg = require('states.load_game').new()
+        Gamestate.switch(lg)
+        wait(2)
+        check(lg.rows[1].summary and lg.rows[2].summary and not lg.rows[3].summary,
+            "Load Game shows slots 1 and 2 used, slot 3 empty")
+        shot("profiles")
+        local function press(row, action)
+            for _, b in ipairs(row.buttons) do
+                if b.action == action then click(b.x + 5, b.y + 5); return true end
+            end
+        end
+        press(lg.rows[2], "delete")
+        check(Save.slotUsed(2) and lg.confirmDelete == 2, "the first Delete click only asks")
+        press(lg.rows[2], "delete")
+        check(not Save.slotUsed(2) and not lg.rows[2].summary, "the second Delete click removes slot 2")
+        press(lg.rows[1], "play")
+        wait(2)
+        check(isState('states.hub') and Save.currentSlotNumber() == 1 and Save.getGold() == before.gold,
+            "Play on slot 1 opens the hub with slot 1's profile")
+
+        -- The slot is remembered for the next launch
+        Save.useSlot(1)
+        check(Save.restoreLastSlot() == 1, "the last slot used is remembered for Continue")
+
+        -- With every slot full, New Game explains instead of overwriting
+        for s = 2, Save.SLOT_COUNT do Save.newProfile(s) end
+        Save.useSlot(1)
+        Gamestate.switch(require('states.menu').new())
+        wait(1)
+        Gamestate.current():startNewGame()
+        wait(1)
+        local screen = Gamestate.current()
+        check(isState('states.load_game') and screen.message and screen.message:match("slots are in use"),
+            "New Game with every slot used opens Profiles with a note, overwriting nothing")
+        for s = 2, Save.SLOT_COUNT do Save.deleteProfile(s) end
+        Save.useSlot(1)
+    end
+
+    ------------------------------------------------------------------
+    log("== Dropped-in art is picked up by name")
+    do
+        -- The save folder is searched before the game folder, so files
+        -- written there stand in for art batch 2 files
+        local function copy(from, to)
+            love.filesystem.createDirectory(to:match("^(.*)/"))
+            assert(love.filesystem.write(to, love.filesystem.read(from)))
+        end
+        local Tower = require('systems.tower')
+        local Enemy = require('systems.enemy')
+        copy("sprites/towers/cannon.png", "sprites/towers/holy_bastion.png")
+        copy("sprites/enemies/zombie.png", "sprites/heroes/sir_galahad.png")
+        copy("sprites/enemies/zombie.lua", "sprites/heroes/sir_galahad.lua")
+        Tower.initialized = false
+        Tower.init()
+        check(Tower.spritePath(Tower.byId.holy_bastion) == "sprites/towers/holy_bastion.png"
+            and Tower.images.holy_bastion ~= nil, "a tower uses sprites/towers/<id>.png when it exists")
+        check(Tower.spritePath(Tower.byId.seraphim_altar) == "sprites/towers/cannon.png",
+            "a tower without its own file keeps its stand-in")
+        local g = newGame("radiant", "sir_galahad")
+        check(g.hero.sheetKey == "hero_sir_galahad", "a hero uses sprites/heroes/<id>.png when it exists")
+        local ok, err = pcall(function() g:draw() end)
+        check(ok, "a hero with a walk sheet draws" .. (ok and "" or (": " .. tostring(err))))
+        g:startNextWave()
+        simulate(4)
+        shot("hero_walk_sheet")
+        local m = newGame("radiant", "archangel_michael")
+        check(m.hero.sheetKey == nil and m.hero.portraitImage == nil, "a hero with no art yet falls back to the lettered token")
+
+        love.filesystem.remove("sprites/towers/holy_bastion.png")
+        love.filesystem.remove("sprites/heroes/sir_galahad.png")
+        love.filesystem.remove("sprites/heroes/sir_galahad.lua")
+        Enemy.sheets.hero_sir_galahad = nil
+        Tower.initialized = false
+        Tower.init()
+    end
+
+    ------------------------------------------------------------------
+    log("== Hero select details")
+    do
+        local hs = require('states.hero_select').new()
+        hs:setup(Factions.shadow)
+        Gamestate.switch(hs)
+        wait(40) -- let the carousel settle
+        local center
+        for _, b in ipairs(hs.buttons) do if b.zIndex == 3 then center = b end end
+        love.mouse.setPosition(center.x + 80, center.y + 350 + 10)
+        wait(2)
+        local hero = hs.heroes[hs.currentHeroIndex]
+        check(hs.hoverAbility == 1, "hovering the first ability row picks " .. tostring(hero.abilities[1].name))
+        shot("hero_select_ability")
+        love.mouse.setPosition(0, 0)
+        wait(2)
+        check(hs.hoverAbility == nil, "moving away shows the hero and passive again")
+    end
+
+    ------------------------------------------------------------------
+    log("== Hotkeys and early wave call")
+    do
+        local g = newGame("radiant", "sir_galahad")
+        local buttons = g:getTowerButtons()
+        key("2")
+        check(g.selectedTower == buttons[2].id, "2 picks the second tower (" .. buttons[2].id .. ")")
+        key("1")
+        check(g.selectedTower == buttons[1].id, "1 picks the cheapest tower")
+        key("1")
+        check(g.selectedTower == nil, "the same key again puts it down")
+
+        g.resources = 5000
+        placeNear(g, "holy_bastion", 0.1)
+        placeNear(g, "seraphim_altar", 0.2)
+        local hero = g.hero
+        key("space")
+        check(g.wave == 1 and g.waveInProgress, "Space starts wave 1")
+        key("space")
+        check(g.wave == 1, "Space does nothing while the wave is still arriving")
+        simulate(60, function() return #g.waveEnemies == 0 end)
+        check(g:canCallEarly(), "once wave 1 has fully arrived, wave 2 can be called early")
+        shot("early_call")
+        local gold, bonus = g.resources, g:earlyBonus()
+        local pending = g.pendingBonus
+        key("space")
+        check(g.wave == 2 and g.resources == gold + bonus and g.earlyCalls == 1,
+            "calling wave 2 early pays " .. bonus .. " gold at once")
+        check(g.pendingBonus == pending + g.waves[2].bonus, "both waves' clear bonuses are owed")
+        local owed = g.pendingBonus
+        local before = g.resources
+        local goldFromKills = g.goldEarned
+        simulate(200, function() return not g.waveInProgress end)
+        check(not g.waveInProgress and g.pendingBonus == 0
+            and g.resources == before + owed + (g.goldEarned - goldFromKills),
+            "when the field is clear, both clear bonuses are paid (" .. owed .. ")")
+    end
+
+    ------------------------------------------------------------------
+    log("== Battle feedback")
+    do
+        local Fx = require('systems.fx')
+        local before = { damage = Fx.counts.damage, puff = Fx.counts.puff, gold = Fx.counts.gold }
+        local g = newGame("radiant", "sir_galahad")
+        g.resources = 2000
+        placeNear(g, "holy_bastion", 0.1)
+        placeNear(g, "seraphim_altar", 0.2)
+        g:startNextWave()
+        simulate(25, function() return #Fx.items >= 6 end)
+        shot("battle_feedback")
+        simulate(120, function() return not g.waveInProgress end)
+        check(Fx.counts.damage > before.damage and Fx.counts.puff > before.puff and Fx.counts.gold > before.gold,
+            string.format("a wave shows damage numbers (%d), death puffs (%d) and gold popups (%d)",
+                Fx.counts.damage - before.damage, Fx.counts.puff - before.puff, Fx.counts.gold - before.gold))
+        local lostBefore = Fx.counts.life
+        g.lives = 20
+        local e = g:addEnemy("zombie", 1, 1)
+        e:placeAt(e.road:length() - 1)
+        simulate(1)
+        check(Fx.counts.life > lostBefore and g.lives < 20, "an enemy reaching the gate flashes the edge and shows the lives lost")
+
+        -- The end screen sums up the game
+        g:gameOver(false)
+        local s = g.summary
+        check(s and s.kills > 0 and s.built == 2 and s.spent == 300 and s.topTower ~= nil and s.topDamage > 0,
+            string.format("end screen: %d slain, %d built, %d spent, top tower %s (%s damage)",
+                s and s.kills or -1, s and s.built or -1, s and s.spent or -1, tostring(s and s.topTower), tostring(s and s.topDamage)))
+        check(#s.leaks == 1 and s.leaks[1].wave == g.wave, "end screen lists the wave that cost lives")
+        shot("end_stats")
+    end
+
+    ------------------------------------------------------------------
+    log("== First-time hints")
+    do
+        local Save = require('systems.save')
+        Save.newProfile(3) -- a player who has never won anything
+        local g = newGame("radiant", "sir_galahad")
+        check(g.hintIndex == 1, "a new player on level 1 sees the first hint")
+        shot("hint")
+        placeNear(g, "holy_bastion", 0.1)
+        simulate(0.1)
+        check(g.hintIndex == 2, "building a tower moves on to Start Wave")
+        key("space")
+        simulate(0.1)
+        check(g.hintIndex == 3, "starting the wave moves on to moving the hero")
+        simulate(26)
+        check(g.hintIndex == 4, "the hero hint gives way after 25 s even if ignored")
+
+        local other = newGame("radiant", "sir_galahad", "crystal_spires")
+        check(other.hintIndex == nil, "no hints on a faction's second level")
+        gameState.settings.showTutorial = false
+        local off = newGame("radiant", "sir_galahad")
+        check(off.hintIndex == nil, "no hints with Show Tutorial off")
+        gameState.settings.showTutorial = true
+        Save.deleteProfile(3)
+        Save.useSlot(1)
+        Save.recordLevelResult("sunlit_meadows", 1) -- won, whatever the fixed build above managed
+        local veteran = newGame("radiant", "sir_galahad")
+        check(veteran.hintIndex == nil, "no hints once the level has been won")
+    end
+
+    ------------------------------------------------------------------
+    log("== Achievements")
+    do
+        local Save = require('systems.save')
+        local p = Save.getCurrentProfile()
+        local unlocked = {}
+        for id in pairs(p.achievements or {}) do unlocked[#unlocked + 1] = id end
+        table.sort(unlocked)
+        check(p.achievements and p.achievements.first_tower and p.stats.games > 0,
+            "games so far unlocked: " .. table.concat(unlocked, ", ") .. " (" .. tostring(p.stats and p.stats.games) .. " games)")
+        local hub = require('states.hub').new()
+        hub:setup(p.selectedFaction, p.selectedHero)
+        Gamestate.switch(hub)
+        wait(2)
+        for _, b in ipairs(hub.buttons) do
+            if b.text == "Achievements" then click(b.x + 5, b.y + 5) end
+        end
+        wait(3)
+        local st = Gamestate.current()
+        local shown = 0
+        for _, r in ipairs(st.achievements or {}) do if r.unlocked then shown = shown + 1 end end
+        check(isState('states.achievement') and shown == #unlocked, "the hub opens Achievements with " .. shown .. " unlocked")
+        shot("achievements")
+        key("escape")
+        wait(2)
+        check(isState('states.hub'), "Esc goes back to the hub")
+    end
 
     ------------------------------------------------------------------
     log("== Sounds over a whole run")
@@ -541,6 +937,32 @@ local function run()
             fired = fired + n(k)
         end
         check(fired == shots, "every shot sound is filed under its projectile type")
+    end
+
+    ------------------------------------------------------------------
+    log("== Any window size (scaled 1280 x 720)")
+    do
+        local Screen = require('utils.screen')
+        love.window.setMode(1600, 1200, { resizable = true })
+        local g = newGame("radiant", "sir_galahad")
+        wait(3)
+        check(love.graphics.getWidth() == 1280 and love.graphics.getHeight() == 720,
+            "screens still see 1280 x 720 in a 1600 x 1200 window")
+        check(math.abs(Screen.scale - 1600 / 1280) < 1e-6 and Screen.ox == 0 and Screen.oy > 0,
+            string.format("the game is scaled x%.3f and centered with bars above and below", Screen.scale))
+        love.mouse.setPosition(640, 360)
+        wait(2)
+        local mx, my = love.mouse.getPosition()
+        check(math.abs(mx - 640) <= 1 and math.abs(my - 360) <= 1, "the mouse maps back to game coordinates")
+        -- A click at the window spot of the first tower button picks it
+        local b = g:getTowerButtons()[1]
+        local wx, wy = Screen.toWindow(b.x + 10, b.y + 10)
+        love.mousepressed(wx, wy, 1)
+        check(g.selectedTower == b.id, "clicking a tower button in the scaled window picks it")
+        shot("scaled_1600x1200")
+        love.window.setMode(1280, 720, { resizable = true })
+        wait(3)
+        check(Screen.scale == 1 and Screen.ox == 0, "back at 1280 x 720 the mapping is 1:1")
     end
 
     ------------------------------------------------------------------

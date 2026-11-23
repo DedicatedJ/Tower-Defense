@@ -37,111 +37,18 @@ function AchievementState:init()
 end
 
 function AchievementState:loadAchievements()
-    -- In a real implementation, this would load from the Achievement system
-    -- For now, use placeholder achievements
-    self.achievements = {
-        {
-            id = "first_win",
-            title = "First Victory",
-            description = "Win your first game",
-            icon = nil,
-            unlocked = true,
-            date = "2023-06-15"
-        },
-        {
-            id = "tower_master",
-            title = "Tower Master",
-            description = "Build 50 towers in total",
-            icon = nil,
-            unlocked = true,
-            date = "2023-06-20"
-        },
-        {
-            id = "wave_survivor",
-            title = "Wave Survivor",
-            description = "Survive 20 waves in a single game",
-            icon = nil,
-            unlocked = true,
-            date = "2023-07-01"
-        },
-        {
-            id = "resource_king",
-            title = "Resource King",
-            description = "Accumulate 10,000 resources in a single game",
-            icon = nil,
-            unlocked = false,
-            progress = 7500,
-            maxProgress = 10000
-        },
-        {
-            id = "hero_legend",
-            title = "Hero Legend",
-            description = "Level up your hero to level 10",
-            icon = nil,
-            unlocked = false,
-            progress = 7,
-            maxProgress = 10
-        },
-        {
-            id = "faction_master",
-            title = "Faction Master",
-            description = "Win a game with each faction",
-            icon = nil,
-            unlocked = false,
-            progress = 1,
-            maxProgress = 3
-        },
-        {
-            id = "perfect_defense",
-            title = "Perfect Defense",
-            description = "Complete a game without losing any lives",
-            icon = nil,
-            unlocked = false
-        },
-        {
-            id = "speed_run",
-            title = "Speed Run",
-            description = "Win a game in under 10 minutes",
-            icon = nil,
-            unlocked = false
-        },
-        {
-            id = "upgrade_expert",
-            title = "Upgrade Expert",
-            description = "Fully upgrade 20 towers",
-            icon = nil,
-            unlocked = false,
-            progress = 12,
-            maxProgress = 20
-        },
-        {
-            id = "synergy_master",
-            title = "Synergy Master",
-            description = "Have 5 different tower types with synergy bonuses active at once",
-            icon = nil,
-            unlocked = false,
-            progress = 3,
-            maxProgress = 5
-        }
-    }
-    
-    -- Try to load achievement icons. Icon files are named after the ids in
-    -- systems/achievement.lua; this screen uses some different ids for the
-    -- same achievements, mapped here. speed_run and upgrade_expert have no
-    -- icon yet. Missing files are skipped quietly (no error popup).
-    local ICON_FOR = {
-        first_win = "first_tower",
-        perfect_defense = "perfect_wave",
-        synergy_master = "tower_synergy",
-    }
+    -- Real progress from the current profile (systems/achievements.lua)
+    local Achievements = require('systems.achievements')
+    local ok, profile = pcall(require('systems.save').getCurrentProfile)
+    self.achievements = Achievements.status(ok and profile or nil)
+
+    -- Icons are named after the achievement ids; a missing file is skipped
     for _, achievement in ipairs(self.achievements) do
-        local path = "sprites/ui/achievements/" .. (ICON_FOR[achievement.id] or achievement.id) .. ".png"
+        local path = "sprites/ui/achievements/" .. achievement.id .. ".png"
         achievement.icon = nil
         if love.filesystem.getInfo(path) then
-            local success, img = pcall(love.graphics.newImage, path, { mipmaps = true })
+            local success, img = pcall(require('utils.image').smooth, path)
             if success then
-                img:setFilter("linear", "linear")
-                img:setMipmapFilter("linear")
                 achievement.icon = img
             end
         end
@@ -149,8 +56,9 @@ function AchievementState:loadAchievements()
 end
 
 function AchievementState:enter()
-    -- Reset scroll position
+    -- Reset scroll position and read the latest progress
     self.scrollY = 0
+    self:loadAchievements()
     
     -- Play sound effect
     playSound('sfx', 'buttonClick')
@@ -208,7 +116,9 @@ function AchievementState:draw()
             handleHeight)
     end
     
-    -- Draw each achievement
+    -- Draw each achievement, clipped to the list area so rows never run
+    -- under the stats line
+    love.graphics.setScissor(0, 120, love.graphics.getWidth(), visibleHeight)
     for i, achievement in ipairs(self.achievements) do
         local y = startY + (i - 1) * (achievementHeight + spacing)
         
@@ -318,6 +228,7 @@ function AchievementState:draw()
                     love.graphics.getWidth() / 2 - achievementWidth / 2 + 100, 
                     y + 70)
             end
+    love.graphics.setScissor()
         end
     end
     

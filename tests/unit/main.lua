@@ -42,10 +42,11 @@ local FACTION_IDS = { "radiant", "shadow", "twilight" }
 ------------------------------------------------------------------------
 -- Test doubles
 ------------------------------------------------------------------------
--- A two-cell road; enemies made here never move unless updated
-local PATH = { { x = 1, y = 1 }, { x = 2, y = 1 } }
+-- A short straight road; enemies made here never move unless updated
+local Path = require('systems.path')
+local ROAD = Path.new({ { { 20, 20 }, { 100, 20 } } }, 80)
 local function enemy(kind)
-    local e = Enemy.create(kind or "zombie", PATH, 32)
+    local e = Enemy.create(kind or "zombie", ROAD, { offset = 0 })
     e.health, e.maxHealth = 1000, 1000
     return e
 end
@@ -92,6 +93,7 @@ local function testData()
     local HERO_STATS = { "health", "damage", "attackRate", "range", "speed", "armor", "blockCount" }
 
     local orders, towerIds, heroIds = {}, {}, {}
+    local pendingPortraits = {} -- paths with no file yet: must be on the art list
     local bad = {}
     local function fail(msg) bad[#bad + 1] = msg end
 
@@ -134,7 +136,8 @@ local function testData()
                 end)
             end
             if not (h.passive and KNOWN_PASSIVES[h.passive.kind]) then fail(h.id .. " passive kind is unknown") end
-            if h.portrait and not love.filesystem.getInfo(h.portrait) then fail(h.id .. " portrait file is missing: " .. h.portrait) end
+            if not h.portrait then fail(h.id .. " has no portrait path") end
+            if h.portrait and not love.filesystem.getInfo(h.portrait) then pendingPortraits[#pendingPortraits + 1] = h.portrait end
         end
     end
     table.sort(orders)
@@ -144,6 +147,12 @@ local function testData()
 
     -- Art pipeline lists every tower and hero, so missing art has a prompt
     local A = love.filesystem.load("art/assets.lua")()
+    local onList = {}
+    for _, p in ipairs(A.portraits or {}) do onList[p.file] = true end
+    local unlisted = {}
+    for _, path in ipairs(pendingPortraits) do if not onList[path] then unlisted[#unlisted + 1] = path end end
+    check(#unlisted == 0, "every portrait not painted yet is on the art list (" .. #pendingPortraits .. " pending)" ..
+        (#unlisted > 0 and (": " .. table.concat(unlisted, ", ")) or ""))
     local listed = {}
     for _, t in ipairs(A.cTowers or {}) do listed[t.id] = true end
     for _, h in ipairs(A.cHeroes or {}) do listed[h.id] = true end
@@ -311,6 +320,40 @@ local function testUnits()
     checkNear(mn.maxHealth, 110, "minion health x1.1 (Shadow bonus)")
     checkNear(mn.remaining, 15, "minion duration x1.5 (passive)")
 
+    -- Blocking is a tank trait: only tank heroes (and minions) hold enemies
+    local wrong = {}
+    for _, fid in ipairs(FACTION_IDS) do
+        for _, h in ipairs(Factions[fid].heroes) do
+            if (h.stats.blockCount > 0) ~= (h.role == "tank") then wrong[#wrong + 1] = h.id end
+        end
+    end
+    check(#wrong == 0, "only tank heroes block" .. (#wrong > 0 and (" (not: " .. table.concat(wrong, ", ") .. ")") or ""))
+    local function near40(kind) local e = enemy(kind); e:placeAt(40); return e end -- at (60, 20)
+    local tank, e1 = Unit.newHero(hd, fd, 50, 20), near40()
+    local tgt = tank:engage({ enemies = { e1 } })
+    check(e1.blocker == tank and tgt == e1, "a tank holds an enemy near it")
+    local mkd, mkf = heroData("dark_lord_malak")
+    local brawler, e2 = Unit.newHero(mkd, mkf, 50, 20), near40()
+    tgt = brawler:engage({ enemies = { e2 } })
+    check(e2.blocker == nil and tgt == e2, "a melee dps hero goes for a passing enemy without holding it")
+    brawler:attack(e2, {})
+    check(e2.foe == brawler, "an enemy hit in melee by a unit not holding it marks that unit")
+    e2.attackCooldown = 0
+    local hp0, d0 = brawler.health, e2.distance
+    e2:update(0.05)
+    check(brawler.health < hp0 and e2.blocker == nil and e2.distance > d0,
+        "the enemy hits back while it keeps walking")
+    brawler.x = 300
+    e2:update(0.05)
+    check(e2.foe == nil, "an enemy drops a foe that is out of reach")
+    local cld, clf = heroData("lady_celestia")
+    local archer, e3 = Unit.newHero(cld, clf, 60, 20), near40()
+    tgt = archer:engage({ enemies = { e3 } })
+    check(e3.blocker == nil and tgt == e3, "a ranged hero shoots an enemy standing on it without holding it")
+    local guard, e4 = Unit.newMinion({ health = 100, damage = 5 }, 50, 20), near40()
+    guard:engage({ enemies = { e4 } })
+    check(e4.blocker == guard, "minions still hold enemies")
+
     -- Toggle cycles its modes (Dusk Shift)
     local toggleHero, toggleAb, toggleEff
     for _, fid in ipairs(FACTION_IDS) do
@@ -337,19 +380,19 @@ end
 local function testTowers()
     log("== Towers")
     Tower.init()
-    local hb = Tower.create("holy_bastion", 3, 4, 32)
-    check(hb.damage == 20 and hb.range == 150 and hb.healAmount == 5, "Holy Bastion: damage 20, range 150, heal 5")
+    local hb = Tower.create("holy_bastion", 100, 140)
+    check(hb.damage == 20 and hb.range == 110 and hb.healAmount == 5, "Holy Bastion: damage 20, range 110, heal 5")
     check(hb:sellValue() == 70, "sell refunds 70% of 100 = 70")
     check(not hb:canBuyUpgrade(1, 149) and hb:canBuyUpgrade(1, 150), "Divine Light needs 150 gold")
     check(hb:buyUpgrade(1) == 150 and near(hb.healAmount, 7.5), "Divine Light: heal 5 -> 7.5")
     check(hb:buyUpgrade(1) == nil, "an upgrade can be bought once")
     check(hb:sellValue() == 175, "sell after upgrade refunds 70% of 250 = 175")
 
-    local shop = Tower.create("holy_bastion", 1, 1, 32, { rangeMult = 1.05, fireRateMult = 1.08 })
-    checkNear(shop.range, 157.5, "Focus Crystal: range x1.05")
+    local shop = Tower.create("holy_bastion", 20, 20, { rangeMult = 1.05, fireRateMult = 1.08 })
+    checkNear(shop.range, 115.5, "Focus Crystal: range x1.05")
     checkNear(shop.fireRate, 1.08, "Agility Shard: fire rate x1.08")
 
-    local passive = Tower.create("holy_bastion", 1, 1, 32, { towerStat = { { tower = "holy_bastion", stat = "healAmount", mult = 1.15 } } })
+    local passive = Tower.create("holy_bastion", 20, 20, { towerStat = { { tower = "holy_bastion", stat = "healAmount", mult = 1.15 } } })
     checkNear(passive.healAmount, 5.75, "hero passive changes one tower's stat (heal x1.15)")
 
     -- Every upgrade changes something on the tower
@@ -357,7 +400,7 @@ local function testTowers()
     for _, fid in ipairs(FACTION_IDS) do
         for _, td in ipairs(Factions[fid].towers) do
             for i = 1, 2 do
-                local t = Tower.create(td.id, 1, 1, 32)
+                local t = Tower.create(td.id, 20, 20)
                 local before = {}
                 for k, v in pairs(t) do if type(v) ~= "table" then before[k] = v end end
                 t:buyUpgrade(i)
@@ -372,22 +415,22 @@ local function testTowers()
     check(#inert == 0, "all 18 upgrades change a tower stat" .. (#inert > 0 and (" (no effect: " .. table.concat(inert, ", ") .. ")") or ""))
 
     -- Damage: faction bonus and crits
-    local plain = Tower.create("holy_bastion", 1, 1, 32, { damageMult = 1.1 })
+    local plain = Tower.create("holy_bastion", 20, 20, { damageMult = 1.1 })
     plain.critChance = 0
     checkNear(plain:shotDamage(enemy("zombie")), 22, "Radiant +10% tower damage: 20 -> 22")
-    local sw = Tower.create("seraphs_watch", 1, 1, 32)
+    local sw = Tower.create("seraphs_watch", 20, 20)
     sw:buyUpgrade(2)
     local dmg, crit = sw:shotDamage(enemy("zombie"))
     check(crit and near(dmg, 160), "Holy Precision: every shot crits for 2 x 80 = 160")
 
     -- Hybrid: light hurts undead x1.25, dark hurts the living x1.25
-    local nx = Tower.create("dawn_dusk_nexus", 1, 1, 32)
+    local nx = Tower.create("dawn_dusk_nexus", 20, 20)
     nx.critChance = 0
     local L, D = nx.lightDamage, nx.darkDamage
     checkNear(nx:shotDamage(enemy("zombie")), L * 1.25 + D, "Dawn-Dusk Nexus vs undead: light x1.25")
     checkNear(nx:shotDamage(enemy("orc")), L + D * 1.25, "Dawn-Dusk Nexus vs living: dark x1.25")
 
-    local boosted = Tower.create("holy_bastion", 1, 1, 32)
+    local boosted = Tower.create("holy_bastion", 20, 20)
     boosted.critChance = 0
     Effects.apply(boosted, { type = "damageBoost", amount = 0.5, duration = 5 })
     checkNear(boosted:shotDamage(enemy("zombie")), 30, "a hero's damage boost reaches towers (20 -> 30)")
@@ -482,7 +525,7 @@ local function testLevels()
         for _, p in ipairs(Level.validate(l)) do problems[#problems + 1] = p end
     end
     for _, p in ipairs(problems) do log("  " .. p) end
-    check(#problems == 0, "all " .. #Levels.list .. " levels have valid roads, rocks and settings (" .. #problems .. " problems)")
+    check(#problems == 0, "all " .. #Levels.list .. " levels have valid roads, zones and settings (" .. #problems .. " problems)")
 
     for _, fid in ipairs(FACTION_IDS) do
         local list = Level.forFaction(fid)
@@ -493,43 +536,81 @@ local function testLevels()
         check(Level.first(fid) == list[1], fid .. ": first level is " .. list[1].id)
     end
 
-    -- Waypoints expand to every cell between them
-    local cells = Level.expandPath({ { 1, 1 }, { 4, 1 }, { 4, 3 } })
-    check(#cells == 6 and cells[4].x == 4 and cells[4].y == 1 and cells[6].x == 4 and cells[6].y == 3,
-        "waypoints (1,1)-(4,1)-(4,3) expand to 6 cells")
-    local pc, portals = Level.expandPath({ { 1, 1 }, { 2, 1 }, "portal", { 10, 5 }, { 10, 6 } })
-    check(#pc == 4 and #portals == 1 and portals[1].from.x == 2 and portals[1].to.x == 10,
-        "a portal joins (2,1) to (10,5) without filling cells between")
-    local bad = Level.expandPath({ { 1, 1 }, { 3, 3 } })
-    check(bad == nil, "a diagonal waypoint is rejected")
+    -- Roads: straight runs with rounded corners, measured in pixels
+    local Path = require('systems.path')
+    local straight = Path.new({ { { 0, 0 }, { 100, 0 } } }, 80)
+    local x, y, nx, ny, dx, dy = straight:pointAt(25)
+    check(straight:length() == 100 and x == 25 and y == 0 and dx == 1 and dy == 0 and nx == 0 and ny == -1,
+        "a straight road: length 100, 25 px along is (25, 0), heading right, normal up")
+    local bend = Path.new({ { { 0, 0 }, { 200, 0 }, { 200, 200 } } }, 80)
+    -- A 90 degree corner of radius 60 replaces 2 x 60 of straight with a
+    -- quarter circle (60 * pi / 2)
+    checkNear(bend:length(), 400 - 120 + 60 * math.pi / 2, "a right-angle corner is rounded to radius 60", 0.5)
+    local cx, cy, cnx, cny = bend:pointAt(140 + 60 * math.pi / 4)
+    checkNear(math.sqrt((cx - 140) ^ 2 + (cy - 60) ^ 2), 60, "halfway round the corner is 60 px from its center", 0.5)
+    checkNear(cnx * cnx + cny * cny, 1, "the normal is a unit vector")
+    local s1, d1 = bend:nearest(100, 30)
+    check(near(s1, 100) and near(d1, 30), "nearest: 30 px off the first run, 100 px along")
+    local jump = Path.new({ { { 0, 0 }, { 100, 0 } }, { { 500, 500 }, { 500, 600 } } }, 80)
+    local jx, jy = jump:pointAt(150)
+    check(jump:length() == 200 and #jump:portals() == 1 and jx == 500 and jy == 550 and jump:pieceAt(150) == 2,
+        "a portal: the second piece starts where the first ends, with no distance between")
 
-    -- Level 1 keeps the original road exactly
+    -- Lanes: every size of enemy keeps clear of the road edge
+    local fits = true
+    for _, kind in ipairs({ "skeleton", "zombie", "orc" }) do
+        for _, off in ipairs({ -100, 100 }) do
+            local e = Enemy.create(kind, bend, { offset = off })
+            if math.abs(e.offset) + e.radius > 40 - Enemy.LANE_MARGIN + 1e-6 then fits = false end
+        end
+    end
+    check(fits, "enemy lanes are clamped so small, medium and large stay on an 80 px road")
+    local big, small = Enemy.SIZES.large.radius, Enemy.SIZES.small.radius
+    check(2 * big + 2 * small + 2 * Enemy.LANE_MARGIN <= Levels.roadWidth,
+        "a large and a small enemy fit side by side on the road")
+
+    -- Level 1: one road that enters at the left edge and ends at its gate
     local b1 = Level.build(Level.get("sunlit_meadows"))
-    check(#b1.paths[1] == 72 and b1.paths[1][1].x == 1 and b1.paths[1][72].x == 18 and b1.paths[1][72].y == 17,
-        "Sunlit Meadows: the original 72-cell road from (1,1) to (18,17)")
+    local r1 = b1.roads[1]
+    check(#b1.roads == 1 and r1.xs[1] == -40 and r1.xs[#r1.xs] == 940 and r1.ys[#r1.ys] == 660,
+        "Sunlit Meadows: one road from off the left edge to the gate at (940, 660)")
 
-    -- Two roads that merge share their cells once
+    -- Two roads that merge
     local cs = Level.build(Level.get("crystal_spires"))
-    local shared = {}
-    for _, c in ipairs(cs.paths[1]) do shared[c.x .. "," .. c.y] = true end
-    local overlap = 0
-    for _, c in ipairs(cs.paths[2]) do if shared[c.x .. "," .. c.y] then overlap = overlap + 1 end end
-    check(#cs.paths == 2 and overlap > 0 and #cs.roadCells == #cs.paths[1] + #cs.paths[2] - overlap,
-        "Crystal Spires: 2 roads that merge, shared cells counted once")
-    local rockCells = 0
-    for y = 1, cs.rows do for x = 1, cs.cols do if cs.grid[y][x] == Level.ROCK then rockCells = rockCells + 1 end end end
-    check(rockCells == 5 * 5 + 4 * 3, "Crystal Spires: rock areas cover 37 cells")
+    local e1, e2 = cs.roads[1], cs.roads[2]
+    check(#cs.roads == 2 and e1.xs[#e1.xs] == e2.xs[#e2.xs] and e1.ys[#e1.ys] == e2.ys[#e2.ys],
+        "Crystal Spires: 2 roads that end at the same gate")
+
+    -- Placement: inside a zone, clear of the road, the HUD and other towers
+    check(Level.canBuild(b1, 160, 170, {}) == true, "Sunlit Meadows: a tower fits at (160, 170) in a zone")
+    local ok1, why1 = Level.canBuild(b1, 600, 500, {})
+    check(not ok1 and why1 == "zone", "outside every zone: no (" .. tostring(why1) .. ")")
+    local open = Level.build({ paths = { { { 0, 5 }, { 32, 5 } } }, zones = { { 0, 0, 32, 18 } } })
+    local ok2, why2 = Level.canBuild(open, 300, 250, {})
+    check(not ok2 and why2 == "road", "inside a zone but 50 px from the road's middle: no (" .. tostring(why2) .. ")")
+    check(Level.canBuild(open, 300, 265, {}) == true, "65 px from the road's middle: yes")
+    local ok4, why4 = Level.canBuild(open, 640, 40, {})
+    check(not ok4 and why4 == "hud", "under the status bar: no (" .. tostring(why4) .. ")")
+    local ok3, why3 = Level.canBuild(b1, 160, 170, { { x = 180, y = 180 } })
+    check(not ok3 and why3 == "tower", "next to another tower: no (" .. tostring(why3) .. ")")
+    check(Level.onRoad(b1, 200, 40) and not Level.onRoad(b1, 200, 140), "on the road at (200, 40), not at (200, 140)")
+
+    -- Walk grid: a route along the road around the first corner
+    local route = Level.nav(b1):route(200, 40, 400, 200)
+    local onRoad = route ~= nil
+    for _, p in ipairs(route or {}) do if not Level.onRoad(b1, p[1], p[2], 2) then onRoad = false end end
+    check(onRoad and #route >= 3, "a hero route turns the corner and stays on the road (" .. #(route or {}) .. " points)")
 
     local nc = Level.build(Level.get("necropolis"))
-    check(#nc.portals == 1 and nc.portals[1].from.x == 3 and nc.portals[1].from.y == 13
-        and nc.portals[1].to.x == 15 and nc.portals[1].to.y == 4, "Necropolis: a portal from (3,13) to (15,4)")
+    check(#nc.portals == 1 and nc.portals[1].from[1] == 140 and nc.portals[1].from[2] == 500
+        and nc.portals[1].to[1] == 780 and nc.portals[1].to[2] == 140, "Necropolis: a portal from (140, 500) to (780, 140)")
 
     -- Enemies step through portals
-    local walker = Enemy.create("zombie", nc.paths[1], 32)
+    local walker = Enemy.create("zombie", nc.roads[1], { offset = 0 })
     local jumped = false
-    for _ = 1, 60 * 120 do
+    for _ = 1, 60 * 200 do
         walker:update(1 / 60)
-        if walker.gridX == 15 and walker.gridY == 4 then jumped = true end
+        if walker.piece == 2 and math.abs(walker.x - 780) < 40 and math.abs(walker.y - 140) < 40 then jumped = true end
         if walker.reachedEnd then break end
     end
     check(jumped and walker.reachedEnd, "a zombie walks the Necropolis road through the portal to the end")
@@ -583,11 +664,13 @@ local function testWaves()
     local cc = Wave.plan(Level.get("celestial_citadel")) -- difficulty 3, 15 waves
     check(dragons(cc[15]) == 1 and dragons(cc[8]) == 1 and dragons(cc[7]) == 0, "difficulty 3: dragons at wave 8 and 15")
 
-    -- Health (1 + (0.10 + 0.08 d)(n - 1) + 0.008 d (n - 1)^2) * sqrt(road / 60) * toughness
-    checkNear(a[10].healthMult, (1 + 0.18 * 9 + 0.008 * 81) * math.sqrt(72 / 60),
-        "difficulty 1 wave 10 on a 72-cell road: health x3.58")
-    checkNear(cc[15].healthMult, (1 + 0.34 * 14 + 0.024 * 196) * math.sqrt(104 / 60) * 0.85,
-        "difficulty 3 wave 15 on a 104-cell road, toughness 0.85: health x11.71")
+    -- Health (1 + (0.10 + 0.08 d)(n - 1) + 0.008 d (n - 1)^2) * sqrt(road / 66) * HEALTH_SCALE * toughness
+    local hs = Wave.DEFAULTS.HEALTH_SCALE
+    checkNear(a[10].healthMult, (1 + 0.18 * 9 + 0.008 * 81) * math.sqrt(80 / 66) * hs,
+        string.format("difficulty 1 wave 10 on an 80-unit road: health x%.2f", (1 + 0.18 * 9 + 0.008 * 81) * math.sqrt(80 / 66) * hs))
+    checkNear(cc[15].healthMult, (1 + 0.34 * 14 + 0.024 * 196) * math.sqrt(113 / 66) * hs * 0.85,
+        string.format("difficulty 3 wave 15 on a 113-unit road, toughness 0.85: health x%.2f",
+            (1 + 0.34 * 14 + 0.024 * 196) * math.sqrt(113 / 66) * hs * 0.85))
     check(a[1].bonus == 24 and a[10].bonus == 60, "wave bonus 20 + 4 per wave (24 .. 60)")
 
     -- Two roads: groups of 6 take turns
@@ -635,14 +718,23 @@ local function testAudio()
     local first, second = Audio.play("place"), Audio.play("place")
     check(first and not second, "the same sound twice within its gap plays once")
 
-    -- At most `max` copies at once (enemy_hit: 3)
+    -- At most `max` copies at once (enemy_hit: 3). Stand-in sounds that
+    -- report "still playing" make this independent of the audio device
+    -- (a dummy driver, as in CI, finishes every sound instantly)
+    local still = { isPlaying = function() return true end }
+    Audio.playing.enemy_hit = { still, still }
+    Audio.lastPlayed.enemy_hit = nil
+    local third = Audio.play("enemy_hit")
+    Audio.playing.enemy_hit = { still, still, still }
+    Audio.lastPlayed.enemy_hit = nil
+    local fourth = Audio.play("enemy_hit")
+    local done = { isPlaying = function() return false end }
+    Audio.playing.enemy_hit = { done, done, done }
+    Audio.lastPlayed.enemy_hit = nil
+    local afterFinish = Audio.play("enemy_hit")
+    check(third and not fourth and afterFinish,
+        "no more than 3 enemy hits sound at once; a finished one frees a place")
     Audio.playing.enemy_hit = nil
-    local played = 0
-    for _ = 1, 6 do
-        Audio.lastPlayed.enemy_hit = nil -- skip the gap, test only the cap
-        if Audio.play("enemy_hit") then played = played + 1 end
-    end
-    check(played == 3, "no more than 3 enemy hits sound at once (" .. played .. ")")
 
     Audio.setVolumes(2, -1)
     check(Audio.volumes.music == 1 and Audio.volumes.sfx == 0, "volumes are clamped to 0..1")
@@ -669,6 +761,107 @@ local function testAudio()
     local d = { musicVolume = 1 }
     check(not Save.loadSettings(d) and d.musicVolume == 1, "a broken settings file leaves the defaults alone")
     love.filesystem.remove("settings.json")
+
+    -- With no table given, settings means the global gameState.settings
+    -- (main.lua), never the cached profile
+    local saved = _G.gameState
+    _G.gameState = { settings = { musicVolume = 0.25, sfxVolume = 0.5 } }
+    Save.getCurrentProfile() -- make sure a profile is cached
+    check(Save:getSettings() == _G.gameState.settings, "Save:getSettings returns the global settings, not the profile")
+    check(Save.saveSettings(), "saveSettings with no argument saves the global settings")
+    local check2 = { musicVolume = 1, sfxVolume = 1 }
+    Save.loadSettings(check2)
+    check(check2.musicVolume == 0.25, "and they load back (music 0.25)")
+    love.filesystem.remove("settings.json")
+    _G.gameState = saved
+end
+
+------------------------------------------------------------------------
+local function testFx()
+    log("== Battle feedback")
+    local Fx = require('systems.fx')
+    Fx.clear()
+    local z = { x = 100, y = 100 }
+    Fx.damage(z, 20)
+    Fx.damage(z, 15, true)
+    check(#Fx.items == 1 and Fx.items[1].amount == 35 and Fx.items[1].crit,
+        "hits on one enemy within 0.25 s merge into one number (35, marked crit)")
+    Fx.update(0.3)
+    Fx.damage(z, 5)
+    check(#Fx.items == 2, "a hit after the merge window starts a new number")
+    Fx.damage({ x = 0, y = 0 }, 0.4)
+    check(#Fx.items == 2, "damage under 1 shows no number")
+    Fx.update(1)
+    check(#Fx.items == 0, "numbers fade out after 0.8 s")
+    for i = 1, Fx.MAX + 20 do Fx.gold(i, i, 10) end
+    check(#Fx.items == Fx.MAX, "live effects are capped at " .. Fx.MAX)
+    Fx.clear()
+    Fx.lifeLost(10, 10, 2)
+    check(Fx.flash > 0 and Fx.items[1].amount == 2, "a lost life flashes the screen edge and shows -2")
+    Fx.update(2)
+    check(Fx.flash == 0 and #Fx.items == 0, "the flash and the -2 clear")
+end
+
+------------------------------------------------------------------------
+local function testAchievements()
+    log("== Achievements")
+    local A = require('systems.achievements')
+    local function ids(list) local t = {} for _, a in ipairs(list) do t[#t + 1] = a.id end table.sort(t) return table.concat(t, ",") end
+    local p = { heroes = { sir_galahad = { level = 3 } }, levels = {} }
+
+    local new = A.recordGame(p, { victory = false, livesLost = 4, towersBuilt = 2, wavesCleared = 5, shopGold = 40,
+        towerTypes = 2, factionTowerCount = 3 })
+    check(ids(new) == "first_tower", "a lost game with 2 towers unlocks only Foundation (" .. ids(new) .. ")")
+    check(p.stats.towersBuilt == 2 and p.stats.wavesCleared == 5 and p.stats.shopGold == 40 and p.stats.games == 1,
+        "the game adds to the profile totals")
+
+    new = A.recordGame(p, { victory = true, livesLost = 0, towersBuilt = 6, wavesCleared = 10, shopGold = 150,
+        towerTypes = 3, factionTowerCount = 3 })
+    check(ids(new) == "perfect_wave,tower_synergy", "a flawless win with all 3 tower types unlocks Flawless and Combined Arms (" .. ids(new) .. ")")
+    new = A.recordGame(p, { victory = true, livesLost = 0, towersBuilt = 1, wavesCleared = 10, shopGold = 0,
+        towerTypes = 3, factionTowerCount = 3 })
+    check(#new == 0, "an achievement unlocks once")
+
+    p.heroes.sir_galahad.level = 10
+    p.levels = { sunlit_meadows = { stars = 3 }, crystal_spires = { stars = 1 }, celestial_citadel = { stars = 2 } }
+    new = A.recordGame(p, { victory = true, livesLost = 2, towersBuilt = 0, wavesCleared = 0, shopGold = 0, towerTypes = 1 })
+    check(ids(new) == "faction_master,hero_legend", "a level 10 hero and a full faction unlock Hero Legend and Faction Master (" .. ids(new) .. ")")
+
+    local rows = A.status(p)
+    local byId = {}
+    for _, r in ipairs(rows) do byId[r.id] = r end
+    check(#rows == 8 and byId.first_tower.unlocked and byId.first_tower.date ~= nil, "the screen lists 8, with unlock dates")
+    check(not byId.tower_master.unlocked and byId.tower_master.progress == 9 and byId.tower_master.maxProgress == 50,
+        "Tower Master shows 9 / 50 towers")
+    check(byId.wave_survivor.progress == 25 and byId.resource_king.progress == 190, "waves (25 / 100) and gold (190 / 2000) progress")
+    for _, a in ipairs(A.list) do
+        if not love.filesystem.getInfo("sprites/ui/achievements/" .. a.id .. ".png") then
+            check(false, a.id .. " has an icon")
+        end
+    end
+end
+
+------------------------------------------------------------------------
+local function testImages()
+    log("== Images: mipmaps where the GPU allows (WebGL 1 does not for odd sizes)")
+    local Image = require('utils.image')
+    local npot, pot = love.image.newImageData(300, 200), love.image.newImageData(256, 128)
+    check(Image.smooth(npot):getMipmapCount() > 1, "this GPU mipmaps a 300 x 200 image")
+    local real = love.graphics.getSupported
+    love.graphics.getSupported = function()
+        local t = {}
+        for k, v in pairs(real()) do t[k] = v end
+        t.fullnpot = false
+        return t
+    end
+    local okA, a = pcall(Image.smooth, npot)
+    local okB, b = pcall(Image.smooth, pot)
+    local can = Image.canMipmap(300, 200)
+    love.graphics.getSupported = real
+    check(okA and a:getMipmapCount() == 1 and a:getFilter() == "linear",
+        "without full NPOT support a 300 x 200 image loads unmipmapped, linear")
+    check(okB and b:getMipmapCount() > 1, "a 256 x 128 image still gets mipmaps")
+    check(not can and Image.canMipmap(256, 128), "canMipmap: 300 x 200 no, 256 x 128 yes")
 end
 
 ------------------------------------------------------------------------
@@ -684,6 +877,9 @@ function love.load()
     testWaves()
     testSave()
     testAudio()
+    testFx()
+    testAchievements()
+    testImages()
     log(string.format("DONE passes=%d failures=%d", passes, failures))
     os.exit(failures == 0 and 0 or 1)
 end

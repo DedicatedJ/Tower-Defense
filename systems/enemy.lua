@@ -5,68 +5,11 @@ local Error = require("utils.error")
 local Animations = require("systems.animations")
 local Effects = require("systems.effects")
 
--- Use local pathfinding instead of Jumper library which may be missing
-local Pathfinder = {}
-
-function Pathfinder.new(grid, walkable)
-    local pf = {}
-    pf.grid = grid
-    pf.walkable = walkable or 0
-    
-    -- Breadth-first search pathfinding
-    function pf:getPath(startX, startY, endX, endY)
-        -- Create a queue for BFS
-        local queue = {{x = startX, y = startY}}
-        local visited = {}
-        local parent = {}
-        local key = startX .. "," .. startY
-        visited[key] = true
-        
-        while #queue > 0 do
-            local current = table.remove(queue, 1)
-            local currKey = current.x .. "," .. current.y
-            
-            -- If we reached the end, reconstruct the path
-            if current.x == endX and current.y == endY then
-                local path = {}
-                local curr = currKey
-                while curr do
-                    local x, y = curr:match("(%d+),(%d+)")
-                    table.insert(path, 1, {x = tonumber(x), y = tonumber(y)})
-                    curr = parent[curr]
-                end
-                return path
-            end
-            
-            -- Check neighbors (up, right, down, left)
-            local directions = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}}
-            for _, dir in ipairs(directions) do
-                local nx, ny = current.x + dir[1], current.y + dir[2]
-                local nkey = nx .. "," .. ny
-                
-                -- Check if neighbor is valid and walkable
-                if nx >= 1 and ny >= 1 and nx <= #self.grid[1] and ny <= #self.grid and 
-                   self.grid[ny][nx] == self.walkable and not visited[nkey] then
-                    table.insert(queue, {x = nx, y = ny})
-                    visited[nkey] = true
-                    parent[nkey] = currKey
-                end
-            end
-        end
-        
-        -- No path found
-        return {}
-    end
-    
-    return pf
-end
-
 -- Enemy system
 local Enemy = {
     initialized = false,
     types = {},
     sprites = {},
-    pathfinder = nil
 }
 
 -- Walk sheet playback (sheet layout: art/README.md and tools/artcut)
@@ -74,10 +17,36 @@ Enemy.FACING_ROW = { down = 1, right = 2, left = 3, up = 4 }
 Enemy.WALK_CYCLE = { 1, 2, 3, 2 }      -- left foot, standing, right foot, standing
 Enemy.FRAME_TIME = 0.16                 -- seconds per frame at ANIM_BASE_SPEED
 Enemy.ANIM_BASE_SPEED = 40              -- px/s the frame time was tuned for
-Enemy.FOOT_OFFSET = 10                  -- feet sit this far below the cell center
-Enemy.HOVER_HEIGHT = 22                 -- flyers' body center above their ground point
--- On-map figure height in pixels, per enemy type (scale is data, per asset)
-Enemy.DRAW_HEIGHT = { default = 40, zombie = 40, skeleton = 40, orc = 46, necromancer = 44, dragon = 56 }
+Enemy.FOOT_OFFSET = 10                  -- feet sit this far below the enemy's road point
+Enemy.HOVER_HEIGHT = 33                 -- flyers' body center above their ground point
+
+-- Size classes: how much road an enemy takes (radius, also its hit radius)
+-- and how tall it is drawn. A road fits one large and one small abreast.
+Enemy.SIZES = {
+    small = { radius = 12, height = 54 },
+    medium = { radius = 16, height = 66 },
+    large = { radius = 22, height = 86 },
+}
+Enemy.SIZE_OF = { skeleton = "small", zombie = "medium", necromancer = "medium", orc = "large", dragon = "large" }
+Enemy.STRIKE_REACH = 40 -- how close a passing melee foe must be to get hit
+Enemy.LANE_MARGIN = 4                   -- kept clear between an enemy and the road edge
+-- Movement speeds below are multiplied by this (roads are measured in
+-- screen pixels; tuned with tests/run.sh balance)
+Enemy.SPEED_SCALE = 1.32 -- keeps the walk time on Sunlit Meadows what it was on the old 32 px grid
+
+local function sizeOf(type)
+    return Enemy.SIZES[Enemy.SIZE_OF[type] or "medium"]
+end
+
+-- On-map figure height in pixels, per enemy type (from its size class)
+Enemy.DRAW_HEIGHT = { default = Enemy.SIZES.medium.height }
+for id, size in pairs(Enemy.SIZE_OF) do Enemy.DRAW_HEIGHT[id] = Enemy.SIZES[size].height end
+
+-- Color of the motes when an enemy dies (systems/fx.lua)
+Enemy.PUFF_COLORS = {
+    default = { 0.8, 0.8, 0.7 }, zombie = { 0.55, 0.7, 0.35 }, skeleton = { 0.9, 0.88, 0.8 },
+    orc = { 0.6, 0.35, 0.25 }, necromancer = { 0.6, 0.35, 0.8 }, dragon = { 1, 0.55, 0.2 },
+}
 
 -- Status dots drawn over enemies, in this order
 Enemy.STATUS_MARKERS = {
@@ -231,30 +200,9 @@ function Enemy.init()
 
     -- Painted walk sheets cut by tools/artcut: a PNG plus a .lua file with
     -- the frame layout next to it. Types without one keep the default.
-    Enemy.sheets = {}
+    Enemy.sheets = Enemy.sheets or {}
     for id, enemy in pairs(Enemy.types) do
-        local png = enemy.spriteSheet
-        local metaPath = png and (png:gsub("%.png$", ".lua"))
-        if png and love.filesystem.getInfo(png) and love.filesystem.getInfo(metaPath) then
-            local okMeta, meta = pcall(function() return love.filesystem.load(metaPath)() end)
-            local okImg, img = pcall(love.graphics.newImage, png, { mipmaps = true })
-            if okMeta and okImg and type(meta) == "table" then
-                img:setFilter("linear", "linear")
-                img:setMipmapFilter("linear")
-                local iw, ih = img:getDimensions()
-                local quads = {}
-                for r = 1, meta.rows do
-                    quads[r] = {}
-                    for c = 1, meta.cols do
-                        quads[r][c] = love.graphics.newQuad((c - 1) * meta.frameW, (r - 1) * meta.frameH,
-                            meta.frameW, meta.frameH, iw, ih)
-                    end
-                end
-                Enemy.sheets[id] = { image = img, quads = quads, meta = meta }
-            else
-                print("WARNING: could not load walk sheet for " .. id)
-            end
-        end
+        if enemy.spriteSheet then Enemy.loadSheet(id, enemy.spriteSheet) end
     end
 
     Enemy.initialized = true
@@ -281,6 +229,7 @@ function Enemy.createDefaultSprite(enemy)
     end
     
     -- Draw to canvas
+    local prevCanvas = love.graphics.getCanvas() -- restored below (the frame may be drawing into one)
     love.graphics.setCanvas(canvas)
     love.graphics.clear(0, 0, 0, 0)
     
@@ -298,13 +247,16 @@ function Enemy.createDefaultSprite(enemy)
     love.graphics.circle("line", size/2, size/2, size/3)
     
     -- Reset canvas
-    love.graphics.setCanvas()
+    love.graphics.setCanvas(prevCanvas)
     
     return canvas
 end
 
--- Create enemy instance
-function Enemy.create(type, path, gridSize)
+-- Create enemy instance on `road` (a systems/path.lua Path). opts.offset
+-- sets its sideways place on the road; by default a random one that keeps
+-- it on the surface.
+function Enemy.create(type, road, opts)
+    opts = opts or {}
     -- Initialize enemy system if not done already
     if not Enemy.initialized then
         Enemy.init()
@@ -317,40 +269,37 @@ function Enemy.create(type, path, gridSize)
         return nil
     end
 
-    if not path or #path == 0 then
-        Error.show("No path found for enemy '" .. type .. "'")
+    if not road or not road.pointAt then
+        Error.show("No road for enemy '" .. type .. "'")
         return nil
     end
 
-    -- Positions are pixel centers. Grid cell (gx, gy) is 1-based and spans
-    -- (gx-1)*gridSize .. gx*gridSize, so its center is (gx-0.5)*gridSize.
-    local function cellCenter(cell)
-        return (cell.x - 0.5) * gridSize, (cell.y - 0.5) * gridSize
-    end
-    local startX, startY = cellCenter(path[1])
+    local size = sizeOf(type)
+    local maxOffset = math.max(0, road.width / 2 - size.radius - Enemy.LANE_MARGIN)
+    local offset = opts.offset or (love.math.random() * 2 - 1) * maxOffset
+    offset = math.max(-maxOffset, math.min(maxOffset, offset))
+    local x, y, nx, ny = road:pointAt(0)
 
     -- Create enemy instance
     local enemy = {
         id = Utils.generateID("enemy"),
         type = type,
         name = template.name,
-        x = startX,
-        y = startY,
-        width = 32,
-        height = 32,
-        radius = 12, -- hit radius used by projectiles
+        x = x + nx * offset,
+        y = y + ny * offset,
+        width = size.radius * 2,
+        height = size.height,
+        radius = size.radius, -- hit radius used by projectiles
+        size = Enemy.SIZE_OF[type] or "medium",
         health = template.health,
         maxHealth = template.health,
-        speed = template.speed,
+        speed = template.speed * Enemy.SPEED_SCALE,
         damage = template.damage,
         value = template.value,
-        path = path,
-        currentPathIndex = 1,
-        targetX = startX,
-        targetY = startY,
-        gridX = path[1].x,
-        gridY = path[1].y,
-        gridSize = gridSize,
+        road = road,
+        distance = 0,     -- pixels travelled along the road
+        offset = offset,  -- sideways place on the road
+        piece = 1,        -- which stretch between portals
         state = "walking", -- walking, attacking, dead
         dead = false,       -- read by towers/projectiles
         reachedEnd = false, -- read by towers/projectiles
@@ -376,6 +325,7 @@ function Enemy.create(type, path, gridSize)
     enemy.summon = combat.summon
     enemy.summonTimer = combat.summon and combat.summon.interval or nil
     enemy.blocker = nil
+    enemy.foe = nil -- a melee unit that hit us without holding us: swung at in passing
     enemy.attackCooldown = 0
     enemy.lunge = 0
     enemy.statuses = {}
@@ -426,6 +376,17 @@ function Enemy.create(type, path, gridSize)
         if self.state == "walking" then
             self:move(dt)
         end
+
+        -- A melee unit that is not holding us: hit it while walking past
+        local f = self.foe
+        if f then
+            local fx, fy = f.x - self.x, f.y - self.y
+            if f.dead or f.removed or fx * fx + fy * fy > Enemy.STRIKE_REACH * Enemy.STRIKE_REACH then
+                self.foe = nil
+            else
+                self:strike(f, dt)
+            end
+        end
     end
 
     -- Attack the unit blocking us
@@ -436,6 +397,11 @@ function Enemy.create(type, path, gridSize)
         else
             self.direction = dy > 0 and "down" or "up"
         end
+        self:strike(unit, dt)
+    end
+
+    -- Count down and hit unit when the attack is ready
+    enemy.strike = function(self, unit, dt)
         self.attackCooldown = self.attackCooldown - dt
         if self.attackCooldown <= 0 and Effects.canAttack(self) then
             self.attackCooldown = 1 / self.attackRate
@@ -449,63 +415,43 @@ function Enemy.create(type, path, gridSize)
         end
     end
     
-    -- Move enemy along path
+    -- Put the enemy at distance d along its road, in its lane
+    enemy.placeAt = function(self, d)
+        self.distance = d
+        local x, y, nx, ny, dx, dy = self.road:pointAt(d)
+        self.x, self.y = x + nx * self.offset, y + ny * self.offset
+        if math.abs(dx) > math.abs(dy) then
+            self.direction = dx > 0 and "right" or "left"
+        else
+            self.direction = dy > 0 and "down" or "up"
+        end
+        -- Through a portal: flash where it comes out
+        local piece = self.road:pieceAt(d)
+        if piece ~= self.piece then
+            self.piece = piece
+            self.portalFlash = 0.4
+        end
+    end
+
+    -- Move enemy along its road
     enemy.move = function(self, dt)
         local speed = self.currentSpeed or self.speed
-        local targetX = (self.path[self.currentPathIndex].x - 0.5) * self.gridSize
-        local targetY = (self.path[self.currentPathIndex].y - 0.5) * self.gridSize
-        
-        -- Calculate direction to target
-        local dx = targetX - self.x
-        local dy = targetY - self.y
-        local distance = math.sqrt(dx*dx + dy*dy)
-
-        -- A gap of more than a cell is a portal: step straight through
-        if distance > self.gridSize * 1.5 then
-            self.x, self.y = targetX, targetY
-            self.portalFlash = 0.4
-            distance = 0
+        local d = self.distance + speed * dt
+        local total = self.road:length()
+        if d >= total then
+            self:placeAt(total)
+            -- Reached end of path
+            self.state = "attacking"
+            self.reachedEnd = true
+            self.currentAnimation = "attack"
+            return
         end
-        
-        -- Update direction for animation
-        if math.abs(dx) > math.abs(dy) then
-            if dx > 0 then self.direction = "right" else self.direction = "left" end
-        else
-            if dy > 0 then self.direction = "down" else self.direction = "up" end
-        end
-        
-        -- Move if not at target
-        if distance > 2 then
-            local moveX = dx / distance * speed * dt
-            local moveY = dy / distance * speed * dt
-            
-            -- Check if we would overshoot
-            if math.abs(moveX) > math.abs(dx) then moveX = dx end
-            if math.abs(moveY) > math.abs(dy) then moveY = dy end
-            
-            self.x = self.x + moveX
-            self.y = self.y + moveY
-        else
-            -- Reached waypoint, go to next one
-            self.x = targetX
-            self.y = targetY
-            self.gridX = self.path[self.currentPathIndex].x
-            self.gridY = self.path[self.currentPathIndex].y
-            
-            if self.currentPathIndex < #self.path then
-                self.currentPathIndex = self.currentPathIndex + 1
-            else
-                -- Reached end of path
-                self.state = "attacking"
-                self.reachedEnd = true
-                self.currentAnimation = "attack"
-            end
-        end
+        self:placeAt(d)
     end
 
     -- How far along the road this enemy is (for "furthest enemy" targeting)
     enemy.progress = function(self)
-        return self.currentPathIndex
+        return self.distance
     end
     
     -- Update animation
@@ -532,7 +478,12 @@ function Enemy.create(type, path, gridSize)
         end
         dmg = math.min(dmg, self.health)
         self.health = self.health - dmg
-        if source then self.lastHitBy = source end
+        if source then
+            self.lastHitBy = source
+            -- Credit the tower or unit (end screen stats); burns and other
+            -- damage over time count for whoever applied them
+            source.damageDealt = (source.damageDealt or 0) + dmg
+        end
 
         -- Soul Shackles: direct hits are shared along the chain
         if not opts.dot and not opts.shared then
@@ -550,6 +501,7 @@ function Enemy.create(type, path, gridSize)
     
     -- Die
     enemy.die = function(self)
+        require('systems.fx').puff(self.x, self.y - 10, Enemy.PUFF_COLORS[self.type] or Enemy.PUFF_COLORS.default)
         self.state = "dead"
         self.dead = true
         self.justDied = true -- read once by the game (XP, conversion)
@@ -719,19 +671,31 @@ function Enemy.drawFigure(sheetType, x, groundY, direction, animTime, moving, ti
     return footY - (meta.footY - (meta.topY or 0)) * s
 end
 
--- Set up pathfinder for the grid map
-function Enemy.setPathfinder(grid, walkable)
-    Enemy.pathfinder = Pathfinder.new(grid, walkable)
-end
-
--- Find path from start to end
-function Enemy.findPath(startX, startY, endX, endY)
-    if not Enemy.pathfinder then
-        Error.show("Pathfinder not initialized")
-        return {}
+-- Load a walk sheet (PNG plus its .lua frame layout from tools/artcut sheet)
+-- under `key`, for Enemy.drawFigure. Returns the sheet, or nil when the
+-- files are not there. Heroes use this too ("hero_<id>").
+function Enemy.loadSheet(key, png)
+    Enemy.sheets = Enemy.sheets or {}
+    if Enemy.sheets[key] then return Enemy.sheets[key] end
+    local metaPath = png:gsub("%.png$", ".lua")
+    if not (love.filesystem.getInfo(png) and love.filesystem.getInfo(metaPath)) then return nil end
+    local okMeta, meta = pcall(function() return love.filesystem.load(metaPath)() end)
+    local okImg, img = pcall(require('utils.image').smooth, png)
+    if not (okMeta and okImg and type(meta) == "table") then
+        print("WARNING: could not load walk sheet " .. png)
+        return nil
     end
-    
-    return Enemy.pathfinder:getPath(startX, startY, endX, endY)
+    local iw, ih = img:getDimensions()
+    local quads = {}
+    for r = 1, meta.rows do
+        quads[r] = {}
+        for c = 1, meta.cols do
+            quads[r][c] = love.graphics.newQuad((c - 1) * meta.frameW, (r - 1) * meta.frameH,
+                meta.frameW, meta.frameH, iw, ih)
+        end
+    end
+    Enemy.sheets[key] = { image = img, quads = quads, meta = meta }
+    return Enemy.sheets[key]
 end
 
 return Enemy 

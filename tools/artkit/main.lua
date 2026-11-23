@@ -159,102 +159,115 @@ local function walkSheet()
 end
 
 ------------------------------------------------------------------------
--- Map blockouts, one per level, built from data/levels.lua by the game's
--- own systems/level.lua. 24 x 18 cells at 80 px = 1920 x 1440 (4:3).
--- Mid gray is the road, near black is rock, light gray is open ground.
+-- Map blockouts, one per level, from data/levels.lua through the game's
+-- own systems/level.lua, at twice the 1280 x 720 map (2560 x 1440, 16:9).
+-- Three grays, one job each: dark = scenery (nothing stands there),
+-- mid = the roads with their rounded bends, exactly as the game lays them
+-- out, light = build plots (the level's zones).
 ------------------------------------------------------------------------
-local function blockoutName(level)
-    return level.id == "sunlit_meadows" and "map_level1_blockout.png" or ("map_" .. level.id .. "_blockout.png")
-end
+local BLOCKOUT_SCALE = 2
+local TONE = { scenery = 0.30, road = 0.56, plot = 0.86 }
 
--- Plain words for how a level's roads run, so a painting can be checked by
--- eye: where each road enters and leaves, how many right-angle turns it has,
--- where roads join, and where a portal breaks the road.
+local function blockoutName(level) return "map_" .. level.id .. "_blockout.png" end
+
 local NUM = { "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen" }
 
-local function describeRoads(level, Level, cols, rows)
-    local function third(v, n, lo, hi)
-        if v <= n / 3 then return "near the " .. lo elseif v > n * 2 / 3 then return "near the " .. hi end
-        return "in the middle"
+-- Plain words for how a level's roads run, from its waypoints (40 px units
+-- on a cols x rows map), so a painting can be checked by eye: where each
+-- road enters and leaves, how many bends it has, where roads join, and
+-- where a portal breaks the road.
+local function describeRoads(level, cols, rows)
+    local function third(v, n, lo, mid, hi)
+        if v < n / 3 then return lo elseif v > n * 2 / 3 then return hi end
+        return mid
     end
-    local function where(c)
-        if c.x == 1 then return "the left edge " .. third(c.y, rows, "top", "bottom") end
-        if c.x == cols then return "the right edge " .. third(c.y, rows, "top", "bottom") end
-        if c.y == 1 then return "the top edge " .. third(c.x, cols, "left", "right") end
-        if c.y == rows then return "the bottom edge " .. third(c.x, cols, "left", "right") end
-        local v, h = third(c.y, rows, "top", "bottom"), third(c.x, cols, "left", "right")
-        if v == "in the middle" and h == "in the middle" then return "the center of the map" end
-        return "a point inside the map, " .. v .. " and " .. h:gsub("^near the ", "toward the ")
+    local function onEdge(p) return p[1] < 0 or p[2] < 0 or p[1] > cols or p[2] > rows end
+    local function where(p)
+        local x, y = p[1], p[2]
+        if x < 0 then return "the left edge " .. third(y, rows, "near the top", "in the middle", "near the bottom") end
+        if x > cols then return "the right edge " .. third(y, rows, "near the top", "in the middle", "near the bottom") end
+        if y < 0 then return "the top edge " .. third(x, cols, "near the left", "in the middle", "near the right") end
+        if y > rows then return "the bottom edge " .. third(x, cols, "near the left", "in the middle", "near the right") end
+        local v = third(y, rows, "near the top", "halfway down", "near the bottom")
+        local h = third(x, cols, "toward the left", "in the middle", "toward the right")
+        if v == "halfway down" and h == "in the middle" then return "the center of the map" end
+        return "a point inside the map, " .. v .. " and " .. h
     end
-    local function onEdge(c) return c.x == 1 or c.y == 1 or c.x == cols or c.y == rows end
-    local function turns(cells)
-        local n = 0
-        for i = 2, #cells - 1 do
-            local a, b, c = cells[i - 1], cells[i], cells[i + 1]
-            local adj1 = math.abs(a.x - b.x) + math.abs(a.y - b.y) == 1
-            local adj2 = math.abs(b.x - c.x) + math.abs(b.y - c.y) == 1
-            if adj1 and adj2 and (b.x - a.x ~= c.x - b.x or b.y - a.y ~= c.y - b.y) then n = n + 1 end
+    local function pieces(wps)
+        local out, cur = {}, {}
+        for _, wp in ipairs(wps) do
+            if wp == "portal" then out[#out + 1] = cur; cur = {} else cur[#cur + 1] = wp end
         end
-        return n
+        out[#out + 1] = cur
+        return out
+    end
+    local function bends(n)
+        if n == 1 then return "once" elseif n == 2 then return "twice" end
+        return (NUM[n] or tostring(n)) .. " times"
     end
 
     local parts = {}
-    local first = Level.expandPath(level.paths[1])
-    local _, portals = Level.expandPath(level.paths[1])
-    local last = first[#first]
-    local ending = onEdge(last) and ("leaves at " .. where(last)) or ("ends at " .. where(last))
-    parts[1] = string.format("%s road enters at %s, has exactly %s right-angle turns in all and %s.",
-        #level.paths > 1 and "The first" or "There is one road. It", where(first[1]),
-        NUM[turns(first)] or tostring(turns(first)), ending)
-    parts[1] = parts[1]:gsub("^There is one road%. It road", "There is one road. It")
-    for _, p in ipairs(portals) do
-        parts[#parts + 1] = string.format("Part way along, the road stops at %s, and starts again at %s; there " ..
-            "is no road between those two points. Leave both of those ends as plain road ends; the game " ..
-            "draws a portal on them.", where(p.from), where(p.to))
+    local first = pieces(level.paths[1])
+    local start, finish = first[1][1], first[#first][#first[#first]]
+    local n = 0
+    for _, p in ipairs(first) do n = n + math.max(0, #p - 2) end
+    local ending = onEdge(finish) and ("leaves at " .. where(finish))
+        or ("ends at " .. where(finish) .. ". Leave that rounded end plain: the game marks the goal on it")
+    parts[1] = string.format("%s enters at %s, bends %s and %s.",
+        #level.paths > 1 and "The first road" or "There is one road. It", where(start), bends(n), ending)
+    for i = 1, #first - 1 do
+        local a, b = first[i][#first[i]], first[i + 1][1]
+        parts[#parts + 1] = string.format("Part way along, the road stops at %s, and starts again at %s; " ..
+            "there is no road between those two points. Paint each of those two road ends as a round dais " ..
+            "of dark carved stone as wide as the road: the game draws a portal on each.", where(a), where(b))
     end
-    if #level.paths > 1 then
-        local onFirst = {}
-        for _, c in ipairs(first) do onFirst[c.x .. "," .. c.y] = true end
-        for i = 2, #level.paths do
-            local cells = Level.expandPath(level.paths[i])
-            local joinAt
-            for _, c in ipairs(cells) do
-                if onFirst[c.x .. "," .. c.y] then joinAt = c; break end
+    for pi = 2, #level.paths do
+        local pts = level.paths[pi]
+        local joinAt
+        for j = 2, #pts do
+            for _, q in ipairs(level.paths[1]) do
+                if q ~= "portal" and q[1] == pts[j][1] and q[2] == pts[j][2] then joinAt = j; break end
             end
-            local lead = {}
-            for _, c in ipairs(cells) do
-                lead[#lead + 1] = c
-                if c == joinAt then break end
-            end
-            parts[#parts + 1] = string.format("A second road enters at %s, makes %s right-angle turns and " ..
-                "joins the first road at %s; from there they are one road.", where(cells[1]),
-                NUM[turns(lead)] or tostring(turns(lead)), where(joinAt))
+            if joinAt then break end
         end
-        parts[1] = "There are " .. NUM[#level.paths] .. " roads. " .. parts[1]
+        assert(joinAt, level.id .. ": road " .. pi .. " never joins the first road")
+        parts[#parts + 1] = string.format("A %s road enters at %s, bends %s and joins the first road at %s; " ..
+            "from there they are one road.", pi == 2 and "second" or "third", where(pts[1]),
+            bends(joinAt - 2), where(pts[joinAt]))
     end
+    if #level.paths > 1 then parts[1] = "There are " .. NUM[#level.paths] .. " roads. " .. parts[1] end
     return table.concat(parts, " ")
 end
 
-local function mapBlockouts(root)
-    package.path = root .. "/?.lua;" .. package.path
-    local Levels = require('data.levels')
-    local Level = require('systems.level')
-    local cell = 80
+local function mapBlockouts(Levels, Level)
+    local s = BLOCKOUT_SCALE
     for _, level in ipairs(Levels.list) do
         local built = Level.build(level)
-        local canvas = love.graphics.newCanvas(built.cols * cell, built.rows * cell)
+        local canvas = love.graphics.newCanvas(built.width * s, built.height * s)
         love.graphics.setCanvas(canvas)
-        love.graphics.clear(GRAY.ground)
-        for y = 1, built.rows do
-            for x = 1, built.cols do
-                local v = built.grid[y][x]
-                if v == Level.ROAD or v == Level.ROCK then
-                    love.graphics.setColor(v == Level.ROAD and GRAY.road or { 0.18, 0.18, 0.18 })
-                    love.graphics.rectangle("fill", (x - 1) * cell, (y - 1) * cell, cell, cell)
+        love.graphics.clear(TONE.scenery, TONE.scenery, TONE.scenery)
+        love.graphics.setColor(TONE.plot, TONE.plot, TONE.plot)
+        for _, z in ipairs(built.zones) do
+            love.graphics.rectangle("fill", z[1] * s, z[2] * s, (z[3] - z[1]) * s, (z[4] - z[2]) * s)
+        end
+        -- Roads last: a plot never covers the road
+        local width = built.roadWidth * s
+        love.graphics.setColor(TONE.road, TONE.road, TONE.road)
+        love.graphics.setLineWidth(width)
+        love.graphics.setLineJoin("none")
+        for _, road in ipairs(built.roads) do
+            for _, samples in ipairs(road.pieces) do
+                local pts = {}
+                for _, p in ipairs(samples) do
+                    pts[#pts + 1] = p[1] * s
+                    pts[#pts + 1] = p[2] * s
                 end
+                if #pts >= 4 then love.graphics.line(pts) end
+                for i = 1, #pts, 2 do love.graphics.circle("fill", pts[i], pts[i + 1], width / 2, 48) end
             end
         end
+        love.graphics.setLineWidth(1)
         save(canvas, blockoutName(level))
     end
 end
@@ -287,13 +300,26 @@ local function buildPrompts(root)
     local function w(s) out[#out + 1] = s or "" end
     local function styled(p) return p .. "\n\nStyle: " .. A.style end
 
+    -- Every prompt names the next free version in art/incoming, so a
+    -- retry never overwrites a file that is already there.
+    local function nextVersion(id, ext)
+        local v = 1
+        while true do
+            local f = io.open(root .. "/art/incoming/" .. id .. "_v" .. v .. "." .. ext, "rb")
+            if not f then return v end
+            f:close()
+            v = v + 1
+        end
+    end
+
     local function entry(id, group, attach, prompt, extra)
         local s = A.settings[group]
         local ext = group == "sfx" and "wav or mp3" or "png"
+        local v = nextVersion(id, group == "sfx" and "wav" or "png")
         w("### " .. id)
         w("")
-        w("- Save as: `art/incoming/" .. id .. "_v1." .. (group == "sfx" and "wav" or "png") ..
-          "` (next try `_v2`; never overwrite). Format: " .. ext .. ".")
+        w("- Save as: `art/incoming/" .. id .. "_v" .. v .. "." .. (group == "sfx" and "wav" or "png") ..
+          "` (next try `_v" .. (v + 1) .. "`; never overwrite). Format: " .. ext .. ".")
         if group == "sfx" then
             w("- Model: " .. s.model .. ". Duration: " .. extra .. " s.")
         else
@@ -338,11 +364,11 @@ local function buildPrompts(root)
 
     w("## 1. Set the look first")
     w("")
-    w("Run these three, pick one of each, and send them to me before anything else. Everything after redraws from them.")
+    w("Run these two, pick one of each, and send them to me before anything else. Everything after redraws from them.")
+    w("The map look is set by the first map in section 11.")
     w("")
     entry(masterTower.id, "tower", nil, towerPrompt(masterTower))
     entry(masterEnemy.id, "sheet", "image 1 = `art/guides/walk_sheet_guide.png`", enemyPrompt(masterEnemy))
-    entry(A.map.id, "map", "image 1 = `" .. A.map.guide .. "`", styled(A.map.prompt))
 
     w("## 2. Other towers")
     w("")
@@ -389,8 +415,8 @@ local function buildPrompts(root)
     if A.cTowers then
         w("## 8. Faction towers (Model C)")
         w("")
-        w("Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower`, then point")
-        w("that tower's `sprite` in `data/factions.lua` at the new file.")
+        w("Attach the approved `tower_archer` final as image 1. Cut each with `tools/artcut tower` to")
+        w("`sprites/towers/<tower id>.png`; the game uses it in place of the stand-in sprite automatically.")
         w("")
         for _, t in ipairs(A.cTowers) do
             -- Faction towers have their own colors; say so, or the style line's
@@ -403,7 +429,8 @@ local function buildPrompts(root)
 
         w("## 9. Hero walk sheets (Model C)")
         w("")
-        w("Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor).")
+        w("Attach the approved `enemy_zombie` sheet as image 1. Cut each with `tools/artcut sheet` (feet anchor)")
+        w("to `sprites/heroes/<hero id>.png` and `.lua`; the hero is drawn from it automatically.")
         w("")
         for _, h in ipairs(A.cHeroes) do
             entry(h.id, "sheet", "image 1 = the approved `enemy_zombie` sheet",
@@ -420,36 +447,29 @@ local function buildPrompts(root)
         end
     end
 
-    -- Maps for every level that has no painted plate yet
+    -- Level maps: every level, the master first.
     local Levels = require('data.levels')
-    local todo = {}
+    local order = {}
     for _, level in ipairs(Levels.list) do
-        local file = level.plate or ("sprites/maps/" .. level.id .. ".png")
-        local f = io.open(root .. "/" .. file, "rb")
-        if f then f:close() else todo[#todo + 1] = level end
+        if level.id == A.mapMaster then table.insert(order, 1, level) else order[#order + 1] = level end
     end
-    if #todo > 0 then
-        w("## 11. Level maps")
-        w("")
-        w("Attach the level's gray layout from `art/guides/` as image 1. Cut each with `tools/artcut mapfix`")
-        w("(24 x 18 cells) and save it as `sprites/maps/<level id>.png`; the game picks it up from there.")
-        w("Until then the game draws a generated ground for the level.")
-        w("")
-        local Level = require('systems.level')
-        for _, level in ipairs(todo) do
-            local m = A.levelMaps[level.id]
-            assert(m, "art/assets.lua A.levelMaps has no entry for " .. level.id)
-            local rocks = A.noRocks
-            if level.rocks then
-                assert(m.rock, "art/assets.lua A.levelMaps." .. level.id .. " needs a rock material")
-                rocks = "The near-black areas are " .. m.rock .. ", where nothing can be built: fill each " ..
-                    "one edge to edge and keep it inside its black area."
-            end
-            local prompt = string.format(A.levelMapTemplate, describeRoads(level, Level, Levels.cols, Levels.rows),
-                m.ground, m.road, rocks)
-            entry("map_" .. level.id, "map", "image 1 = `art/guides/" .. blockoutName(level) .. "`",
-                prompt .. "\n\nStyle: " .. A.mapStyle)
-        end
+    w("## 11. Level maps")
+    w("")
+    w(A.mapIntro)
+    w("")
+    for _, level in ipairs(order) do
+        local m = A.levelMaps[level.id]
+        assert(m, "art/assets.lua A.levelMaps has no entry for " .. level.id)
+        local master = level.id == A.mapMaster
+        local p = A.mapScene .. "\n\n"
+        if not master then p = p .. A.mapRedo .. "\n\n" end
+        p = p .. "Place: " .. m.place .. "\n\n" ..
+            string.format(A.mapBody, describeRoads(level, Levels.cols, Levels.rows), m.road, m.plot, m.scenery) ..
+            "\n\n" .. A.mapView .. "\n\nStyle: " .. A.mapStyle
+        local attach = "image 1 = `art/guides/" .. blockoutName(level) .. "`"
+        if not master then attach = attach .. "; image 2 = the approved `map_" .. A.mapMaster .. "` final" end
+        local id = "map_" .. level.id
+        entry(id, "map", attach, p)
     end
 
     local path = root .. "/art/prompts.md"
@@ -463,8 +483,9 @@ end
 function love.load(args)
     local root = args[1] or "."
     OUT = root .. "/art/guides"
+    package.path = root .. "/?.lua;" .. package.path
     walkSheet()
-    mapBlockouts(root)
+    mapBlockouts(require('data.levels'), require('systems.level'))
     boxSheet(4, 2, "icon_sheet_8_guide.png")
     buildPrompts(root)
     love.event.quit(0)

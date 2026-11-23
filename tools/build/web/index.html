@@ -1,0 +1,269 @@
+<title>Tower Defense</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&display=swap">
+<!--
+  Web page for the browser build (tools/build/build.py --web).
+  The game runs in LOVE 11.4 compiled to WebAssembly (love.js, MIT).
+  build.py writes the game's files under game/ with a list in game.json
+  ([path, bytes] pairs) and fills in __SIZE__. The page downloads them into
+  love.js's in-memory filesystem under /game and starts LOVE on that folder.
+-->
+<style>
+  /* Layout: one centered column; a 16:9 stage for the 1280 x 720 game, controls under it.
+     Single dark look on purpose: the game itself is dark, so the page frames it. */
+  :root {
+    --ground: #12151c;      /* page */
+    --stone: #1b2029;       /* panels */
+    --edge: #2c3341;        /* borders */
+    --parchment: #e9e2cf;   /* text */
+    --muted: #9aa1ad;       /* secondary text */
+    --gold: #d9a441;        /* accent: the game's gold */
+    --danger: #e0685a;
+    --display: "Cinzel", "Trajan Pro", Georgia, serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { background: var(--ground); color: var(--parchment); }
+  [hidden] { display: none !important; }
+  body {
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.5;
+    padding-block: 20px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 18px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(1.6rem, 4vw, 2.2rem); letter-spacing: 0.04em; margin: 0; text-wrap: balance; }
+  .tag { color: var(--muted); margin: 0; }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  #canvas { display: block; width: 100%; height: 100%; outline: none; }
+  .overlay {
+    position: absolute; inset: 0;
+    display: grid; place-content: center; justify-items: center; gap: 14px;
+    padding: 24px; text-align: center;
+    background: radial-gradient(ellipse at center, rgba(27,32,41,0.92), rgba(10,12,16,0.97));
+  }
+  .overlay h2 { font-family: var(--display); font-size: clamp(1.3rem, 3.5vw, 2rem); margin: 0; letter-spacing: 0.05em; }
+  .overlay p { margin: 0; color: var(--muted); max-width: 46ch; }
+  button {
+    font: 600 1rem var(--body);
+    color: #1a1406;
+    background: var(--gold);
+    border: 0; border-radius: 4px;
+    padding: 12px 34px;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:focus-visible { outline: 2px solid var(--parchment); outline-offset: 3px; }
+  button.quiet { background: transparent; color: var(--parchment); border: 1px solid var(--edge); padding: 8px 16px; font-weight: 500; }
+  .bar { width: min(360px, 70vw); height: 8px; background: var(--stone); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.15s linear; }
+  .num { font-variant-numeric: tabular-nums; }
+  .error { color: var(--danger); }
+
+  .below { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 18px; align-items: start; }
+  @media (max-width: 720px) { .below { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--stone); border: 1px solid var(--edge); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  .panel h3 { font-family: var(--display); font-size: 1rem; letter-spacing: 0.06em; margin: 0 0 8px; color: var(--gold); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  td { padding: 5px 0; border-top: 1px solid var(--edge); vertical-align: top; }
+  td + td { padding-left: 12px; color: var(--muted); }
+  kbd { font: 600 0.8rem var(--body); background: var(--ground); border: 1px solid var(--edge); border-radius: 3px; padding: 1px 6px; color: var(--parchment); }
+  .notes { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.9rem; display: grid; gap: 6px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  @media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Tower Defense</h1>
+    <p class="tag">Three factions, nine levels, nine heroes.</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="canvas" width="1280" height="720" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="ov-title">Ready to play</h2>
+      <p id="ov-text">The game is a <span class="num" id="size">__SIZE__</span> MB download, then it runs right here in the browser.</p>
+      <div class="bar" id="bar" hidden><i id="fill"></i></div>
+      <button id="play" type="button">Play</button>
+    </div>
+  </div>
+
+  <div class="below">
+    <section class="panel">
+      <h3>Controls</h3>
+      <table>
+        <tr><td>Pick a tower</td><td>Click it at the bottom right, or <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td></tr>
+        <tr><td>Place it</td><td>Click inside a marked build zone</td></tr>
+        <tr><td>Upgrade or sell</td><td>Click the tower, then its card</td></tr>
+        <tr><td>Start or call the next wave</td><td>Start Wave button, or <kbd>Space</kbd></td></tr>
+        <tr><td>Move the hero</td><td>Click the hero, then a spot on the road</td></tr>
+        <tr><td>Hero abilities</td><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> or the ability buttons</td></tr>
+        <tr><td>Game speed</td><td><kbd>Tab</kbd> or the speed button</td></tr>
+        <tr><td>Drop the selection</td><td>Right click</td></tr>
+        <tr><td>Pause</td><td><kbd>P</kbd>, or <kbd>Esc</kbd> with nothing selected</td></tr>
+      </table>
+    </section>
+    <section class="panel">
+      <h3>In the browser</h3>
+      <ul class="notes">
+        <li>Profiles and settings save in this browser only.</li>
+        <li>Click the game once if keys stop responding.</li>
+        <li>Quitting from the menu ends the session; reload the page to play again.</li>
+        <li>Made for a mouse and keyboard.</li>
+      </ul>
+      <div class="tools">
+        <button class="quiet" id="full" type="button">Fullscreen</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $("canvas"), overlay = $("overlay");
+  var started = false;
+
+  function say(title, text, isError) {
+    $("ov-title").textContent = title;
+    $("ov-text").textContent = text;
+    $("ov-text").className = isError ? "error" : "";
+    overlay.hidden = false;
+  }
+
+  function fail(err) {
+    console.error(err);
+    $("bar").hidden = true;
+    say("The game could not start", String(err && err.message || err) + " Reload the page to try again.", true);
+    var b = $("play");
+    b.hidden = false;
+    b.textContent = "Reload";
+    b.onclick = function () { location.reload(); };
+  }
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error("Could not load " + src + ".")); };
+      document.body.appendChild(s);
+    });
+  }
+
+  // Every game file, 6 at a time. Returns [[path, Uint8Array], ...]
+  async function download() {
+    var res = await fetch("game.json");
+    if (!res.ok) throw new Error("Could not load the file list (HTTP " + res.status + ").");
+    var list = await res.json();
+    var total = 0, done = 0, next = 0, files = new Array(list.length);
+    list.forEach(function (f) { total += f[1]; });
+    async function worker() {
+      while (next < list.length) {
+        var i = next++, path = list[i][0];
+        var r = await fetch("game/" + path);
+        if (!r.ok) throw new Error("Download of " + path + " failed (HTTP " + r.status + ").");
+        var bytes = new Uint8Array(await r.arrayBuffer());
+        if (bytes.length !== list[i][1]) throw new Error(path + " arrived incomplete.");
+        files[i] = [path, bytes];
+        done += bytes.length;
+        $("fill").style.width = (100 * done / total).toFixed(1) + "%";
+        $("ov-text").textContent = (done / 1e6).toFixed(1) + " of " + (total / 1e6).toFixed(1) + " MB";
+      }
+    }
+    var workers = [];
+    for (var w = 0; w < 6; w++) workers.push(worker());
+    await Promise.all(workers);
+    return files;
+  }
+
+  // Write the files into the engine's filesystem under /game
+  function install(Module, files) {
+    var made = {};
+    files.forEach(function (f) {
+      var parts = ("game/" + f[0]).split("/"), dir = "/";
+      for (var i = 0; i < parts.length - 1; i++) {
+        var sub = dir + (dir === "/" ? "" : "/") + parts[i];
+        if (!made[sub]) { Module.FS_createPath(dir, parts[i], true, true); made[sub] = true; }
+        dir = sub;
+      }
+      Module.FS_createDataFile(dir, parts[parts.length - 1], f[1], true, true, true);
+    });
+  }
+
+  async function start() {
+    if (started) return;
+    started = true;
+    $("play").hidden = true;
+    $("bar").hidden = false;
+    say("Loading", "Starting the download");
+    try {
+      var game = await download();
+      say("Starting", "Starting the game engine");
+      await loadScript("love.js");
+      var Module = {
+        arguments: ["./game"],
+        INITIAL_MEMORY: 268435456,
+        canvas: canvas,
+        print: function (t) { console.log(t); },
+        printErr: function (t) { console.warn(t); },
+        preRun: [function () {
+          install(Module, game);
+          game = null;
+          setTimeout(function () { overlay.hidden = true; canvas.focus({ preventScroll: true }); }, 0);
+        }],
+        onRuntimeInitialized: function () {
+          overlay.hidden = true;
+          canvas.focus({ preventScroll: true });
+        },
+        onExit: function () {
+          say("Game closed", "Reload the page to play again.");
+          var b = $("play");
+          b.hidden = false; b.textContent = "Reload";
+          b.onclick = function () { location.reload(); };
+        },
+        setStatus: function () {}
+      };
+      window.Module = Module;
+      Love(Module);
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  $("play").addEventListener("click", start);
+  canvas.addEventListener("mousedown", function () { canvas.focus({ preventScroll: true }); });
+  canvas.addEventListener("webglcontextlost", function (e) {
+    e.preventDefault();
+    say("Graphics reset", "The browser dropped the game's graphics context. Reload the page to continue.", true);
+  });
+  // The engine stops on an uncaught error; say so instead of leaving a frozen picture
+  window.addEventListener("error", function (e) {
+    if (!started || !overlay.hidden) return;
+    fail(new Error("The game stopped (" + (e.message || "unknown error") + ")."));
+  });
+  $("full").addEventListener("click", function () {
+    var el = $("stage");
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) Promise.resolve(req.call(el)).catch(function () {});
+  });
+})();
+</script>

@@ -27,6 +27,10 @@ Rebuild after editing `art/assets.lua` (run from the repo root):
    scale match.
 3. **Enemies.** Each remaining sheet attaches the approved `enemy_zombie` sheet as image 1.
 4. **Screens, thumbnails, icons, sound.** Sections 4 to 7, any order.
+5. **Level maps.** Section 11. `map_sunlit_meadows` first; once it is approved, every other map attaches it
+   as image 2. The layouts in `art/guides/` are drawn from `data/levels.lua`: dark gray is scenery, mid
+   gray is the 80 px road with rounded bends, light gray is the build plots (the level's zones). Rebuild
+   them with `tools/artkit` whenever a level's paths or zones change.
 
 ## Saving files
 
@@ -70,9 +74,9 @@ thing: [the change]. Keep everything else exactly." Rewriting the whole prompt l
 | `info <in> [floor]` | Size, transparency report, bounding box | report only |
 | `tower <in> <out> <width>` | One transparent object: strip glow below alpha 200, trim, scale | `sprites/towers/*.png`, 96 px wide |
 | `sheet <in> <out.png> <out.lua> <figureH> [floor] [rows] [cols] [feet\|mass]` | 4x3 walk sheet: find figures by shape, align (feet for walkers, body for flyers), scale | sheet PNG plus frame layout `.lua` |
-| `backdrop <in> <out> <w> <h>` | Opaque image: center crop to aspect, scale | `assets/backgrounds/*.png` at 1280x960 |
-| `mapcheck <map> <blockout> <cols> <rows>` | Cell-by-cell road match against the blockout | report and grid |
-| `mapfix <map> <blockout> <out> <w> <h>` | Stretch the painted road onto the grid (runs at most one cell off) | `sprites/maps/*.png` at 1536x1152 |
+| `backdrop <in> <out> <w> <h> [--stretch]` | Opaque image: center crop to aspect (or stretch the whole image), scale | `assets/backgrounds/*.png` at 1280x960; `sprites/maps/*.png` at 1280x720 |
+| `mapcheck <map> <blockout> <cols> <rows>` | Cell-by-cell road match against the old 24 x 18 cell blockouts. Not updated for the 16:9 three-gray layouts yet | report and grid |
+| `mapfix <map> <blockout> <out> <w> <h>` | Stretch the painted road onto the old 24 x 18 cell grid. From before the 16:9 map; until a 16:9 painting is checked, the game draws the road over it | was `sprites/maps/*.png` at 1536x1152 |
 | `icons <in> <outDir> <size> <rows> <cols> <names>` | Round icons on a sheet; keys out a painted-in checkerboard | one PNG per icon |
 
 ## Rights

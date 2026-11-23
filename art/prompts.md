@@ -16,7 +16,7 @@ The map look is set by the first map in section 11.
 
 ### tower_archer
 
-- Save as: `art/incoming/tower_archer_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/tower_archer_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: nothing
@@ -29,7 +29,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### enemy_zombie
 
-- Save as: `art/incoming/enemy_zombie_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/enemy_zombie_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = `art/guides/walk_sheet_guide.png`
@@ -52,7 +52,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### tower_cannon
 
-- Save as: `art/incoming/tower_cannon_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/tower_cannon_v3.png` (next try `_v4`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `tower_archer` final
@@ -65,7 +65,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### tower_magic
 
-- Save as: `art/incoming/tower_magic_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/tower_magic_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `tower_archer` final
@@ -78,7 +78,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### tower_frost
 
-- Save as: `art/incoming/tower_frost_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/tower_frost_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `tower_archer` final
@@ -91,7 +91,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### tower_crossbow
 
-- Save as: `art/incoming/tower_crossbow_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/tower_crossbow_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `tower_archer` final
@@ -104,7 +104,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### tower_bombard
 
-- Save as: `art/incoming/tower_bombard_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/tower_bombard_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 1:1. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `tower_archer` final
@@ -119,7 +119,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### enemy_skeleton
 
-- Save as: `art/incoming/enemy_skeleton_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/enemy_skeleton_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `enemy_zombie` sheet
@@ -138,7 +138,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### enemy_orc
 
-- Save as: `art/incoming/enemy_orc_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/enemy_orc_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `enemy_zombie` sheet
@@ -157,7 +157,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### enemy_necromancer
 
-- Save as: `art/incoming/enemy_necromancer_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/enemy_necromancer_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `enemy_zombie` sheet
@@ -176,7 +176,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### enemy_dragon
 
-- Save as: `art/incoming/enemy_dragon_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/enemy_dragon_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `enemy_zombie` sheet
@@ -197,7 +197,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### bg_hub
 
-- Save as: `art/incoming/bg_hub_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/bg_hub_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: nothing
@@ -210,7 +210,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### bg_level_select
 
-- Save as: `art/incoming/bg_level_select_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/bg_level_select_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: nothing
@@ -223,7 +223,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### bg_shop
 
-- Save as: `art/incoming/bg_shop_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/bg_shop_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: nothing
@@ -236,7 +236,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### bg_tower_upgrade
 
-- Save as: `art/incoming/bg_tower_upgrade_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/bg_tower_upgrade_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: nothing
@@ -249,7 +249,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### bg_pause
 
-- Save as: `art/incoming/bg_pause_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/bg_pause_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6 or Nano Banana Pro. Aspect 4:3. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: nothing
@@ -264,7 +264,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### thumb_training_grounds
 
-- Save as: `art/incoming/thumb_training_grounds_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/thumb_training_grounds_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 4:3. Background: opaque.
 - Draft: quality low, 1K. Final: quality medium, 1K.
 - Attach: nothing
@@ -277,7 +277,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### thumb_wilderness
 
-- Save as: `art/incoming/thumb_wilderness_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/thumb_wilderness_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 4:3. Background: opaque.
 - Draft: quality low, 1K. Final: quality medium, 1K.
 - Attach: nothing
@@ -422,7 +422,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### icons_achievements
 
-- Save as: `art/incoming/icons_achievements_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/icons_achievements_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 16:9. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = `art/guides/icon_sheet_8_guide.png`
@@ -714,7 +714,7 @@ Style: Painterly 2D game art in a clean hand-painted style, top-down three-quart
 
 ### hero_archangel_michael
 
-- Save as: `art/incoming/hero_archangel_michael_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Save as: `art/incoming/hero_archangel_michael_v2.png` (next try `_v3`; never overwrite). Format: png.
 - Model: GPT Image 2.6. Aspect 3:4. Background: transparent.
 - Draft: quality low, 1K. Final: quality high, 2K.
 - Attach: image 1 = the approved `enemy_zombie` sheet
@@ -726,7 +726,7 @@ Character: A tall man with long dark brown hair and very large white feathered w
 
 Gear: Gleaming gold plate armor over a white tunic, a gold longbow in his left hand and a quiver on his back between the wings. Plain surfaces throughout.
 
-Not carried over: No hood, no green skin, no torn clothing.
+Not carried over: No hood, no helmet, no green skin, no torn clothing. His hair is dark brown, never blond or golden.
 
 Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```

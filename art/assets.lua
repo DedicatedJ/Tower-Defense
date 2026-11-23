@@ -401,7 +401,7 @@ A.cHeroes = {
     { id = "hero_archangel_michael", file = "sprites/heroes/archangel_michael.png", name = "archangel",
       character = "A tall man with long dark brown hair and very large white feathered wings folded behind him. One dominant color: gold.",
       gear = "Gleaming gold plate armor over a white tunic, a gold longbow in his left hand and a quiver on his back between the wings.",
-      notCarried = "No hood, no green skin, no torn clothing." },
+      notCarried = "No hood, no helmet, no green skin, no torn clothing. His hair is dark brown, never blond or golden." },
     { id = "hero_malachi", file = "sprites/heroes/malachi.png", name = "necromancer lord",
       character = "A pale gaunt man with straight shoulder-length white hair. One dominant color: dark blue with blood red accents.",
       gear = "A long dark blue robe with a few thin red lines, black spiked shoulder armor set with red gems, a skull clasp on the chest, a black cape, and a staff topped with a skull holding a red crystal in his right hand.",

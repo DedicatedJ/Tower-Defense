@@ -300,10 +300,22 @@ local function buildPrompts(root)
     local function w(s) out[#out + 1] = s or "" end
     local function styled(p) return p .. "\n\nStyle: " .. A.style end
 
-    local function entry(id, group, attach, prompt, extra, version)
+    -- Every prompt names the next free version in art/incoming, so a
+    -- retry never overwrites a file that is already there.
+    local function nextVersion(id, ext)
+        local v = 1
+        while true do
+            local f = io.open(root .. "/art/incoming/" .. id .. "_v" .. v .. "." .. ext, "rb")
+            if not f then return v end
+            f:close()
+            v = v + 1
+        end
+    end
+
+    local function entry(id, group, attach, prompt, extra)
         local s = A.settings[group]
         local ext = group == "sfx" and "wav or mp3" or "png"
-        local v = version or 1
+        local v = nextVersion(id, group == "sfx" and "wav" or "png")
         w("### " .. id)
         w("")
         w("- Save as: `art/incoming/" .. id .. "_v" .. v .. "." .. (group == "sfx" and "wav" or "png") ..
@@ -435,18 +447,8 @@ local function buildPrompts(root)
         end
     end
 
-    -- Level maps: every level, the master first. A new try gets the next
-    -- free version number (older 16:9 paintings already use _v1).
+    -- Level maps: every level, the master first.
     local Levels = require('data.levels')
-    local function nextVersion(id)
-        local v = 1
-        while true do
-            local f = io.open(root .. "/art/incoming/" .. id .. "_v" .. v .. ".png", "rb")
-            if not f then return v end
-            f:close()
-            v = v + 1
-        end
-    end
     local order = {}
     for _, level in ipairs(Levels.list) do
         if level.id == A.mapMaster then table.insert(order, 1, level) else order[#order + 1] = level end
@@ -467,7 +469,7 @@ local function buildPrompts(root)
         local attach = "image 1 = `art/guides/" .. blockoutName(level) .. "`"
         if not master then attach = attach .. "; image 2 = the approved `map_" .. A.mapMaster .. "` final" end
         local id = "map_" .. level.id
-        entry(id, "map", attach, p, nil, nextVersion(id))
+        entry(id, "map", attach, p)
     end
 
     local path = root .. "/art/prompts.md"

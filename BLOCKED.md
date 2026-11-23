@@ -5,7 +5,7 @@ Plan steps refer to the game to-do list (steps 1 to 15) agreed on 2026-11-22.
 
 ## Art batch 2 (generate in Higgsfield)
 
-- **Needed:** 9 faction towers, 3 hero portraits, 9 hero walk sheets, 11 sounds. Use the corrected prompts (`art/prompts.md`, or the batch zip). Hold the level maps: since the 16:9 respec (2026-11-22) all 9 levels use the existing paintings with the road drawn over them, and new maps wait for 16:9 blockouts with the wide roads and build zones (the next art pass).
+- **Needed:** in this order: (1) the 9 hero walk sheets (section 9 of `art/prompts.md`, each with `art/incoming/enemy_zombie_v1.png` attached as image 1; redo Archangel Michael as `_v2`: v1 has blond hair, a black background and a 16:9 frame), plus 9 faction towers, 3 hero portraits and 11 sounds whenever convenient; (2) `map_sunlit_meadows_v1` (section 11, its layout from `art/guides/` attached), sent to me for an in-game check before the rest; (3) the other 8 maps with the approved Sunlit Meadows map as image 2. The object sheet waits until the Sunlit Meadows map is approved.
 - **Why:** I cannot generate images or sounds from here.
 - **Affects:** step 2 (the code that picks the art up is done in step 2 and works the moment files land), and the look of 7 of the 9 levels.
 - **Date:** 2026-11-22

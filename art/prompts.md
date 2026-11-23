@@ -11,7 +11,8 @@ Painterly 2D game art in a clean hand-painted style, top-down three-quarter view
 
 ## 1. Set the look first
 
-Run these three, pick one of each, and send them to me before anything else. Everything after redraws from them.
+Run these two, pick one of each, and send them to me before anything else. Everything after redraws from them.
+The map look is set by the first map in section 11.
 
 ### tower_archer
 
@@ -43,23 +44,6 @@ Character: A hunched, shambling zombie with sickly green skin, sunken dark eyes 
 Gear: A ragged brown hooded tunic with a torn hem and bare green feet. Plain surfaces throughout.
 
 Details: Drawn from slightly above, to match a top-down three-quarter game map. Large head, compact body. Transparent background, with empty space under the feet.
-
-Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
-```
-
-### map_level1
-
-- Save as: `art/incoming/map_level1_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
-- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_level1_blockout.png`
-
-```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the dark gray band is the road and the light gray is grass. Keep the road exactly where the dark band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it.
-
-Road: packed brown earth. Any stone edging lies inside the dark band, so the road with its edging is no wider than the band. The road runs along the very top edge from the top left corner and has exactly eight right-angle turns. Its far end is the short stretch in the lower part of the image, right of center, where a small ruined stone gate stands across the road.
-
-Ground: open, flat mossy grass, even and uncluttered so a tower can stand on any patch of it, with small rocks, wildflowers and short tufts only. No trees, no buildings, no towers, no units, no animals, no smoke, no flags.
 
 Style: Painterly 2D game art in a clean hand-painted style, top-down three-quarter view, warm light from the upper left. A dark-fantasy borderland of mossy grass, packed earth roads, grey stone and weathered timber. The defenders' towers are grey stone and warm wood with gold trim; the invaders are undead and monsters in sickly green, bone white, rust red, violet and ember orange. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```
@@ -901,132 +885,247 @@ A character portrait in exactly the same art style, line work, coloring, framing
 
 ## 11. Level maps
 
-Attach the level's gray layout from `art/guides/` as image 1. Cut each with `tools/artcut mapfix`
-(24 x 18 cells) and save it as `sprites/maps/<level id>.png`; the game picks it up from there.
-Until then the game draws a generated ground for the level.
+Attach the level's layout from `art/guides/` as image 1. Make `map_sunlit_meadows` first and send it to me before the rest: it sets the look of every map, and each other map attaches its approved final as image 2. I check each painting against the layout (road in place and 80 px wide, plots in their rectangles); once a level's painted road matches, the game stops drawing its own road over it.
+
+Check before sending: the road is as wide as the gray band everywhere and its bends are rounded; the plots are the lightest ground and sit in their rectangles; nothing that looks like a tower, a unit or a button; the corners and the top middle are plain.
+
+### map_sunlit_meadows
+
+- Save as: `art/incoming/map_sunlit_meadows_v1.png` (next try `_v2`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_sunlit_meadows_blockout.png`
+
+```text
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
+
+Place: Sunlit Meadows, the first level a new player sees: friendly farmland on a clear late morning, calm and inviting.
+
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There is one road. It enters at the left edge near the top, bends eight times and ends at a point inside the map, near the bottom and toward the right. Leave that rounded end plain: the game marks the goal on it.
+
+Road: packed brown earth with two faint cart ruts. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
+
+The light gray rectangles are build plots, where the player places towers. Plots: short, even meadow grass in fresh light green. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: leafy hedgerows, round oak trees, patches of wildflowers, low dry-stone field walls and one small still pond; wilder and more overgrown where the road enters, neat farmland toward its end. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_crystal_spires
+
+- Save as: `art/incoming/map_crystal_spires_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_crystal_spires_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
+
+```text
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
+
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
+
+Place: Crystal Spires: a windswept highland plateau where pale crystals grow out of the rock.
+
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There are two roads. The first road enters at the left edge near the top, bends six times and leaves at the right edge in the middle. A second road enters at the left edge near the bottom, bends twice and joins the first road at the center of the map; from there they are one road.
+
+Road: warm tan packed earth. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
+
+The light gray rectangles are build plots, where the player places towers. Plots: short pale-green upland grass. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: grey granite outcrops with clusters of tall pale-blue crystal spires, heather, scree and a few hardy pines; the crystals are dark and cracked where the two roads enter on the left and clear and bright toward the right, where the road leaves. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
 
 ### map_celestial_citadel
 
-- Save as: `art/incoming/map_celestial_citadel_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Save as: `art/incoming/map_celestial_citadel_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_celestial_citadel_blockout.png`
+- Attach: image 1 = `art/guides/map_celestial_citadel_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
 
 ```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There is one road. It enters at the left edge near the top, has exactly eight right-angle turns in all and ends at the center of the map.
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
 
-Ground: the trimmed green lawn of a white stone citadel garden, with small white flowers.
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
 
-Road: warm honey-colored sandstone flagstones. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
+Place: Celestial Citadel: the inner courts of a white and gold holy fortress, the Radiant Order's last stand, grand and solemn.
 
-Every part of the layout that is not road is open ground.
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There is one road. It enters at the left edge near the top, bends six times and ends at a point inside the map, halfway down and toward the left. Leave that rounded end plain: the game marks the goal on it.
 
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
+Road: warm grey-brown sandstone flagstones. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
 
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+The light gray rectangles are build plots, where the player places towers. Plots: trimmed lawns of bright green grass. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: white stone walls with gold trim, gold-tiled rooftops seen from above, marble terraces, tall cypress trees and formal flowerbeds. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```
 
 ### map_haunted_forest
 
-- Save as: `art/incoming/map_haunted_forest_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Save as: `art/incoming/map_haunted_forest_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_haunted_forest_blockout.png`
+- Attach: image 1 = `art/guides/map_haunted_forest_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
 
 ```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There is one road. It enters at the left edge near the top, has exactly six right-angle turns in all and leaves at the left edge near the bottom.
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
 
-Ground: a dark mossy forest floor in deep green and grey-green, scattered with dead twigs and small grey stones.
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
 
-Road: a muddy brown dirt trail. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
+Place: Haunted Forest: a cold, dead wood at dusk, the first level of the Shadow Covenant, eerie but quiet.
 
-Every part of the layout that is not road is open ground.
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There is one road. It enters at the left edge near the top, bends six times and leaves at the left edge near the bottom.
 
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
+Road: a dark brown dirt trail packed hard. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
 
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+The light gray rectangles are build plots, where the player places towers. Plots: clearings of soft green moss over level ground. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: a dense dead forest seen from above: grey twisted trees with bare branches, tangled roots, ferns, fallen logs, mossy boulders and pale mushrooms. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+```
+
+### map_obsidian_caves
+
+- Save as: `art/incoming/map_obsidian_caves_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
+- Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
+- Attach: image 1 = `art/guides/map_obsidian_caves_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
+
+```text
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
+
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
+
+Place: Obsidian Caves: a great cavern of black volcanic glass, lit through openings far above.
+
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There is one road. It enters at the left edge in the middle, bends six times and leaves at the right edge in the middle.
+
+Road: grey-brown packed gravel. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
+
+The light gray rectangles are build plots, where the player places towers. Plots: level ledges of pale sand with patches of dull green lichen. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: walls and heaps of black obsidian rock with sharp glassy edges, faint amber glints deep in the cracks, and dark chasms. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```
 
 ### map_necropolis
 
-- Save as: `art/incoming/map_necropolis_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Save as: `art/incoming/map_necropolis_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_necropolis_blockout.png`
+- Attach: image 1 = `art/guides/map_necropolis_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
 
 ```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There is one road. It enters at the left edge near the top, has exactly seven right-angle turns in all and leaves at the right edge near the bottom. Part way along, the road stops at a point inside the map, near the bottom and toward the left, and starts again at a point inside the map, near the top and in the middle; there is no road between those two points. Leave both of those ends as plain road ends; the game draws a portal on them.
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
 
-Ground: grey-violet cobblestones between low grave slabs set flat into the ground.
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
 
-Road: worn rust-brown paving stones. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
+Place: Necropolis: a vast walled city of the dead under a grey sky, the Shadow Covenant's last stand, grim and dramatic.
 
-The near-black areas are the walls and roofs of a stone crypt seen from above, in dark slate, where nothing can be built: fill each one edge to edge and keep it inside its black area.
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There is one road. It enters at the left edge near the top, bends seven times and leaves at the right edge near the bottom. Part way along, the road stops at a point inside the map, near the bottom and toward the left, and starts again at a point inside the map, near the top and in the middle; there is no road between those two points. Paint each of those two road ends as a round dais of dark carved stone as wide as the road: the game draws a portal on each.
 
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
+Road: worn grey-brown paving stones. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
 
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+The light gray rectangles are build plots, where the player places towers. Plots: overgrown cemetery lawns of dark sage-green grass with a few flat stones set level in it. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: crypts and mausoleum roofs seen from above, rows of headstones behind low iron railings, bare black trees and cracked stone walls. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```
 
 ### map_misty_borderlands
 
-- Save as: `art/incoming/map_misty_borderlands_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Save as: `art/incoming/map_misty_borderlands_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_misty_borderlands_blockout.png`
+- Attach: image 1 = `art/guides/map_misty_borderlands_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
 
 ```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There is one road. It enters at the left edge in the middle, has exactly six right-angle turns in all and leaves at the right edge near the top.
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
 
-Ground: a misty marsh border of blue-green grass with a few small shallow pools.
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
 
-Road: a raised brown dirt causeway. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
+Place: Misty Borderlands: a quiet fen on the border between day and night, the first level of the Twilight Balance, soft and still.
 
-Every part of the layout that is not road is open ground.
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There is one road. It enters at the left edge in the middle, bends six times and leaves at the right edge near the top.
 
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
+Road: a raised causeway of packed brown earth. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
 
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+The light gray rectangles are build plots, where the player places towers. Plots: firm islands of blue-green grass. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: still marsh water in shades of slate blue, reed beds, mossy hummocks, a few bare silver trees and old weathered border stones. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```
 
 ### map_ethereal_ruins
 
-- Save as: `art/incoming/map_ethereal_ruins_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Save as: `art/incoming/map_ethereal_ruins_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_ethereal_ruins_blockout.png`
+- Attach: image 1 = `art/guides/map_ethereal_ruins_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
 
 ```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There are two roads. The first road enters at the left edge near the top, has exactly six right-angle turns in all and leaves at the right edge near the top. A second road enters at the left edge near the bottom, makes two right-angle turns and joins the first road at a point inside the map, in the middle and toward the left; from there they are one road.
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
 
-Ground: green grass scattered with small pale grey ruin stones.
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
 
-Road: warm cracked sandstone paving. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
+Place: Ethereal Ruins: the overgrown remains of an ancient city, quiet and sunlit.
 
-The near-black areas are a collapsed wall of large pale grey stone blocks and rubble, where nothing can be built: fill each one edge to edge and keep it inside its black area.
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There are two roads. The first road enters at the left edge near the top, bends six times and leaves at the right edge near the top. A second road enters at the left edge near the bottom, bends twice and joins the first road at a point inside the map, halfway down and toward the left; from there they are one road.
 
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
+Road: warm cracked sandstone paving. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
 
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+The light gray rectangles are build plots, where the player places towers. Plots: level courtyards of short green grass. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: collapsed walls, broken columns and toppled carved blocks of grey stone darkened by moss, half buried in grass, roots and ivy. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```
 
 ### map_nexus_of_balance
 
-- Save as: `art/incoming/map_nexus_of_balance_v1.png` (next try `_v2`; never overwrite). Format: png.
-- Model: GPT Image 2.6; if it moves or bends the road, try Nano Banana Pro. Aspect 4:3. Background: opaque.
+- Save as: `art/incoming/map_nexus_of_balance_v2.png` (next try `_v3`; never overwrite). Format: png.
+- Model: GPT Image 2.6; if it moves, bends or narrows the road, try Nano Banana Pro. Aspect 16:9. Background: opaque.
 - Draft: quality low, 1K. Final: quality high, 2K (4K if offered).
-- Attach: image 1 = `art/guides/map_nexus_of_balance_blockout.png`
+- Attach: image 1 = `art/guides/map_nexus_of_balance_blockout.png`; image 2 = the approved `map_sunlit_meadows` final
 
 ```text
-Scene: Repaint image 1 as a finished painted map for a tower defense game, seen from directly above. Image 1 is a gray layout: the mid gray band is the road and the light gray is open ground. Keep the road exactly where the gray band is: the same path, the same width, the same square corners, in the same places across the whole image. Do not add, move, straighten, widen or smooth any part of it. There are two roads. The first road enters at the left edge near the top, has exactly eight right-angle turns in all and leaves at the right edge near the bottom. A second road enters at the top edge in the middle, makes four right-angle turns and joins the first road at the center of the map; from there they are one road.
+Scene: Repaint image 1 as the finished painted ground of one level of a tower defense game, filling the whole wide frame, seen from directly above. Image 1 is a layout in three grays, and each gray has one job. Keep every shape exactly where it is, at the same size, with the same outline.
 
-Ground: a twilight plain of blue-violet grass, slightly lighter toward the center.
+Image 2 is the approved map of another level of the same game. Paint this one the same way: the same painting style, camera, light and level of detail, and the same way of painting the road, the plots and the scenery. Take nothing else from image 2: not its layout, its places or its colors.
 
-Road: warm amber packed earth. It is clearly warmer and browner than the ground around it. Any edging lies inside the band, so the road with its edging is no wider than the band.
+Place: Nexus of Balance: where night and day meet, the Twilight Balance's last stand, strange and dramatic.
 
-The near-black areas are a ring of tall dark standing stones, where nothing can be built: fill each one edge to edge and keep it inside its black area.
+The mid gray band is the road the enemies walk: the same path, the same width and the same smoothly rounded bends. Do not add, move, straighten, widen or narrow any part of it. There are two roads. The first road enters at the left edge near the top, bends eight times and leaves at the right edge near the bottom. A second road enters at the top edge near the right, bends four times and joins the first road at the center of the map; from there they are one road.
 
-Open ground stays flat and even so a tower can stand on any patch of it, with small detail only. No trees, buildings, towers, units, animals or text anywhere on the map.
+Road: pale grey-brown stone paving, the same on both sides. The surface fills the band from edge to edge: one material, matte, in a calm middle tone, with soft low-contrast wear and nothing lying on it. Any edging is a thin line at the very edge of the band.
 
-Style: Painterly 2D game art in a clean hand-painted style, seen from directly above, warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
+The light gray rectangles are build plots, where the player places towers. Plots: level grass, lavender-grey on the left half of the map and pale gold on the right half. Each fills its rectangle edge to edge: flat, open and even, the lightest ground on the map, with fine texture only, so a tower can stand anywhere on it.
+
+The dark gray is scenery, where nothing stands: on the left, a violet night land with dark standing stones and still pools; on the right, a golden day land with dry grass and sun-bleached rocks; the two blend through a grey band in the middle of the map, where the roads meet. It fills every dark gray area up to the road and the plots and holds the rich detail of the map. It is darker and busier than the plots, and nothing in it reaches over the road or a plot.
+
+Game view: the map is shown at 1280 by 720 pixels, with towers about 60 pixels wide on the plots and enemies about 60 pixels tall on the road, so the road and the plots stay calm and readable at that size. Warm light from the upper left, even across the road and the plots, with no large shadows falling over them. The four corners and the middle of the top edge sit under the game's buttons: keep them plain, dark scenery. Nothing on the map is a tower, a person, a creature, a flag, fire, smoke, a frame, a box or lettering.
+
+Style: Painterly 2D game art in a clean hand-painted style, seen from directly above; tall scenery such as trees, walls and cliffs shows a little of its south side, as in a top-down three-quarter game. Warm light from the upper left. Muted natural palette with warm gold accents, crisp edges, readable at small size. No text, no logos.
 ```

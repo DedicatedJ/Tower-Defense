@@ -582,7 +582,7 @@ local function testLevels()
         "Crystal Spires: 2 roads that end at the same gate")
 
     -- Placement: inside a zone, clear of the road, the HUD and other towers
-    check(Level.canBuild(b1, 160, 220, {}) == true, "Sunlit Meadows: a tower fits at (160, 220) in a zone")
+    check(Level.canBuild(b1, 160, 170, {}) == true, "Sunlit Meadows: a tower fits at (160, 170) in a zone")
     local ok1, why1 = Level.canBuild(b1, 600, 500, {})
     check(not ok1 and why1 == "zone", "outside every zone: no (" .. tostring(why1) .. ")")
     local open = Level.build({ paths = { { { 0, 5 }, { 32, 5 } } }, zones = { { 0, 0, 32, 18 } } })
@@ -591,7 +591,7 @@ local function testLevels()
     check(Level.canBuild(open, 300, 265, {}) == true, "65 px from the road's middle: yes")
     local ok4, why4 = Level.canBuild(open, 640, 40, {})
     check(not ok4 and why4 == "hud", "under the status bar: no (" .. tostring(why4) .. ")")
-    local ok3, why3 = Level.canBuild(b1, 160, 220, { { x = 180, y = 230 } })
+    local ok3, why3 = Level.canBuild(b1, 160, 170, { { x = 180, y = 180 } })
     check(not ok3 and why3 == "tower", "next to another tower: no (" .. tostring(why3) .. ")")
     check(Level.onRoad(b1, 200, 40) and not Level.onRoad(b1, 200, 140), "on the road at (200, 40), not at (200, 140)")
 
